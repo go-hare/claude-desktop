@@ -1,0 +1,13 @@
+{
+  "name": "claude-desktop-engine",
+  "version": "2.3.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "claude": "./dist/cli-bun.js"
+  },
+  "scripts": {
+    "start": "bun ./dist/cli-bun.js",
+    "version": "bun ./dist/cli-bun.js --version"
+  }
+}

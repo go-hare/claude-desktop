@@ -1,0 +1,7 @@
+{
+  "sourceRoot": "D:\\work\\py\\claude\\claude-code",
+  "sourceVersion": "2.3.0",
+  "syncedAt": "2026-05-11T10:28:18.885Z",
+  "cli": "dist/cli-bun.js",
+  "bun": "bin/bun.exe"
+}
