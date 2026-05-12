@@ -1,13 +1,11 @@
 import type { CSSProperties, ReactNode, RefObject } from 'react';
-import dispatchIcon from '../assets/figma-exports/sidebar-icons/dispatch-icon.svg';
+import { TriangleAlert } from 'lucide-react';
 import coworkCustomizeIcon from '../assets/sidebar-custom/cowork-customize-briefcase.svg';
 import coworkNewTaskIcon from '../assets/sidebar-custom/cowork-new-task-plus.svg';
-import coworkProjectsIcon from '../assets/sidebar-custom/cowork-projects-trash-can.svg';
 import coworkScheduledIcon from '../assets/sidebar-custom/cowork-scheduled-clock.svg';
-import recentConversationRingIcon from '../assets/sidebar-custom/recent-conversation-ring.svg';
-import sidebarModeChatIcon from '../assets/sidebar-exact/chats.svg';
 import sidebarModeCoworkIcon from '../assets/figma-exports/sidebar-icons/cowork-icon.svg';
 import sidebarModeCodeIcon from '../assets/figma-exports/sidebar-icons/code-icon.svg';
+import claudeImg from '../assets/icons/claude.png';
 import PillNav from './PillNav';
 
 type UpdateStatus = {
@@ -28,7 +26,6 @@ interface CoworkExactSidebarProps {
   chats: ChatItem[];
   locationPathname: string;
   onInstallUpdate: () => void;
-  onOpenChatMode: () => void;
   onNewTask: () => void;
   onOpenChat: (id: string) => void;
   onOpenCustomize: () => void;
@@ -348,7 +345,6 @@ export default function CoworkExactSidebar({
   chats,
   locationPathname,
   onInstallUpdate,
-  onOpenChatMode,
   onNewTask,
   onOpenChat,
   onOpenCustomize,
@@ -360,39 +356,27 @@ export default function CoworkExactSidebar({
   user,
   userButtonRef,
 }: CoworkExactSidebarProps) {
-  const displayName = getDisplayName(user);
   const updateCopy = getUpdateCopy(updateStatus);
   const showUpdateCard = Boolean(updateCopy);
   const recentChats = chats.slice(0, 18);
-  const userInitial = displayName.charAt(0).toUpperCase();
   const topModeItems = [
     {
-      key: 'chat',
-      label: 'Chat',
-      icon: sidebarModeChatIcon,
-      iconWidth: 20,
-      iconHeight: 20,
-      labelMaxWidth: 34,
-      iconOpacity: 1,
-      onSelect: onOpenChatMode,
-    },
-    {
       key: 'cowork',
-      label: 'Cowork',
+      label: '协作',
       icon: sidebarModeCoworkIcon,
       iconWidth: 19,
       iconHeight: 18,
-      labelMaxWidth: 58,
+      labelMaxWidth: 44,
       iconOpacity: 0.58,
       activeIconOpacity: 0.58,
     },
     {
       key: 'code',
-      label: 'Code',
+      label: '代码',
       icon: sidebarModeCodeIcon,
       iconWidth: 18,
       iconHeight: 18,
-      labelMaxWidth: 40,
+      labelMaxWidth: 44,
       iconOpacity: 1,
       disabled: true,
     },
@@ -407,7 +391,7 @@ export default function CoworkExactSidebar({
         <div className="mb-2 mt-[52px] px-[9px]">
           <PillNav
             activeKey="cowork"
-            indicatorColor="#f1efea"
+            indicatorColor="#ffffff"
             items={[...topModeItems]}
             onItemSelect={(item) => item.onSelect?.()}
             textColor="#5f5b56"
@@ -418,44 +402,41 @@ export default function CoworkExactSidebar({
         <div className="px-[9px] pt-[2px]">
           <nav className="space-y-px">
             <FigmaSidebarAction
+              active={locationPathname === '/cowork'}
               icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-80" src={coworkNewTaskIcon} />}
-              label="New task"
+              label="新任务"
               labelStyle={sidebarItemLabelStyle}
               onClick={onNewTask}
             />
             <FigmaSidebarAction
-              icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-80" src={coworkProjectsIcon} />}
-              label="Projects"
+              active={locationPathname === '/cowork/projects'}
+              icon={<span className="block h-4 w-4" aria-hidden="true" />}
+              label="项目"
               onClick={onOpenProjects}
             />
             <FigmaSidebarAction
-              active={locationPathname === '/scheduled'}
+              active={locationPathname === '/cowork/scheduled' || locationPathname === '/scheduled'}
               icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-75" src={coworkScheduledIcon} />}
-              label="Scheduled"
+              label="定时任务"
               onClick={onOpenScheduled}
             />
             <FigmaSidebarAction
-              active={locationPathname === '/customize'}
+              active={locationPathname === '/cowork/customize'}
               icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-80" src={coworkCustomizeIcon} />}
-              label="Customize"
+              label="自定义"
               onClick={onOpenCustomize}
-            />
-            <FigmaSidebarAction
-              disabled
-              icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-75" src={dispatchIcon} />}
-              label="Dispatch"
             />
           </nav>
         </div>
 
         <div className="px-[9px] pt-[18px]">
           <div className="mb-2 px-2" style={sectionLabelStyle}>
-            Pinned
+            已固定
           </div>
           <FigmaSidebarAction
             disabled
             icon={<PinIcon className="h-[14px] w-[14px] opacity-80" />}
-            label="Drag to pin"
+            label="拖动以固定"
             labelStyle={subtleSidebarLabelStyle}
           />
         </div>
@@ -463,7 +444,7 @@ export default function CoworkExactSidebar({
         <div className="min-h-0 flex-1 px-[9px] pt-[18px]">
           <div className="flex h-full min-h-0 flex-col">
             <div className="mb-2 px-2" style={sectionLabelStyle}>
-              Recents
+              最近
             </div>
             <div className="sidebar-scroll flex-1 overflow-y-auto pb-3 pr-1">
               {recentChats.length > 0 ? (
@@ -483,11 +464,11 @@ export default function CoworkExactSidebar({
                         type="button"
                       >
                         <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                          <img
-                            alt=""
-                            className={`h-[14px] w-[14px] object-contain opacity-70 ${isStreaming ? 'animate-spin' : ''}`}
-                            src={recentConversationRingIcon}
-                            style={isStreaming ? { animationDuration: '2.4s' } : undefined}
+                          <TriangleAlert
+                            className={`${isStreaming ? 'animate-pulse' : ''}`}
+                            color="#c98017"
+                            size={16}
+                            strokeWidth={1.9}
                           />
                         </span>
                         <span className="min-w-0 flex-1">
@@ -503,26 +484,16 @@ export default function CoworkExactSidebar({
                               lineHeight: '18px',
                             }}
                           >
-                            {chat.title || 'New Conversation'}
+                            {chat.title || 'Untitled'}
                           </span>
-                          {chat.project_name ? (
-                            <span className="mt-0.5 block truncate text-[12px] leading-[16px] tracking-[-0.05px] text-[#979088]">
-                              {chat.project_name}
-                            </span>
-                          ) : null}
                         </span>
-                        {meta ? (
-                          <span className="flex-shrink-0 text-[12px] font-normal leading-[16px] tracking-[-0.05px] text-[#a19b92]">
-                            {meta}
-                          </span>
-                        ) : null}
                       </button>
                     );
                   })}
                 </div>
               ) : (
                 <div className="rounded-[10px] border border-dashed border-[#ece8e0] bg-white/55 px-3 py-3 text-[13px] leading-[18px] tracking-[-0.08px] text-[#9f988f]">
-                  Recent chats will appear here once you start using Cowork.
+                  最近任务会显示在这里。
                 </div>
               )}
             </div>
@@ -560,11 +531,13 @@ export default function CoworkExactSidebar({
             ref={userButtonRef}
             type="button"
           >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#ece8df] text-[15px] font-medium text-[#7f7a72]">
-              {userInitial}
-            </div>
-            <span className="min-w-0 flex-1 truncate text-left text-[15px] font-medium leading-tight tracking-[-0.08px] text-[#6a655f]">
-              {displayName}
+            <img
+              alt=""
+              className="h-7 w-7 flex-shrink-0 object-contain"
+              src={claudeImg}
+            />
+            <span className="min-w-0 flex-1 truncate text-left text-[15px] font-medium leading-tight tracking-[-0.08px] text-[#2f2d2a]">
+              Cowork 3P · Gateway
             </span>
             <BottomActionIcon className="h-[13px] w-[13px] flex-shrink-0 opacity-80" />
           </button>

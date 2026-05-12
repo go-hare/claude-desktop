@@ -675,7 +675,7 @@ const Layout = () => {
             {/* Main Content Area - takes remaining width after panel */}
             <div className="flex-1 flex flex-col h-full min-w-0">
               {/* Header - Only render here if NOT in Artifacts-only mode */}
-              {isChatMode && (!showArtifacts || documentPanelDoc) && !showSettings && !showUpgrade && location.pathname !== '/chats' && location.pathname !== '/customize' && location.pathname !== '/projects' && location.pathname !== '/artifacts' && location.pathname !== '/cowork' && location.pathname !== '/scheduled' && (
+              {isChatMode && (!showArtifacts || documentPanelDoc) && !showSettings && !showUpgrade && location.pathname !== '/chats' && location.pathname !== '/customize' && location.pathname !== '/projects' && location.pathname !== '/artifacts' && !location.pathname.startsWith('/cowork') && location.pathname !== '/scheduled' && (
                 <ChatHeader
                   title={currentChatTitle}
                   showArtifacts={showArtifacts}
@@ -701,13 +701,17 @@ const Layout = () => {
               ) : location.pathname === '/projects' ? (
                 <ProjectsPage />
               ) : location.pathname === '/cowork' ? (
-                <CoworkPage onStartTask={(prompt) => {
-                  if (prompt && prompt.trim()) {
-                    sessionStorage.setItem('prefill_input', prompt.trim());
-                  }
+                <CoworkPage />
+              ) : location.pathname === '/cowork/projects' ? (
+                <ProjectsPage />
+              ) : location.pathname === '/cowork/customize' ? (
+                <CustomizePage onCreateWithClaude={() => {
+                  sessionStorage.setItem('prefill_input', '让我们一起使用你的 skill-creator skill 来创建一个 skill 吧。请先问我这个 skill 应该做什么。');
                   handleNewChat();
-                  navigate('/');
+                  window.location.hash = '#/';
                 }} />
+              ) : location.pathname === '/cowork/scheduled' ? (
+                <ScheduledPage onNewTask={() => navigate('/cowork')} />
               ) : location.pathname === '/scheduled' ? (
                 <ScheduledPage onNewTask={() => navigate('/cowork')} />
               ) : location.pathname === '/artifacts' ? (
@@ -830,6 +834,9 @@ const App = () => {
         <Route path="/projects" element={<Layout />} />
         <Route path="/artifacts" element={<Layout />} />
         <Route path="/cowork" element={<Layout />} />
+        <Route path="/cowork/projects" element={<Layout />} />
+        <Route path="/cowork/customize" element={<Layout />} />
+        <Route path="/cowork/scheduled" element={<Layout />} />
         <Route path="/scheduled" element={<Layout />} />
         <Route path="/chat/:id" element={<Layout />} />
         <Route path="*" element={<Navigate to="/" replace />} />

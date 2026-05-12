@@ -196,7 +196,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     }
   };
 
-  const isCoworkSection = location.pathname === '/cowork' || location.pathname === '/scheduled';
+  const isCoworkSection = location.pathname.startsWith('/cowork') || location.pathname === '/scheduled';
   const currentTopMode: SidebarTopMode = isCoworkSection ? 'cowork' : 'chat';
   const sidebarTopModes: Array<{
     key: SidebarTopMode;
@@ -248,8 +248,12 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
   const handleNewChat = () => {
     setIsNewChatAnimating(true);
     setTimeout(() => setIsNewChatAnimating(false), 300);
+    if (isCoworkSection) {
+      navigate('/cowork');
+      return;
+    }
     if (onNewChatClick) onNewChatClick();
-    navigate(isCoworkSection ? '/cowork' : '/');
+    navigate('/');
   };
 
   const updateTuner = (key: string, value: number) => {
@@ -603,18 +607,14 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
               const api = (window as any).electronAPI;
               api?.installUpdate?.();
             }}
-            onOpenChatMode={() => {
-              onCloseOverlays?.();
-              navigate('/');
-            }}
             onNewTask={handleNewChat}
             onOpenChat={(id) => {
               onCloseOverlays?.();
               navigate(`/chat/${id}`);
             }}
-            onOpenCustomize={() => navigate('/customize')}
-            onOpenProjects={() => navigate('/projects')}
-            onOpenScheduled={() => navigate('/scheduled')}
+            onOpenCustomize={() => navigate('/cowork/customize')}
+            onOpenProjects={() => navigate('/cowork/projects')}
+            onOpenScheduled={() => navigate('/cowork/scheduled')}
             onToggleUserMenu={toggleUserMenu}
             streamingIds={streamingIds}
             updateStatus={updateStatus}

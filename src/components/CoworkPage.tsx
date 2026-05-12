@@ -1,342 +1,266 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowDown,
-  Check,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  CornerDownRight,
+  FileText,
+  Folder,
+  PanelRight,
+  Plus,
+  Square,
+  TriangleAlert,
 } from 'lucide-react';
-import { DotLottieReact } from '@lottiefiles/dotlottie-react';
-import giftLottie from '../assets/home/gift-giving.lottie';
 import starSparkleImg from '../assets/figma-exports/cowork-icons/star-sparkle.png';
-import micIconImg from '../assets/figma-exports/cowork-icons/mic-icon.png';
-import plusIconImg from '../assets/figma-exports/cowork-icons/plus-icon.png';
-import chevronProjectImg from '../assets/figma-exports/cowork-icons/chevron-project.png';
-import chevronAskImg from '../assets/figma-exports/cowork-icons/chevron-ask.png';
-import chevronModelImg from '../assets/figma-exports/cowork-icons/chevron-model.png';
-import folderProjectSvg from '../assets/figma-exports/cowork-icons/folder-project.svg';
+import { COWORK_SUGGESTIONS } from '../data/coworkSuggestions';
 
-interface CoworkPageProps {
-  onStartTask: (prompt: string) => void;
-}
+const DEFAULT_TASK_PROMPT = COWORK_SUGGESTIONS[0].prompt;
 
-interface ChecklistItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  completed: boolean;
-}
-
-interface SelectOption {
-  id: string;
-  name: string;
-}
-
-const CHECKLIST_ITEMS: ChecklistItem[] = [
-  {
-    id: 'download',
-    title: 'Download Cowork',
-    subtitle: 'Welcome!',
-    completed: true,
-  },
-  {
-    id: 'connect-tools',
-    title: 'Connect your everyday tools',
-    subtitle: 'The more Claude knows your setup, the more it can do.',
-    completed: true,
-  },
-  {
-    id: 'customize-role',
-    title: 'Customize Claude to your role',
-    subtitle: 'Add ready-made tools and workflows.',
-    completed: false,
-  },
-  {
-    id: 'create-something',
-    title: 'Ask Claude to create something',
-    subtitle: 'Try a spreadsheet, doc, or presentation.',
-    completed: false,
-  },
-  {
-    id: 'schedule-task',
-    title: 'Schedule a recurring task',
-    subtitle: 'Great for reminders, reports, or regular check-ins.',
-    completed: false,
-  },
-];
-
-const PROJECT_OPTIONS: SelectOption[] = [
-  { id: 'work', name: 'Work in a project' },
-  { id: 'personal', name: 'Personal' },
-  { id: 'research', name: 'Research' },
-];
-
-const MODEL_OPTIONS: SelectOption[] = [
-  { id: 'opus-4-7', name: 'Opus 4.7' },
-  { id: 'sonnet-4-5', name: 'Sonnet 4.5' },
-  { id: 'haiku-4', name: 'Haiku 4' },
-];
-
-type MenuKind = 'project' | 'model' | null;
-
-const CoworkPage: React.FC<CoworkPageProps> = ({ onStartTask }) => {
+const CoworkPage: React.FC = () => {
   const [draft, setDraft] = useState('');
-  const [openMenu, setOpenMenu] = useState<MenuKind>(null);
-  const [project, setProject] = useState<SelectOption>(PROJECT_OPTIONS[0]);
-  const [model, setModel] = useState<SelectOption>(MODEL_OPTIONS[0]);
-
+  const [queuedDraft, setQueuedDraft] = useState('');
+  const [activePrompt, setActivePrompt] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const projectRef = useRef<HTMLDivElement>(null);
-  const modelRef = useRef<HTMLDivElement>(null);
-
-  const hintId = useId();
+  const queueRef = useRef<HTMLTextAreaElement>(null);
+  const isRunning = Boolean(activePrompt);
 
   useEffect(() => {
+    if (isRunning) {
+      queueRef.current?.focus();
+      return;
+    }
     textareaRef.current?.focus();
-  }, []);
+  }, [isRunning]);
 
-  useEffect(() => {
-    if (!openMenu) return;
-
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const inProject = projectRef.current?.contains(target);
-      const inModel = modelRef.current?.contains(target);
-      if (!inProject && !inModel) setOpenMenu(null);
-    };
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpenMenu(null);
-    };
-
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [openMenu]);
-
-  const submit = useCallback(() => {
-    const value = draft.trim();
+  const startTask = (prompt: string) => {
+    const value = prompt.trim();
     if (!value) return;
-    onStartTask(value);
+    setActivePrompt(value);
     setDraft('');
-    if (textareaRef.current) textareaRef.current.style.removeProperty('height');
-  }, [draft, onStartTask]);
+  };
 
-  const onTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const submitTask = () => startTask(draft);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault();
-      submit();
+      submitTask();
     }
   };
 
-  const canSubmit = useMemo(() => draft.trim().length > 0, [draft]);
+  const taskPreview = useMemo(() => {
+    if (!activePrompt) return '';
+    const maxChars = 390;
+    return activePrompt.length > maxChars ? `${activePrompt.slice(0, maxChars).trimEnd()}` : activePrompt;
+  }, [activePrompt]);
+
+  if (isRunning) {
+    return (
+      <div className="cowork-run-page flex-1 h-full overflow-hidden">
+        <header className="cowork-run-header">
+          <button type="button" className="cowork-run-title">
+            新任务
+            <ChevronDown size={18} strokeWidth={1.8} />
+          </button>
+          <button type="button" className="cowork-run-panel-toggle" aria-label="Toggle task panel">
+            <PanelRight size={21} strokeWidth={1.8} />
+          </button>
+        </header>
+
+        <main className="cowork-run-main">
+          <section className="cowork-run-thread">
+            <article className="cowork-run-message-card">
+              <p>{taskPreview}</p>
+              {activePrompt && activePrompt.length > taskPreview.length ? (
+                <button type="button" className="cowork-run-show-more">Show more</button>
+              ) : null}
+              <button type="button" className="cowork-run-copy" aria-label="Copy task prompt">
+                <Copy size={18} strokeWidth={1.7} />
+              </button>
+            </article>
+
+            <div className="cowork-run-status">
+              <img src={starSparkleImg} alt="" aria-hidden="true" />
+              <span>Working on it...</span>
+            </div>
+          </section>
+
+          <aside className="cowork-run-panel">
+            <section className="cowork-run-side-card cowork-run-side-card-progress">
+              <button type="button" className="cowork-run-side-title">
+                <span>进度</span>
+                <ChevronDown size={18} strokeWidth={1.7} />
+              </button>
+              <div className="cowork-run-progress-dots" aria-hidden="true">
+                <span className="is-complete" />
+                <span className="is-complete" />
+                <span />
+              </div>
+              <p>See task progress for longer tasks.</p>
+            </section>
+
+            <button type="button" className="cowork-run-folder-card">
+              <span>工作文件夹</span>
+              <ChevronRight size={20} strokeWidth={1.7} />
+            </button>
+
+            <section className="cowork-run-side-card cowork-run-side-card-context">
+              <button type="button" className="cowork-run-side-title">
+                <span>上下文</span>
+                <ChevronDown size={18} strokeWidth={1.7} />
+              </button>
+              <div className="cowork-run-context-illustration" aria-hidden="true">
+                <FileText size={32} strokeWidth={1.4} />
+                <FileText size={32} strokeWidth={1.4} />
+                <span><Plus size={18} strokeWidth={1.8} /></span>
+              </div>
+              <p>Track tools and referenced files used in this task.</p>
+            </section>
+          </aside>
+        </main>
+
+        <section className="cowork-run-composer-wrap">
+          <div className="cowork-run-composer">
+            <textarea
+              ref={queueRef}
+              value={queuedDraft}
+              onChange={(event) => setQueuedDraft(event.target.value)}
+              placeholder="Write a message..."
+              rows={1}
+              className="cowork-run-textarea"
+            />
+            <div className="cowork-run-composer-actions">
+              <button type="button" className="cowork-run-plus" aria-label="Add attachment">
+                <Plus size={24} strokeWidth={1.8} />
+              </button>
+              <div className="cowork-run-composer-right">
+                <button type="button" className="cowork-run-model">
+                  Legacy Model
+                  <ChevronDown size={16} strokeWidth={1.6} />
+                </button>
+                <button type="button" className="cowork-run-stop" aria-label="Stop task">
+                  <Square size={15} strokeWidth={1.8} />
+                </button>
+                <button type="button" className="cowork-run-queue" disabled={!queuedDraft.trim()}>
+                  <CornerDownRight size={18} strokeWidth={1.9} />
+                  Queue
+                </button>
+              </div>
+            </div>
+          </div>
+          <p className="cowork-run-disclaimer">Claude 是 AI，可能会出错。请务必再次核对回复内容。</p>
+        </section>
+      </div>
+    );
+  }
 
   return (
-    <div className="cowork-bg flex-1 h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-[760px] px-6 pt-24 pb-16">
-        {/* Hero */}
-        <div className="mb-3 flex items-center gap-3">
-          <img
-            src={starSparkleImg}
-            alt=""
-            className="shrink-0"
-            width={28}
-            height={28}
-            aria-hidden="true"
-          />
-          <h1 className="cowork-title">
-            Let's knock something off your list
-          </h1>
-        </div>
-        <div className="mb-8">
-          <button
-            type="button"
-            className="cowork-subtitle-link"
-          >
-            Learn how to use Cowork safely.
+    <div className="cowork-task-page flex-1 h-full overflow-y-auto">
+      <div className="cowork-task-shell">
+        <section className="cowork-task-hero">
+          <div className="cowork-task-heading-row">
+            <img
+              src={starSparkleImg}
+              alt=""
+              aria-hidden="true"
+              className="cowork-task-star"
+              width={28}
+              height={28}
+            />
+            <h1 className="cowork-task-title">来把待办清掉吧</h1>
+          </div>
+          <button type="button" className="cowork-task-subtitle">
+            了解如何安全使用协作.
           </button>
-        </div>
+        </section>
 
-        {/* Composer – base container with inner card */}
-        <div className="cowork-composer-base rounded-[32px] border p-1.5">
-          {/* Inner input card */}
-          <div className="cowork-composer cowork-composer-inner rounded-[20px] p-4 pb-3">
+        <section className="cowork-task-composer-card">
+          <div className="cowork-task-composer-main">
             <textarea
               ref={textareaRef}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={onTextareaKeyDown}
-              placeholder="How can I help you today?"
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="今天我可以帮你做什么?"
               rows={1}
-              aria-label="Cowork task description"
-              aria-describedby={hintId}
-              className="cowork-textarea w-full resize-none border-0 bg-transparent px-1 pt-0.5 text-[17px] leading-7 text-claude-text placeholder:text-[#8E8D89] focus:outline-none"
-              style={{ minHeight: 44, fontFamily: '"Anthropic Serif", Spectral, "Source Serif 4", Georgia, serif' }}
+              className="cowork-task-textarea"
             />
-            <div className="mt-4 flex items-center justify-between">
+
+            <div className="cowork-task-composer-actions">
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-claude-textSecondary transition-colors hover:bg-claude-hover hover:text-claude-text focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-accent"
+                className="cowork-task-plus"
                 aria-label="Add attachment"
               >
-                <img src={plusIconImg} alt="" width={18} height={18} />
+                <Plus size={24} strokeWidth={1.8} />
               </button>
-              {canSubmit ? (
-                <button
-                  type="button"
-                  onClick={submit}
-                  className="cowork-send flex items-center gap-1.5 rounded-[10px] px-4 py-1.5 text-[13px] font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-claude-accent"
-                >
-                  <span>Let's go</span>
-                  <ArrowDown size={14} strokeWidth={2} />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="flex items-center justify-center text-claude-textSecondary transition-colors hover:text-claude-text focus:outline-none"
-                  aria-label="Voice input"
-                >
-                  <img src={micIconImg} alt="" width={14} height={18} />
-                </button>
-              )}
+
+              <button
+                type="button"
+                className="cowork-task-send"
+                aria-label="Start task"
+                disabled={!draft.trim()}
+                onClick={submitTask}
+              >
+                <ArrowUp size={24} strokeWidth={2.1} />
+              </button>
             </div>
           </div>
 
-          {/* Bottom selector bar inside the base */}
-          <div id={hintId} className="flex items-center gap-x-3 px-5 py-2.5">
-            <div className="relative" ref={projectRef}>
-              <button
-                type="button"
-                onClick={() => setOpenMenu((cur) => (cur === 'project' ? null : 'project'))}
-                aria-haspopup="menu"
-                aria-expanded={openMenu === 'project'}
-                className="cowork-selector-btn"
-              >
-                <img src={folderProjectSvg} alt="" width={18} height={18} className="cowork-selector-icon" />
-                <span>{project.name}</span>
-                <img src={chevronProjectImg} alt="" width={10} height={8} className="opacity-60" />
-              </button>
-              {openMenu === 'project' && (
-                <div
-                  role="menu"
-                  aria-label="Select project"
-                  className="absolute left-0 top-full z-30 mt-1 w-[220px] rounded-xl border border-claude-border bg-claude-input py-1.5 shadow-lg"
-                >
-                  {PROJECT_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={opt.id === project.id}
-                      onClick={() => {
-                        setProject(opt);
-                        setOpenMenu(null);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-claude-text hover:bg-claude-hover focus:bg-claude-hover focus:outline-none"
-                    >
-                      <Folder size={14} strokeWidth={1.6} className="text-claude-textSecondary" />
-                      {opt.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+          <div className="cowork-task-composer-footer">
+            <div className="cowork-task-project-pill">
+              <Folder size={20} strokeWidth={1.8} />
+              <span>在项目中工作</span>
             </div>
+            <button type="button" className="cowork-task-model-pill">
+              Legacy Model
+            </button>
+          </div>
+        </section>
 
+        <section className="cowork-task-running">
+          <div className="cowork-task-running-header">
+            <span>进行中</span>
+            <button type="button" className="cowork-task-clear">
+              清除进行中
+            </button>
+          </div>
+
+          <div className="cowork-task-current">
+            <div className="cowork-task-current-meta">
+              <TriangleAlert size={16} strokeWidth={1.9} color="#c98017" />
+              <div className="cowork-task-current-copy">
+                <div className="cowork-task-current-title">Local task</div>
+                <div className="cowork-task-current-time">22小时前</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="cowork-task-suggestions">
+          <div className="cowork-task-suggestions-label">Tidy up and get organized</div>
+          <div className="cowork-task-suggestion-list">
+            {COWORK_SUGGESTIONS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="cowork-task-suggestion"
+                onClick={() => startTask(item.prompt)}
+              >
+                <span className="cowork-task-suggestion-icon">{item.icon}</span>
+                <span className="cowork-task-suggestion-title">{item.title}</span>
+              </button>
+            ))}
             <button
               type="button"
-              className="cowork-selector-btn"
+              className="cowork-task-custom-link"
+              onClick={() => startTask(DEFAULT_TASK_PROMPT)}
             >
-              <span>Ask</span>
-              <img src={chevronAskImg} alt="" width={10} height={8} className="opacity-60" />
+              用插件自定义
             </button>
-
-            <div className="ml-auto relative" ref={modelRef}>
-              <button
-                type="button"
-                onClick={() => setOpenMenu((cur) => (cur === 'model' ? null : 'model'))}
-                aria-haspopup="menu"
-                aria-expanded={openMenu === 'model'}
-                className="cowork-selector-btn"
-              >
-                <span>{model.name}</span>
-                <img src={chevronModelImg} alt="" width={10} height={8} className="opacity-60" />
-              </button>
-              {openMenu === 'model' && (
-                <div
-                  role="menu"
-                  aria-label="Select model"
-                  className="absolute right-0 top-full z-30 mt-1 w-[200px] rounded-xl border border-claude-border bg-claude-input py-1.5 shadow-lg"
-                >
-                  {MODEL_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={opt.id === model.id}
-                      onClick={() => {
-                        setModel(opt);
-                        setOpenMenu(null);
-                      }}
-                      className="flex w-full items-center px-3 py-2 text-left text-[13px] text-claude-text hover:bg-claude-hover focus:bg-claude-hover focus:outline-none"
-                    >
-                      {opt.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-
-        {/* Get to know Cowork */}
-        <div className="mt-14">
-          <h2 className="cowork-section-title mb-4">
-            Get to know Cowork
-          </h2>
-          <div className="space-y-0">
-            {CHECKLIST_ITEMS.map((item, i) => (
-              <div
-                key={item.id}
-                className={`flex items-start gap-4 py-4 ${i < CHECKLIST_ITEMS.length - 1 ? 'cowork-checklist-divider' : ''}`}
-              >
-                <div className={`cowork-check-circle mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${item.completed ? 'completed' : ''}`}>
-                  {item.completed && <Check size={16} strokeWidth={2.5} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-[15px] font-medium ${item.completed ? 'cowork-check-title-done' : 'cowork-check-title'}`}>
-                    {item.title}
-                  </div>
-                  <div className="cowork-check-subtitle text-[13px] mt-0.5">
-                    {item.subtitle}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Guest pass */}
-        <div className="mt-12">
-          <div className="mb-3 text-[12px] uppercase tracking-wider text-claude-textSecondary">
-            Guest pass
-          </div>
-          <div className="cowork-card flex items-center gap-4 rounded-2xl border px-4 py-4">
-            <div className="flex h-14 w-14 items-center justify-center shrink-0">
-              <DotLottieReact
-                src={giftLottie}
-                loop
-                autoplay
-                style={{ width: 48, height: 48 }}
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[14px] font-medium text-claude-text">Gift a week of Cowork</div>
-              <div className="mt-0.5 text-[12.5px] text-claude-textSecondary">
-                Send a friend a free week of Cowork. If they love it and subscribe, you'll get €10 of extra usage.
-              </div>
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   );
