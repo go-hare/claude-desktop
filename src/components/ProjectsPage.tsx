@@ -388,7 +388,7 @@ const ProjectsPage = () => {
                               }} className="w-full text-left px-4 py-2 text-[13px] text-claude-text hover:bg-claude-hover transition-colors truncate">{skill.name}</button>
                             )) : <div className="px-4 py-2 text-[12px] text-claude-textSecondary italic">暂无已启用技能</div>}
                             <div className="border-t border-claude-border mt-1 pt-1">
-                              <button onClick={() => { setShowPlusMenu(false); window.location.hash = '#/customize'; }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] text-claude-textSecondary hover:bg-claude-hover transition-colors"><FileText size={14} />管理技能</button>
+                              <button onClick={() => { setShowPlusMenu(false); window.location.hash = '#/cowork/customize'; }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] text-claude-textSecondary hover:bg-claude-hover transition-colors"><FileText size={14} />管理技能</button>
                             </div>
                           </div>
                         )}

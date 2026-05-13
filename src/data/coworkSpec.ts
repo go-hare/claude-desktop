@@ -23,11 +23,11 @@ export const COWORK_NAV = {
 } as const;
 
 export const COWORK_LANDING = {
-  title: '先把清单上的一件事做完',
-  safetyLink: '了解如何安全使用 Cowork。',
-  placeholder: '今天我能为你提供什么帮助吗?',
-  projectWorkspace: '项目工作区',
-  model: 'gpt-5.2',
+  title: '来把待办清掉吧',
+  safetyLink: '了解如何安全使用协作.',
+  placeholder: '今天我可以帮你做什么？',
+  projectWorkspace: '在项目中工作',
+  model: 'Legacy Model',
   suggestionGroup: '选择一个任务，任何任务',
   customizeWithPlugins: '使用插件自定义',
 } as const;

@@ -4,17 +4,12 @@ import { createPortal } from 'react-dom';
 import { getStreamingIds } from '../streamingState';
 import {
   IconSidebarToggle,
-  IconChatBubble,
-  IconCode,
-  IconPlusCircle,
-  IconArtifactsExact,
-  IconProjects,
   IconDotsHorizontal,
   IconStarOutline,
   IconPencil,
   IconTrash
 } from './Icons';
-import { CalendarDays, Send as DispatchIcon, Pin } from 'lucide-react';
+import { Pin } from 'lucide-react';
 import claudeImg from '../assets/icons/claude.png';
 import searchIconImg from '../assets/icons/search-icon.png';
 import customizeIconImg from '../assets/icons/customize-icon.png';
@@ -22,12 +17,10 @@ import figmaProjectsIcon from '../assets/figma-exports/sidebar-icons/projects-ic
 import figmaScheduledIcon from '../assets/figma-exports/sidebar-icons/scheduled-icon.svg';
 import figmaCustomizeIcon from '../assets/figma-exports/sidebar-icons/customize-icon.svg';
 import figmaDispatchIcon from '../assets/figma-exports/sidebar-icons/dispatch-icon.svg';
-import sidebarModeChatIcon from '../assets/sidebar-exact/chats.svg';
 import sidebarModeCoworkIcon from '../assets/figma-exports/sidebar-icons/cowork-icon.svg';
 import sidebarModeCodeIcon from '../assets/figma-exports/sidebar-icons/code-icon.svg';
 import coworkNewTaskIcon from '../assets/sidebar-custom/cowork-new-task-plus.svg';
 import recentConversationRingIcon from '../assets/sidebar-custom/recent-conversation-ring.svg';
-import { NAV_ITEMS } from '../constants';
 import { ChevronUp } from 'lucide-react';
 import { getConversations, deleteConversation, updateConversation, getUser, getUserUsage, logout, getUserProfile } from '../api';
 import settingsMenuIcon from '../assets/profile-menu/settings.svg';
@@ -50,7 +43,6 @@ interface SidebarProps {
   isCollapsed: boolean;
   toggleSidebar: () => void;
   refreshTrigger: number;
-  onNewChatClick?: () => void;
   onOpenSettings?: () => void;
   onOpenUpgrade?: () => void;
   onCloseOverlays?: () => void;
@@ -69,9 +61,9 @@ type SidebarTopMode = 'chat' | 'cowork' | 'code';
 const SIDEBAR_MODE_STORAGE_KEY = 'sidebar-selected-mode';
 
 function getInitialSidebarTopMode(): SidebarTopMode {
-  if (typeof window === 'undefined') return 'chat';
+  if (typeof window === 'undefined') return 'cowork';
   const stored = window.localStorage.getItem(SIDEBAR_MODE_STORAGE_KEY);
-  return stored === 'chat' || stored === 'cowork' || stored === 'code' ? stored : 'chat';
+  return stored === 'code' ? 'code' : 'cowork';
 }
 
 function normalizeModePath(path: string) {
@@ -143,7 +135,7 @@ const RenameModal = ({ isOpen, onClose, onSave, initialTitle }: RenameModalProps
   );
 };
 
-const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, onOpenSettings, onOpenUpgrade, onCloseOverlays, tunerConfig, setTunerConfig }: SidebarProps) => {
+const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, onOpenUpgrade, onCloseOverlays, tunerConfig, setTunerConfig }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const codeJumpUrl = ((import.meta as any).env?.VITE_CODE_JUMP_URL || '/code/').trim();
@@ -199,39 +191,22 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
   const userMenuRef = useRef<HTMLDivElement>(null);
   const userBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Map labels to the correct custom icon
-  const getIcon = (label: string, size: number) => {
-    const className = "text-[#121212] dark:text-claude-text transition-colors duration-200";
-    switch (label) {
-      case 'Chats': return <IconChatBubble size={size} className={className} />;
-      case 'Projects': return <IconProjects size={size} className={className} />;
-      case 'Artifacts': return <IconArtifactsExact size={size} className={className} />;
-      case 'Code': return <IconCode size={size} className={className} />;
-      default: return <IconChatBubble size={size} className={className} />;
-    }
-  };
-
   const isTaskRoute = location.pathname === '/task' || location.pathname.startsWith('/task/');
   const normalizedCodePath = normalizeModePath(codeJumpUrl).replace(/\/$/, '');
   const isCodeSection =
     location.pathname === normalizedCodePath ||
     location.pathname === `${normalizedCodePath}/` ||
     location.pathname.startsWith(`${normalizedCodePath}/`);
-  const isCoworkSharedSurface = location.pathname === '/projects' && selectedTopMode === 'cowork';
-  const isCoworkSection = !isCodeSection && (location.pathname.startsWith('/cowork') || isTaskRoute || location.pathname === '/scheduled' || isCoworkSharedSurface);
-  const currentTopMode: SidebarTopMode = isCodeSection ? 'code' : isCoworkSection ? 'cowork' : 'chat';
+  const isCoworkSection = !isCodeSection && (location.pathname.startsWith('/cowork') || isTaskRoute || location.pathname === '/scheduled');
+  const currentTopMode: SidebarTopMode = isCodeSection ? 'code' : 'cowork';
 
   useEffect(() => {
     const nextMode: SidebarTopMode = isCodeSection
       ? 'code'
-      : location.pathname.startsWith('/cowork') || isTaskRoute || location.pathname === '/scheduled'
-        ? 'cowork'
-        : location.pathname === '/projects'
-          ? selectedTopMode
-          : 'chat';
+      : 'cowork';
     setSelectedTopMode(nextMode);
     window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, nextMode);
-  }, [isCodeSection, isTaskRoute, location.pathname, selectedTopMode]);
+  }, [isCodeSection, isTaskRoute, location.pathname]);
   const sidebarTopModes: Array<{
     key: SidebarTopMode;
     label: string;
@@ -245,21 +220,8 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     onClick?: () => void;
   }> = [
     {
-      key: 'chat',
-      label: 'Chat',
-      icon: sidebarModeChatIcon,
-      iconWidth: 20,
-      iconHeight: 20,
-      labelMaxWidth: 34,
-      onClick: () => {
-        setSelectedTopMode('chat');
-        window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, 'chat');
-        if (location.pathname !== '/') navigate('/');
-      },
-    },
-    {
       key: 'cowork',
-      label: 'Cowork',
+      label: '协作',
       icon: sidebarModeCoworkIcon,
       iconWidth: 19,
       iconHeight: 18,
@@ -290,36 +252,12 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
   const handleNewChat = () => {
     setIsNewChatAnimating(true);
     setTimeout(() => setIsNewChatAnimating(false), 300);
-    if (isCoworkSection) {
-      navigate('/task/new');
-      return;
-    }
-    if (onNewChatClick) onNewChatClick();
-    navigate('/');
+    navigate('/task/new');
   };
 
   const updateTuner = (key: string, value: number) => {
     if (setTunerConfig && tunerConfig) {
       setTunerConfig({ ...tunerConfig, [key]: value });
-    }
-  };
-
-  const handleNavClick = (label: string) => {
-    if (label === 'Chats') {
-      navigate('/chats');
-      return;
-    }
-    if (label === 'Projects') {
-      navigate('/projects');
-      return;
-    }
-    if (label === 'Artifacts') {
-      navigate('/artifacts');
-      return;
-    }
-    if (label === 'Code') {
-      navigate(normalizedCodePath);
-      return;
     }
   };
 
@@ -599,7 +537,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
         icon: extensionsMenuIcon,
         onClick: () => {
           closeUserMenu();
-          navigate('/customize');
+          navigate('/cowork/customize');
         },
       },
       {
@@ -658,11 +596,11 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
             onNewTask={handleNewChat}
             onOpenChat={(id) => {
               onCloseOverlays?.();
-              navigate(`/chat/${id}`);
+              navigate('/task/new');
             }}
             onOpenCode={() => navigate(normalizedCodePath)}
             onOpenCustomize={() => navigate('/cowork/customize')}
-            onOpenProjects={() => navigate('/projects')}
+            onOpenProjects={() => navigate('/cowork/projects')}
             onOpenScheduled={() => navigate('/cowork/scheduled')}
             onToggleUserMenu={toggleUserMenu}
             streamingIds={streamingIds}
@@ -681,13 +619,13 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
             }}
             onOpenChat={(id) => {
               onCloseOverlays?.();
-              navigate(`/chat/${id}`);
+              navigate(normalizedCodePath);
             }}
             onOpenCowork={() => navigate('/task/new')}
             onOpenCustomize={() => navigate(`${normalizedCodePath}/customize`)}
             onOpenScheduled={() => navigate(`${normalizedCodePath}/scheduled`)}
-            onOpenProjects={() => navigate('/projects')}
-            onOpenArtifacts={() => navigate('/artifacts')}
+            onOpenProjects={() => navigate('/cowork/projects')}
+            onOpenArtifacts={() => navigate('/task/new')}
             onToggleUserMenu={toggleUserMenu}
             userButtonRef={userBtnRef}
           />
@@ -736,26 +674,19 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
             }}
           >
             <div className={`text-claude-text flex-shrink-0 flex items-center justify-center`} style={{ width: '20px', height: '20px' }}>
-              {isCoworkSection ? (
-                <img
-                  src={coworkNewTaskIcon}
-                  alt=""
-                  width={16}
-                  height={16}
-                  className={`dark:invert transition-all duration-200 group-hover:brightness-90 ${isNewChatAnimating ? "rotate-90 scale-100" : "group-hover:scale-110 group-hover:-rotate-3"}`}
-                />
-              ) : (
-                <IconPlusCircle
-                  size={27}
-                  className={`transition-all duration-200 group-hover:brightness-90 ${isNewChatAnimating ? "rotate-90 scale-100" : "group-hover:scale-110 group-hover:-rotate-3"}`}
-                />
-              )}
+              <img
+                src={coworkNewTaskIcon}
+                alt=""
+                width={16}
+                height={16}
+                className={`dark:invert transition-all duration-200 group-hover:brightness-90 ${isNewChatAnimating ? "rotate-90 scale-100" : "group-hover:scale-110 group-hover:-rotate-3"}`}
+              />
             </div>
             <span
               className={`leading-none transition-opacity duration-200 text-left ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 block'}`}
               style={{ fontSize: '14px', fontWeight: 400 }}
             >
-              {isCoworkSection ? COWORK_NAV.newTask : 'New chat'}
+              {COWORK_NAV.newTask}
             </span>
           </button>
         </div>
@@ -810,7 +741,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
               }}
             >
               <button
-                onClick={() => navigate('/customize')}
+                onClick={() => navigate('/cowork/customize')}
                 className={`w-full flex items-center justify-start text-claude-text hover:bg-claude-hover rounded-lg transition-colors group overflow-hidden whitespace-nowrap ${location.pathname === '/customize' ? 'bg-claude-hover' : ''}`}
                 style={{
                   paddingTop: '2px',
@@ -851,20 +782,12 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
 
           {/* Navigation Links */}
           <nav className="space-y-px mb-6">
-            {(isCoworkSection
-              ? [
-                  { label: COWORK_NAV.projects, icon: <img src={figmaProjectsIcon} alt="" width={18} height={17} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/projects'), active: location.pathname === '/projects' },
-                  { label: COWORK_NAV.scheduled, icon: <img src={figmaScheduledIcon} alt="" width={18} height={18} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/cowork/scheduled'), active: location.pathname === '/cowork/scheduled' || location.pathname === '/scheduled' },
-                  { label: COWORK_NAV.customize, icon: <img src={figmaCustomizeIcon} alt="" width={18} height={16} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/cowork/customize'), active: location.pathname === '/cowork/customize' },
-                  { label: 'Dispatch', icon: <img src={figmaDispatchIcon} alt="" width={12} height={18} className="dark:invert transition-[filter] duration-200" />, onClick: undefined, active: false },
-                ]
-              : NAV_ITEMS.map((item) => ({
-                  label: item.label,
-                  icon: <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-[#121212] transition-colors">{getIcon(item.label, 20)}</div>,
-                  onClick: () => handleNavClick(item.label),
-                  active: (location.pathname === '/chats' && item.label === 'Chats') || (location.pathname === '/projects' && item.label === 'Projects') || (location.pathname === '/artifacts' && item.label === 'Artifacts'),
-                }))
-            ).map((item) => (
+            {[
+              { label: COWORK_NAV.projects, icon: <img src={figmaProjectsIcon} alt="" width={18} height={17} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/cowork/projects'), active: location.pathname === '/cowork/projects' },
+              { label: COWORK_NAV.scheduled, icon: <img src={figmaScheduledIcon} alt="" width={18} height={18} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/cowork/scheduled'), active: location.pathname === '/cowork/scheduled' || location.pathname === '/scheduled' },
+              { label: COWORK_NAV.customize, icon: <img src={figmaCustomizeIcon} alt="" width={18} height={16} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/cowork/customize'), active: location.pathname === '/cowork/customize' },
+              { label: 'Dispatch', icon: <img src={figmaDispatchIcon} alt="" width={12} height={18} className="dark:invert transition-[filter] duration-200" />, onClick: undefined, active: false },
+            ].map((item) => (
               <button
                 key={item.label}
                 onClick={item.onClick}
@@ -995,7 +918,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
             })}
             {chats.length > 30 && (
               <button
-                onClick={() => { onCloseOverlays?.(); navigate('/chats'); }}
+                onClick={() => { onCloseOverlays?.(); navigate('/task/new'); }}
                 className="w-full flex items-center gap-2 rounded-lg hover:bg-claude-hover transition-colors text-claude-textSecondary hover:text-claude-text"
                 style={{
                   paddingTop: `${tunerConfig?.recentsItemPy || 6}px`,

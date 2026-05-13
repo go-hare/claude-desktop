@@ -3961,7 +3961,7 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
             <button
               onClick={() => {
                 closePlusMenu();
-                window.location.hash = '#/customize';
+                navigate('/cowork/customize');
               }}
               className="flex h-[32px] w-full items-center gap-[8px] rounded-[8px] px-[8px] text-left transition-colors hover:bg-[#F5F4F1] dark:hover:bg-white/5"
             >
@@ -3973,7 +3973,7 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
       </div>
       <button
         onMouseEnter={() => { setShowSkillsSubmenu(false); setShowProjectsSubmenu(false); }}
-        onClick={() => { closePlusMenu(); navigate('/customize'); }}
+        onClick={() => { closePlusMenu(); navigate('/cowork/customize'); }}
         className={landingPlusMenuItemClass}
       >
         <img src={plusMenuConnectorsIcon} alt="" aria-hidden="true" className="h-[20px] w-[20px] shrink-0 dark:invert dark:brightness-200" />

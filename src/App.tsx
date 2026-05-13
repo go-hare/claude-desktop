@@ -12,7 +12,6 @@ import SettingsPage from './components/SettingsPage';
 import UpgradePlan from './components/UpgradePlan';
 import DocumentPanel from './components/DocumentPanel';
 import ArtifactsPanel from './components/ArtifactsPanel';
-import ArtifactsPage from './components/ArtifactsPage';
 import DraggableDivider from './components/DraggableDivider';
 import { DocumentInfo } from './components/DocumentCard';
 import AdminLayout from './components/admin/AdminLayout';
@@ -23,7 +22,6 @@ import AdminPlans from './components/admin/AdminPlans';
 import AdminRedemption from './components/admin/AdminRedemption';
 import AdminModels from './components/admin/AdminModels';
 import AdminAnnouncements from './components/admin/AdminAnnouncements';
-import ChatsPage from './components/ChatsPage';
 import CustomizePage from './components/CustomizePage';
 import ProjectsPage from './components/ProjectsPage';
 import CoworkPage from './components/CoworkPage';
@@ -350,6 +348,27 @@ const Layout = () => {
     });
   }, [location.pathname, location.search]);
 
+  useEffect(() => {
+    const redirectMap: Record<string, string> = {
+      '/': '/task/new',
+      '/new': '/task/new',
+      '/chats': '/task/new',
+      '/projects': '/cowork/projects',
+      '/customize': '/cowork/customize',
+      '/artifacts': '/task/new',
+    };
+
+    const exactTarget = redirectMap[location.pathname];
+    if (exactTarget) {
+      navigate(exactTarget, { replace: true });
+      return;
+    }
+
+    if (location.pathname.startsWith('/chat/')) {
+      navigate('/task/new', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
   const canGoBack = navIndex > 0;
   const canGoForward = navIndex < navHistory.length - 1;
 
@@ -649,7 +668,6 @@ const Layout = () => {
           isCollapsed={isSidebarCollapsed}
           toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           refreshTrigger={refreshTrigger}
-          onNewChatClick={handleNewChat}
           onOpenSettings={() => { setShowSettings(true); setShowUpgrade(false); }}
           onOpenUpgrade={() => { setShowUpgrade(true); setShowSettings(false); }}
           onCloseOverlays={() => { setShowSettings(false); setShowUpgrade(false); }}
@@ -676,7 +694,7 @@ const Layout = () => {
             {/* Main Content Area - takes remaining width after panel */}
             <div className="flex-1 flex flex-col h-full min-w-0">
               {/* Header - Only render here if NOT in Artifacts-only mode */}
-              {isChatMode && (!showArtifacts || documentPanelDoc) && !showSettings && !showUpgrade && location.pathname !== '/chats' && location.pathname !== '/customize' && location.pathname !== '/projects' && location.pathname !== '/artifacts' && !location.pathname.startsWith('/cowork') && location.pathname !== '/task' && !location.pathname.startsWith('/task/') && location.pathname !== '/scheduled' && (
+              {isChatMode && (!showArtifacts || documentPanelDoc) && !showSettings && !showUpgrade && !location.pathname.startsWith('/cowork') && !location.pathname.startsWith('/code') && !location.pathname.startsWith('/task/') && location.pathname !== '/task' && location.pathname !== '/scheduled' && (
                 <ChatHeader
                   title={currentChatTitle}
                   showArtifacts={showArtifacts}
@@ -691,16 +709,6 @@ const Layout = () => {
                 <SettingsPage onClose={() => setShowSettings(false)} />
               ) : showUpgrade ? (
                 <UpgradePlan onClose={() => setShowUpgrade(false)} />
-              ) : location.pathname === '/chats' ? (
-                <ChatsPage />
-              ) : location.pathname === '/customize' ? (
-                <CustomizePage onCreateWithClaude={() => {
-                  sessionStorage.setItem('prefill_input', '让我们一起使用你的 skill-creator skill 来创建一个 skill 吧。请先问我这个 skill 应该做什么。');
-                  handleNewChat();
-                  window.location.hash = '#/';
-                }} />
-              ) : location.pathname === '/projects' ? (
-                <ProjectsPage />
               ) : location.pathname === '/task/new' || location.pathname === '/cowork' ? (
                 <CoworkPage />
               ) : location.pathname === '/cowork/projects' ? (
@@ -708,8 +716,7 @@ const Layout = () => {
               ) : location.pathname === '/cowork/customize' ? (
                 <CustomizePage onCreateWithClaude={() => {
                   sessionStorage.setItem('prefill_input', '让我们一起使用你的 skill-creator skill 来创建一个 skill 吧。请先问我这个 skill 应该做什么。');
-                  handleNewChat();
-                  window.location.hash = '#/';
+                  navigate('/task/new');
                 }} />
               ) : location.pathname === '/cowork/scheduled' ? (
                 <ScheduledPage onNewTask={() => navigate('/task/new')} />
@@ -720,19 +727,7 @@ const Layout = () => {
               ) : location.pathname === '/code/customize' ? (
                 <CustomizePage onCreateWithClaude={() => {
                   sessionStorage.setItem('prefill_input', '让我们一起使用你的 skill-creator skill 来创建一个 skill 吧。请先问我这个 skill 应该做什么。');
-                  handleNewChat();
-                  window.location.hash = '#/';
-                }} />
-              ) : location.pathname === '/artifacts' ? (
-                <ArtifactsPage onTryPrompt={(prompt) => {
-                  if (prompt === '__remix__') {
-                    // Remix mode: artifact data already in sessionStorage
-                    sessionStorage.setItem('artifact_prompt', '__remix__');
-                  } else {
-                    sessionStorage.setItem('artifact_prompt', prompt);
-                  }
-                  handleNewChat();
-                  window.location.hash = '#/';
+                  navigate('/code');
                 }} />
               ) : location.pathname === '/code' || location.pathname === '/code/' ? (
                 <CodePage />
@@ -839,12 +834,12 @@ const App = () => {
           <Route path="plans" element={<AdminPlans />} />
           <Route path="redemption" element={<AdminRedemption />} />
         </Route>
-        <Route path="/" element={<Layout />} />
-        <Route path="/chats" element={<Layout />} />
-        <Route path="/customize" element={<Layout />} />
-        <Route path="/projects" element={<Layout />} />
-        <Route path="/artifacts" element={<Layout />} />
-        <Route path="/new" element={<Layout />} />
+        <Route path="/" element={<Navigate to="/task/new" replace />} />
+        <Route path="/chats" element={<Navigate to="/task/new" replace />} />
+        <Route path="/customize" element={<Navigate to="/cowork/customize" replace />} />
+        <Route path="/projects" element={<Navigate to="/cowork/projects" replace />} />
+        <Route path="/artifacts" element={<Navigate to="/task/new" replace />} />
+        <Route path="/new" element={<Navigate to="/task/new" replace />} />
         <Route path="/task/new" element={<Layout />} />
         <Route path="/cowork" element={<Layout />} />
         <Route path="/cowork/projects" element={<Layout />} />
@@ -854,8 +849,8 @@ const App = () => {
         <Route path="/code" element={<Layout />} />
         <Route path="/code/scheduled" element={<Layout />} />
         <Route path="/code/customize" element={<Layout />} />
-        <Route path="/chat/:id" element={<Layout />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/chat/:id" element={<Navigate to="/task/new" replace />} />
+        <Route path="*" element={<Navigate to="/task/new" replace />} />
       </Routes>
     </HashRouter>
   );
