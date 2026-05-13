@@ -13,7 +13,22 @@ const WORK_OPTIONS = [
   '法律', '医疗健康', '其他',
 ];
 
-type Tab = 'general' | 'models' | 'account' | 'usage';
+type Tab = 'general' | 'capabilities' | 'connectors';
+
+const TAB_META: Record<Tab, { label: string; summary: string }> = {
+  general: {
+    label: 'General',
+    summary: 'Profile, account, and current usage',
+  },
+  capabilities: {
+    label: 'Capabilities',
+    summary: 'Model behavior, interface, and preferences',
+  },
+  connectors: {
+    label: 'Connectors',
+    summary: 'Providers, tools, and integrations',
+  },
+};
 
 const SettingsPage = ({ onClose }: SettingsPageProps) => {
   const [tab, setTab] = useState<Tab>('general');
@@ -198,75 +213,158 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
 
   // Font selector options
   return (
-    <div className="relative flex-1 flex h-full overflow-hidden bg-claude-bg text-claude-text">
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close settings"
-        className="absolute right-8 top-6 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-claude-border bg-claude-bg text-claude-textSecondary transition-colors hover:bg-claude-hover hover:text-claude-text"
-      >
-        <X size={18} />
-      </button>
+    <div className="flex-1 h-full overflow-y-auto bg-[#f3f1ec] text-claude-text dark:bg-[#171614]">
+      <div className="mx-auto flex min-h-full max-w-[1360px] gap-6 px-6 py-6">
+        <aside className="sticky top-6 self-start w-[280px] shrink-0 rounded-[30px] border border-black/6 bg-[#f8f6f1]/95 p-5 shadow-[0_18px_48px_rgba(33,29,24,0.06)] backdrop-blur dark:border-white/8 dark:bg-[#1f1d19]/95 dark:shadow-[0_18px_48px_rgba(0,0,0,0.28)]">
+          <div className="mb-6 px-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9d988f] dark:text-[#9d9488]">
+              Claude
+            </p>
+            <h2
+              className="font-[Spectral] text-[30px] leading-none text-claude-text"
+              style={{
+                fontWeight: 500,
+                WebkitTextStroke: '0.5px currentColor'
+              }}
+            >
+              Settings
+            </h2>
+            <p className="mt-3 text-[13px] leading-6 text-[#7f7a71] dark:text-[#9b948a]">
+              Personalize the desktop experience to match how you like to work.
+            </p>
+          </div>
 
-      {/* Left Sidebar Navigation */}
-      <div className="w-[200px] flex-shrink-0 pt-16 pl-8 flex flex-col gap-1">
-        <h2
-          className="font-[Spectral] text-[28px] text-claude-text px-3 mb-6"
-          style={{
-            fontWeight: 500,
-            WebkitTextStroke: '0.5px currentColor'
-          }}
-        >
-          Settings
-        </h2>
+          <div className="space-y-1.5">
+            {(['general', 'capabilities', 'connectors'] as const)
+              .map((item) => {
+                const active = tab === item;
+                const meta = TAB_META[item];
 
-        <button
-          onClick={() => setTab('general')}
-          className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${tab === 'general' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'
-            }`}
-        >
-          General
-        </button>
-        {isSelfHosted && (
-          <button
-            onClick={() => setTab('models')}
-            className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${tab === 'models' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'
-              }`}
-          >
-            Models
-          </button>
-        )}
-        {!isSelfHosted && (
-          <button
-            onClick={() => setTab('account')}
-            className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${tab === 'account' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'
-              }`}
-          >
-            Account
-          </button>
-        )}
-        {!isSelfHosted && (
-          <button
-            onClick={() => setTab('usage')}
-            className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${tab === 'usage' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'
-              }`}
-          >
-            Usage
-          </button>
-        )}
-      </div>
+                return (
+                  <button
+                    key={item}
+                    onClick={() => setTab(item)}
+                    className={`w-full rounded-[18px] border px-4 py-3 text-left transition-all ${
+                      active
+                        ? 'border-[#e3ded4] bg-white text-claude-text shadow-[0_10px_30px_rgba(33,29,24,0.08)] dark:border-white/10 dark:bg-[#2a2722]'
+                        : 'border-transparent bg-transparent text-[#726d63] hover:border-black/5 hover:bg-white/55 dark:text-[#a39a8d] dark:hover:border-white/8 dark:hover:bg-white/5'
+                    }`}
+                    type="button"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-1 h-2.5 w-2.5 rounded-full ${active ? 'bg-[#d97757]' : 'bg-[#d8d1c6] dark:bg-[#4f4a43]'}`} />
+                      <div className="min-w-0">
+                        <div className="text-[15px] font-medium leading-5">{meta.label}</div>
+                        <div className="mt-1 text-[12px] leading-5 text-[#918b82] dark:text-[#8e877c]">
+                          {meta.summary}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+          </div>
+        </aside>
 
-      {/* Right Content Area */}
-      <div className="flex-1 overflow-y-auto min-w-0">
-        <div className="max-w-6xl pt-16 pl-12 pb-32 pr-12">
-          {tab === 'general' && renderGeneral()}
-          {tab === 'models' && <ProviderSettings />}
-          {tab === 'account' && renderAccount()}
-          {tab === 'usage' && renderUsage()}
-        </div>
+        <main className="min-w-0 flex-1">
+          <div className="overflow-hidden rounded-[34px] border border-black/6 bg-[#fbfaf7]/96 shadow-[0_24px_72px_rgba(28,25,21,0.08)] backdrop-blur dark:border-white/8 dark:bg-[#1e1c18]/96 dark:shadow-[0_24px_72px_rgba(0,0,0,0.34)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/6 bg-[#fbfaf7]/94 px-8 py-6 backdrop-blur dark:border-white/8 dark:bg-[#1e1c18]/94">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9e988f] dark:text-[#8f887e]">
+                  Preferences
+                </div>
+                <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.03em] text-claude-text">
+                  {TAB_META[tab].label}
+                </h1>
+                <p className="mt-2 text-[14px] leading-6 text-[#7c776e] dark:text-[#999185]">
+                  {TAB_META[tab].summary}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close settings"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-black/8 bg-white/88 text-[#7f796f] transition-colors hover:bg-[#f2efe8] hover:text-claude-text dark:border-white/10 dark:bg-white/6 dark:text-[#9a9186] dark:hover:bg-white/10 dark:hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-8 py-8">
+              {tab === 'general' && renderOverview()}
+              {tab === 'capabilities' && renderGeneral()}
+              {tab === 'connectors' && renderConnectors()}
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
+
+  function renderOverview() {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
+          <h3 className="text-[16px] font-semibold text-claude-text mb-5">概览</h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-[18px] border border-black/6 bg-[#faf8f4] px-4 py-4 dark:border-white/8 dark:bg-[#2a2722]">
+              <div className="text-[12px] uppercase tracking-[0.18em] text-claude-textSecondary/70 mb-2">Profile</div>
+              <div className="text-[18px] font-semibold text-claude-text">{displayName || fullName || 'User'}</div>
+              <div className="mt-1 text-[13px] text-claude-textSecondary">{workFunction || '未设置职业信息'}</div>
+              <div className="mt-3 text-[13px] leading-6 text-claude-textSecondary">
+                {personalPreferences || '还没有配置个人偏好。'}
+              </div>
+            </div>
+
+            <div className="rounded-[18px] border border-black/6 bg-[#faf8f4] px-4 py-4 dark:border-white/8 dark:bg-[#2a2722]">
+              <div className="text-[12px] uppercase tracking-[0.18em] text-claude-textSecondary/70 mb-2">Access</div>
+              <div className="text-[15px] font-medium text-claude-text">{profile?.email || 'Self-hosted mode'}</div>
+              <div className="mt-1 text-[13px] text-claude-textSecondary">
+                {isSelfHosted ? '自行部署模式，使用你自己的模型渠道。' : `${sessions.length} 个活跃会话`}
+              </div>
+              <div className="mt-3 text-[13px] text-claude-textSecondary">
+                {isSelfHosted ? `当前主题：${theme}` : `当前设备：${sessions.find(s => s.id === currentSessionId)?.device || 'Unknown'}`}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {!isSelfHosted && renderAccount()}
+        {renderUsage()}
+      </div>
+    );
+  }
+
+  function renderConnectors() {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {!isSelfHosted && (
+          <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
+            <h3 className="text-[16px] font-semibold text-claude-text mb-3">Connectors Directory</h3>
+            <p className="text-[14px] leading-6 text-claude-textSecondary mb-4">
+              这部分在当前桌面版里仍然通过 Customize 页面管理。你可以从这里直接进入连接器目录。
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                window.location.hash = '#/customize';
+              }}
+              className="rounded-[14px] border border-black/8 bg-[#f6f3ee] px-4 py-2.5 text-[14px] font-medium text-claude-text transition-colors hover:bg-[#efeae1] dark:border-white/10 dark:bg-[#2a2722] dark:hover:bg-[#312d28]"
+            >
+              打开 Connectors
+            </button>
+          </section>
+        )}
+
+        {isSelfHosted && (
+          <div className="overflow-hidden rounded-[28px] border border-black/6 bg-white/92 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
+            <ProviderSettings />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   function renderAccount() {
     const handleChangePassword = async () => {
@@ -327,9 +425,9 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
     };
 
     return (
-      <div className="space-y-10 animate-fade-in">
+      <div className="space-y-6 animate-fade-in">
         {/* 邮箱 */}
-        <section>
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <h3 className="text-[16px] font-semibold text-claude-text mb-5">账号</h3>
           <div className="space-y-5">
             <div className="flex items-center justify-between">
@@ -425,10 +523,10 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           )}
         </section>
 
-        <hr className="border-claude-border" />
+        <div className="h-0" />
 
         {/* 活跃会话 */}
-        <section>
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[16px] font-semibold text-claude-text">活跃会话</h3>
           </div>
@@ -515,78 +613,9 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
 
   function renderGeneral() {
     return (
-      <div className="space-y-10 animate-fade-in">
-        {/* Profile Section */}
-        <section>
-          <h3 className="text-[16px] font-semibold text-claude-text mb-5">个人资料</h3>
-
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-[13px] font-medium text-claude-textSecondary mb-1.5">全名</label>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-claude-avatar text-claude-avatarText flex items-center justify-center text-[16px] font-medium flex-shrink-0">
-                    {initials}
-                  </div>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                    onBlur={() => handleSave(true)}
-                    className="flex-1 px-3 py-2 bg-claude-input border border-claude-border rounded-md text-[14px] text-claude-text focus:outline-none focus:border-[#387ee0] focus:ring-0 transition-all placeholder-claude-textSecondary"
-                    placeholder="输入你的全名"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-medium text-claude-textSecondary mb-1.5">Claude 应该怎么称呼你？</label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
-                  onBlur={() => handleSave(true)}
-                  className="w-full px-3 py-2 bg-claude-input border border-claude-border rounded-md text-[14px] text-claude-text focus:outline-none focus:border-[#387ee0] focus:ring-0 transition-all placeholder-claude-textSecondary"
-                  placeholder="例如你的名字或昵称"
-                />
-              </div>
-            </div>
-
-            {/* Work Function */}
-            <div>
-              <label className="block text-[13px] font-medium text-claude-textSecondary mb-1.5">你的职业是什么？</label>
-              <div className="relative">
-                <select
-                  value={workFunction}
-                  onChange={e => { setWorkFunction(e.target.value); setTimeout(() => handleSave(true), 100); }}
-                  className="w-full px-3 py-2.5 bg-claude-input border border-claude-border rounded-md text-[14px] text-claude-text focus:outline-none focus:border-[#387ee0] focus:ring-0 transition-all appearance-none cursor-pointer"
-                >
-                  <option value="">选择你的职业</option>
-                  {WORK_OPTIONS.filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-                <ChevronRight size={16} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-claude-textSecondary pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Personal Preferences */}
-            <div>
-              <label className="block text-[13px] font-medium text-claude-textSecondary mb-1">Claude 在回复中应考虑哪些个人偏好？</label>
-              <p className="text-[12px] text-claude-textSecondary/60 mb-2">你的偏好将应用于所有对话。</p>
-              <textarea
-                value={personalPreferences}
-                onChange={e => setPersonalPreferences(e.target.value)}
-                onBlur={() => handleSave(true)}
-                rows={3}
-                className="w-full px-3 py-2.5 bg-claude-input border border-claude-border rounded-md text-[14px] text-claude-text focus:outline-none focus:border-[#387ee0] focus:ring-0 transition-all resize-none placeholder-claude-textSecondary"
-                placeholder="例如：回答尽量简洁，使用中文，代码注释用英文"
-              />
-            </div>
-
-          </div>
-        </section>
-
+      <div className="space-y-6 animate-fade-in">
         {/* Default Model Section — only for Clawparrot (self-hosted configures in Models tab) */}
-        {localStorage.getItem('user_mode') !== 'selfhosted' && <><hr className="border-claude-border" /><section>
+        {localStorage.getItem('user_mode') !== 'selfhosted' && <><div className="h-0" /><section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <h3 className="text-[16px] font-semibold text-claude-text mb-5">默认模型</h3>
           <div className="space-y-5">
             <div>
@@ -625,7 +654,7 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
         </section></>}
 
         {/* Send Key Section */}
-        <section>
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <h3 className="text-[16px] font-semibold text-claude-text mb-5">发送消息</h3>
           <div className="grid grid-cols-2 gap-6">
             <div>
@@ -688,10 +717,10 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           </div>
         </section>
 
-        <hr className="border-claude-border" />
+        <div className="h-0" />
 
         {/* Appearance Section */}
-        <section>
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <h3 className="text-[16px] font-semibold text-claude-text mb-5">外观</h3>
 
           <div className="space-y-6">
@@ -803,10 +832,10 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           </div>
         </section>
 
-        <hr className="border-claude-border" />
+        <div className="h-0" />
 
         {/* User Mode Switch */}
-        <section>
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <h3 className="text-[16px] font-semibold text-claude-text mb-5">用户模式</h3>
           <div className="flex gap-3">
             {([
@@ -840,10 +869,10 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           </div>
         </section>
 
-        <hr className="border-claude-border" />
+        <div className="h-0" />
 
         {/* About Section */}
-        <section>
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <h3 className="text-[16px] font-semibold text-claude-text mb-3">关于</h3>
           <div className="flex items-center justify-between py-2">
             <span className="text-[14px] text-claude-textSecondary">当前版本</span>
@@ -934,8 +963,8 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
     };
 
     return (
-      <div className="space-y-8 animate-fade-in">
-        <section>
+      <div className="space-y-6 animate-fade-in">
+        <section className="rounded-[28px] border border-black/6 bg-white/92 px-6 py-6 shadow-[0_14px_40px_rgba(28,25,21,0.05)] dark:border-white/8 dark:bg-[#23201c]">
           <h3 className="text-[16px] font-semibold text-claude-text mb-5">使用量</h3>
 
           <div className="space-y-6">
