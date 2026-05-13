@@ -736,7 +736,7 @@ html.dark .scheduled-notice-actions span {
 
 /* ─── Cowork task landing ─── */
 .cowork-task-page {
-  background-color: #f8f8f6;
+  background-color: #fbfbfa;
   position: relative;
   isolation: isolate;
 }
@@ -747,10 +747,11 @@ html.dark .scheduled-notice-actions span {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background-image: radial-gradient(circle, rgba(210, 206, 200, 0.85) 1px, transparent 1.3px);
-  background-size: 20px 20px;
-  -webkit-mask-image: radial-gradient(ellipse 54% 40% at 53% 30%, #000 0%, rgba(0, 0, 0, 0.42) 54%, transparent 82%);
-  mask-image: radial-gradient(ellipse 54% 40% at 53% 30%, #000 0%, rgba(0, 0, 0, 0.42) 54%, transparent 82%);
+  background-image: radial-gradient(circle, rgba(194, 190, 184, 0.72) 1px, transparent 1.25px);
+  background-size: 22px 22px;
+  background-position: 3px 4px;
+  -webkit-mask-image: radial-gradient(ellipse 58% 48% at 54% 39%, #000 0%, rgba(0, 0, 0, 0.48) 55%, transparent 86%);
+  mask-image: radial-gradient(ellipse 58% 48% at 54% 39%, #000 0%, rgba(0, 0, 0, 0.48) 55%, transparent 86%);
 }
 
 .cowork-task-page > * {
@@ -759,24 +760,24 @@ html.dark .scheduled-notice-actions span {
 }
 
 .cowork-task-shell {
-  max-width: 1120px;
+  width: min(676px, calc(100% - 72px));
   margin: 0 auto;
-  padding: 82px 56px 96px;
+  padding: 131px 0 88px;
 }
 
 .cowork-task-hero {
-  margin-bottom: 34px;
+  margin-bottom: 24px;
 }
 
 .cowork-task-heading-row {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 13px;
 }
 
 .cowork-task-star {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
 }
 
@@ -784,54 +785,54 @@ html.dark .scheduled-notice-actions span {
   margin: 0;
   color: #131313;
   font-family: "Anthropic Sans", "Figtree", sans-serif;
-  font-size: 52px;
+  font-size: 29px;
   font-weight: 700;
-  line-height: 1.04;
-  letter-spacing: -0.04em;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .cowork-task-subtitle {
-  margin-top: 10px;
-  margin-left: 54px;
+  margin-top: 2px;
+  margin-left: 41px;
   padding: 0;
   border: none;
   background: transparent;
-  color: #97948e;
+  color: #87837d;
   font-family: "Anthropic Sans", "Figtree", sans-serif;
-  font-size: 15px;
+  font-size: 12px;
   line-height: 1.4;
   text-decoration: underline;
-  text-underline-offset: 4px;
+  text-underline-offset: 3px;
 }
 
 .cowork-task-composer-card {
-  width: min(100%, 1104px);
-  border-radius: 28px;
-  border: 1px solid #d8d4ce;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 30px rgba(22, 20, 17, 0.035);
+  width: 100%;
+  border-radius: 20px;
+  border: 1px solid #d5d1ca;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(22, 20, 17, 0.025);
   overflow: hidden;
 }
 
 .cowork-task-composer-main {
-  min-height: 196px;
-  padding: 28px 34px 22px;
+  min-height: 122px;
+  padding: 21px 20px 14px;
   display: flex;
   flex-direction: column;
 }
 
 .cowork-task-textarea {
   width: 100%;
-  min-height: 84px;
+  min-height: 42px;
   border: none;
   background: transparent;
   resize: none;
   outline: none;
   color: #2f2d2a;
   font-family: "Anthropic Sans", "Figtree", sans-serif;
-  font-size: 27px;
+  font-size: 16px;
   font-weight: 400;
-  line-height: 1.32;
+  line-height: 1.45;
 }
 
 .cowork-task-textarea::placeholder {
@@ -846,8 +847,8 @@ html.dark .scheduled-notice-actions span {
 }
 
 .cowork-task-plus {
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   border: none;
   border-radius: 999px;
   background: transparent;
@@ -858,11 +859,11 @@ html.dark .scheduled-notice-actions span {
 }
 
 .cowork-task-send {
-  width: 54px;
-  height: 54px;
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 16px;
-  background: #e7b09e;
+  border-radius: 10px;
+  background: #e4ac9c;
   color: #fffaf7;
   display: inline-flex;
   align-items: center;
@@ -884,9 +885,9 @@ html.dark .scheduled-notice-actions span {
 }
 
 .cowork-task-composer-footer {
-  min-height: 86px;
+  min-height: 53px;
   border-top: 1px solid #e8e4de;
-  padding: 0 34px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -899,11 +900,11 @@ html.dark .scheduled-notice-actions span {
   background: transparent;
   color: #3b3834;
   font-family: "Anthropic Sans", "Figtree", sans-serif;
-  font-size: 17px;
+  font-size: 14px;
   line-height: 1.3;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .cowork-task-model-pill {
@@ -962,15 +963,19 @@ html.dark .scheduled-notice-actions span {
 }
 
 .cowork-task-suggestions {
-  margin-top: 52px;
-  max-width: 1040px;
+  margin-top: 77px;
+  width: 100%;
 }
 
 .cowork-task-suggestions-label {
-  margin-bottom: 14px;
+  margin-bottom: 18px;
   color: #8f8a83;
   font-family: "Anthropic Sans", "Figtree", sans-serif;
-  font-size: 15px;
+  font-size: 12px;
+  line-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .cowork-task-suggestion-list {
@@ -979,14 +984,14 @@ html.dark .scheduled-notice-actions span {
 }
 
 .cowork-task-suggestion {
-  min-height: 86px;
+  min-height: 65px;
   border: none;
   border-top: 1px solid #e8e4de;
   background: transparent;
   display: flex;
   align-items: center;
-  gap: 22px;
-  padding: 0 8px;
+  gap: 17px;
+  padding: 0 12px;
   text-align: left;
   transition: background-color 0.18s ease;
 }
@@ -1000,9 +1005,12 @@ html.dark .scheduled-notice-actions span {
 }
 
 .cowork-task-suggestion-icon {
-  width: 36px;
-  height: 36px;
-  color: #bbb5ab;
+  width: 31px;
+  height: 31px;
+  border: 1px solid #d9d4cc;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.64);
+  color: #a9a299;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1012,19 +1020,19 @@ html.dark .scheduled-notice-actions span {
 .cowork-task-suggestion-title {
   color: #2a2723;
   font-family: "Anthropic Sans", "Figtree", sans-serif;
-  font-size: 17px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .cowork-task-custom-link {
-  margin-top: 20px;
+  margin-top: 17px;
   width: fit-content;
-  padding: 0 8px;
+  padding: 0 12px;
   border: none;
   background: transparent;
   color: #8f8a83;
   font-family: "Anthropic Sans", "Figtree", sans-serif;
-  font-size: 15px;
+  font-size: 12px;
 }
 
 html.dark .cowork-task-page {

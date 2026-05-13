@@ -1,0 +1,525 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/admin/AdminAnnouncements.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=12cb7fed"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=12cb7fed"; const useCallback = __vite__cjsImport1_react["useCallback"]; const useEffect = __vite__cjsImport1_react["useEffect"]; const useState = __vite__cjsImport1_react["useState"];
+import {
+  getAnnouncements,
+  addAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
+  toggleAnnouncement
+} from "/src/adminApi.ts";
+import { Plus, RefreshCw, Edit2, Trash2, Power, Check, X } from "/node_modules/.vite/deps/lucide-react.js?v=12cb7fed";
+const EMPTY_FORM = {
+  title: "",
+  content: "",
+  is_active: true
+};
+export default function AdminAnnouncements() {
+  _s();
+  const [announcements, setAnnouncements] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const load = useCallback(async () => {
+    try {
+      setAnnouncements(await getAnnouncements());
+    } catch (e) {
+      setError(e.message || "加载公告失败");
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const resetForm = () => {
+    setShowForm(false);
+    setEditId(null);
+    setForm(EMPTY_FORM);
+  };
+  const handleSave = async () => {
+    if (!form.title.trim()) {
+      setError("请填写公告标题");
+      return;
+    }
+    if (!form.content.trim()) {
+      setError("请填写公告内容");
+      return;
+    }
+    setLoading(true);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        content: form.content.trim(),
+        is_active: form.is_active ? 1 : 0
+      };
+      if (editId !== null) {
+        await updateAnnouncement(editId, payload);
+      } else {
+        await addAnnouncement(payload);
+      }
+      resetForm();
+      await load();
+    } catch (e) {
+      setError(e.message || "保存失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleDelete = async (id) => {
+    if (!confirm("确定删除这条公告？删除后无法恢复。")) return;
+    try {
+      await deleteAnnouncement(id);
+      await load();
+    } catch (e) {
+      setError(e.message || "删除失败");
+    }
+  };
+  const handleToggle = async (id) => {
+    try {
+      await toggleAnnouncement(id);
+      await load();
+    } catch (e) {
+      setError(e.message || "切换状态失败");
+    }
+  };
+  const startEdit = (item) => {
+    setEditId(item.id);
+    setShowForm(true);
+    setForm({
+      title: item.title || "",
+      content: item.content || "",
+      is_active: !!item.is_active
+    });
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "p-8", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between mb-6", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("h2", { className: "text-xl font-semibold text-gray-800", children: "公告管理" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 119,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-gray-500 mt-1", children: "新增或发布公告后，用户下次进入页面会弹窗显示；在线用户会在轮询后自动收到。" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 120,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 118,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex gap-2", children: [
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: load,
+            className: "flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50",
+            children: [
+              /* @__PURE__ */ jsxDEV(RefreshCw, { size: 14 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                lineNumber: 127,
+                columnNumber: 13
+              }, this),
+              " 刷新"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+            lineNumber: 123,
+            columnNumber: 11
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => {
+              setShowForm(true);
+              setEditId(null);
+              setForm(EMPTY_FORM);
+            },
+            className: "flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600",
+            children: [
+              /* @__PURE__ */ jsxDEV(Plus, { size: 14 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                lineNumber: 133,
+                columnNumber: 13
+              }, this),
+              " 添加公告"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+            lineNumber: 129,
+            columnNumber: 11
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 122,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+      lineNumber: 117,
+      columnNumber: 7
+    }, this),
+    error && /* @__PURE__ */ jsxDEV("div", { className: "mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600", children: [
+      error,
+      /* @__PURE__ */ jsxDEV("button", { onClick: () => setError(""), className: "ml-2 underline", children: "关闭" }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 141,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+      lineNumber: 139,
+      columnNumber: 7
+    }, this),
+    showForm && /* @__PURE__ */ jsxDEV("div", { className: "mb-6 bg-white border border-gray-200 rounded-xl p-5", children: [
+      /* @__PURE__ */ jsxDEV("h3", { className: "text-sm font-medium text-gray-700 mb-3", children: editId !== null ? "编辑公告" : "添加公告" }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 147,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "space-y-3", children: [
+        /* @__PURE__ */ jsxDEV(
+          "input",
+          {
+            placeholder: "公告标题 *",
+            value: form.title,
+            onChange: (e) => setForm({ ...form, title: e.target.value }),
+            className: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+            lineNumber: 149,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "textarea",
+          {
+            placeholder: "公告内容 *",
+            value: form.content,
+            onChange: (e) => setForm({ ...form, content: e.target.value }),
+            rows: 8,
+            className: "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-y"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+            lineNumber: 155,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("label", { className: "inline-flex items-center gap-2 text-sm text-gray-600", children: [
+          /* @__PURE__ */ jsxDEV(
+            "input",
+            {
+              type: "checkbox",
+              checked: form.is_active,
+              onChange: (e) => setForm({ ...form, is_active: e.target.checked })
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 163,
+              columnNumber: 15
+            },
+            this
+          ),
+          "保存后立即发布"
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 162,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 148,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex gap-2 mt-4", children: [
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: handleSave,
+            disabled: loading,
+            className: "flex items-center gap-1.5 px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50",
+            children: [
+              /* @__PURE__ */ jsxDEV(Check, { size: 14 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                lineNumber: 177,
+                columnNumber: 15
+              }, this),
+              " ",
+              loading ? "保存中..." : "保存"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+            lineNumber: 172,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: resetForm,
+            className: "flex items-center gap-1.5 px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200",
+            children: [
+              /* @__PURE__ */ jsxDEV(X, { size: 14 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                lineNumber: 183,
+                columnNumber: 15
+              }, this),
+              " 取消"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+            lineNumber: 179,
+            columnNumber: 13
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 171,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+      lineNumber: 146,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "bg-white border border-gray-200 rounded-xl overflow-hidden", children: /* @__PURE__ */ jsxDEV("table", { className: "w-full text-sm", children: [
+      /* @__PURE__ */ jsxDEV("thead", { className: "bg-gray-50 border-b border-gray-200", children: /* @__PURE__ */ jsxDEV("tr", { children: [
+        /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left text-gray-600 font-medium", children: "公告" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 193,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left text-gray-600 font-medium", children: "状态" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 194,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left text-gray-600 font-medium", children: "已读人数" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 195,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left text-gray-600 font-medium", children: "创建时间" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 196,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV("th", { className: "px-4 py-3 text-left text-gray-600 font-medium", children: "操作" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 197,
+          columnNumber: 15
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 192,
+        columnNumber: 13
+      }, this) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 191,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("tbody", { children: [
+        announcements.length === 0 && /* @__PURE__ */ jsxDEV("tr", { children: /* @__PURE__ */ jsxDEV("td", { colSpan: 5, className: "px-4 py-8 text-center text-gray-400", children: "暂无公告" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 203,
+          columnNumber: 17
+        }, this) }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+          lineNumber: 202,
+          columnNumber: 13
+        }, this),
+        announcements.map(
+          (item) => /* @__PURE__ */ jsxDEV("tr", { className: `border-b border-gray-100 ${!item.is_active ? "opacity-60" : ""}`, children: [
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3", children: [
+              /* @__PURE__ */ jsxDEV("div", { className: "font-medium text-gray-800", children: item.title }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                lineNumber: 209,
+                columnNumber: 19
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: "text-xs text-gray-500 mt-1 whitespace-pre-wrap break-words", children: item.content.length > 160 ? `${item.content.slice(0, 160)}...` : item.content }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                lineNumber: 210,
+                columnNumber: 19
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 208,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3", children: /* @__PURE__ */ jsxDEV("span", { className: `text-xs px-2 py-0.5 rounded-full ${item.is_active ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"}`, children: item.is_active ? "发布中" : "未发布" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 215,
+              columnNumber: 19
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 214,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3 text-gray-600", children: item.read_count || 0 }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 219,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3 text-xs text-gray-500", children: item.created_at?.slice(0, 16).replace("T", " ") }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 220,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { className: "px-4 py-3", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-1", children: [
+              /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  onClick: () => startEdit(item),
+                  className: "p-1.5 text-gray-400 hover:text-blue-500 rounded",
+                  title: "编辑",
+                  children: /* @__PURE__ */ jsxDEV(Edit2, { size: 14 }, void 0, false, {
+                    fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                    lineNumber: 228,
+                    columnNumber: 23
+                  }, this)
+                },
+                void 0,
+                false,
+                {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                  lineNumber: 223,
+                  columnNumber: 21
+                },
+                this
+              ),
+              /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  onClick: () => handleToggle(item.id),
+                  className: "p-1.5 text-gray-400 hover:text-yellow-500 rounded",
+                  title: item.is_active ? "下线" : "发布",
+                  children: /* @__PURE__ */ jsxDEV(Power, { size: 14 }, void 0, false, {
+                    fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                    lineNumber: 235,
+                    columnNumber: 23
+                  }, this)
+                },
+                void 0,
+                false,
+                {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                  lineNumber: 230,
+                  columnNumber: 21
+                },
+                this
+              ),
+              /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  onClick: () => handleDelete(item.id),
+                  className: "p-1.5 text-gray-400 hover:text-red-500 rounded",
+                  title: "删除",
+                  children: /* @__PURE__ */ jsxDEV(Trash2, { size: 14 }, void 0, false, {
+                    fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                    lineNumber: 242,
+                    columnNumber: 23
+                  }, this)
+                },
+                void 0,
+                false,
+                {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+                  lineNumber: 237,
+                  columnNumber: 21
+                },
+                this
+              )
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 222,
+              columnNumber: 19
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+              lineNumber: 221,
+              columnNumber: 17
+            }, this)
+          ] }, item.id, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+            lineNumber: 207,
+            columnNumber: 13
+          }, this)
+        )
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+        lineNumber: 200,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+      lineNumber: 190,
+      columnNumber: 9
+    }, this) }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+      lineNumber: 189,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx",
+    lineNumber: 116,
+    columnNumber: 5
+  }, this);
+}
+_s(AdminAnnouncements, "cjePP9kb0LMSTLtKGQgbzGNJjxo=");
+_c = AdminAnnouncements;
+var _c;
+$RefreshReg$(_c, "AdminAnnouncements");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/work/py/claude/claude-desktop/src/components/admin/AdminAnnouncements.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFBQSxrQkFDQyxTQUFTLE1BQU1zQixhQUFhSyxLQUFLSixFQUFFO0FBQUEsa0JBQ25DLFdBQVU7QUFBQSxrQkFDVixPQUFNO0FBQUEsa0JBRU4saUNBQUMsVUFBTyxNQUFNLE1BQWQ7QUFBQTtBQUFBO0FBQUE7QUFBQSx5QkFBaUI7QUFBQTtBQUFBLGdCQUxuQjtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUEsY0FNQTtBQUFBLGlCQXJCRjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQXNCQSxLQXZCRjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQXdCQTtBQUFBLGVBdENPSSxLQUFLSixJQUFkO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBdUNBO0FBQUEsUUFDRDtBQUFBLFdBL0NIO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFnREE7QUFBQSxTQTFERjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBMkRBLEtBNURGO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0E2REE7QUFBQSxPQXRJRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBdUlBO0FBRUo7QUFBQ3JCLEdBbE91QkQsb0JBQWtCO0FBQUEsS0FBbEJBO0FBQWtCLElBQUFvQztBQUFBLGFBQUFBLElBQUEiLCJuYW1lcyI6WyJ1c2VDYWxsYmFjayIsInVzZUVmZmVjdCIsInVzZVN0YXRlIiwiZ2V0QW5ub3VuY2VtZW50cyIsImFkZEFubm91bmNlbWVudCIsInVwZGF0ZUFubm91bmNlbWVudCIsImRlbGV0ZUFubm91bmNlbWVudCIsInRvZ2dsZUFubm91bmNlbWVudCIsIlBsdXMiLCJSZWZyZXNoQ3ciLCJFZGl0MiIsIlRyYXNoMiIsIlBvd2VyIiwiQ2hlY2siLCJYIiwiRU1QVFlfRk9STSIsInRpdGxlIiwiY29udGVudCIsImlzX2FjdGl2ZSIsIkFkbWluQW5ub3VuY2VtZW50cyIsIl9zIiwiYW5ub3VuY2VtZW50cyIsInNldEFubm91bmNlbWVudHMiLCJzaG93Rm9ybSIsInNldFNob3dGb3JtIiwiZWRpdElkIiwic2V0RWRpdElkIiwiZm9ybSIsInNldEZvcm0iLCJlcnJvciIsInNldEVycm9yIiwibG9hZGluZyIsInNldExvYWRpbmciLCJsb2FkIiwiZSIsIm1lc3NhZ2UiLCJyZXNldEZvcm0iLCJoYW5kbGVTYXZlIiwidHJpbSIsInBheWxvYWQiLCJoYW5kbGVEZWxldGUiLCJpZCIsImNvbmZpcm0iLCJoYW5kbGVUb2dnbGUiLCJzdGFydEVkaXQiLCJpdGVtIiwidGFyZ2V0IiwidmFsdWUiLCJjaGVja2VkIiwibGVuZ3RoIiwibWFwIiwic2xpY2UiLCJyZWFkX2NvdW50IiwiY3JlYXRlZF9hdCIsInJlcGxhY2UiLCJfYyJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJBZG1pbkFubm91bmNlbWVudHMudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBSZWFjdCwgeyB1c2VDYWxsYmFjaywgdXNlRWZmZWN0LCB1c2VTdGF0ZSB9IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHtcclxuICBnZXRBbm5vdW5jZW1lbnRzLFxyXG4gIGFkZEFubm91bmNlbWVudCxcclxuICB1cGRhdGVBbm5vdW5jZW1lbnQsXHJcbiAgZGVsZXRlQW5ub3VuY2VtZW50LFxyXG4gIHRvZ2dsZUFubm91bmNlbWVudCxcclxufSBmcm9tICcuLi8uLi9hZG1pbkFwaSc7XHJcbmltcG9ydCB7IFBsdXMsIFJlZnJlc2hDdywgRWRpdDIsIFRyYXNoMiwgUG93ZXIsIENoZWNrLCBYIH0gZnJvbSAnbHVjaWRlLXJlYWN0JztcclxuXHJcbmludGVyZmFjZSBBbm5vdW5jZW1lbnQge1xyXG4gIGlkOiBudW1iZXI7XHJcbiAgdGl0bGU6IHN0cmluZztcclxuICBjb250ZW50OiBzdHJpbmc7XHJcbiAgaXNfYWN0aXZlOiBudW1iZXI7XHJcbiAgcmVhZF9jb3VudDogbnVtYmVyO1xyXG4gIGNyZWF0ZWRfYXQ6IHN0cmluZztcclxuICB1cGRhdGVkX2F0OiBzdHJpbmc7XHJcbn1cclxuXHJcbmNvbnN0IEVNUFRZX0ZPUk0gPSB7XHJcbiAgdGl0bGU6ICcnLFxyXG4gIGNvbnRlbnQ6ICcnLFxyXG4gIGlzX2FjdGl2ZTogdHJ1ZSxcclxufTtcclxuXHJcbmV4cG9ydCBkZWZhdWx0IGZ1bmN0aW9uIEFkbWluQW5ub3VuY2VtZW50cygpIHtcclxuICBjb25zdCBbYW5ub3VuY2VtZW50cywgc2V0QW5ub3VuY2VtZW50c10gPSB1c2VTdGF0ZTxBbm5vdW5jZW1lbnRbXT4oW10pO1xyXG4gIGNvbnN0IFtzaG93Rm9ybSwgc2V0U2hvd0Zvcm1dID0gdXNlU3RhdGUoZmFsc2UpO1xyXG4gIGNvbnN0IFtlZGl0SWQsIHNldEVkaXRJZF0gPSB1c2VTdGF0ZTxudW1iZXIgfCBudWxsPihudWxsKTtcclxuICBjb25zdCBbZm9ybSwgc2V0Rm9ybV0gPSB1c2VTdGF0ZShFTVBUWV9GT1JNKTtcclxuICBjb25zdCBbZXJyb3IsIHNldEVycm9yXSA9IHVzZVN0YXRlKCcnKTtcclxuICBjb25zdCBbbG9hZGluZywgc2V0TG9hZGluZ10gPSB1c2VTdGF0ZShmYWxzZSk7XHJcblxyXG4gIGNvbnN0IGxvYWQgPSB1c2VDYWxsYmFjayhhc3luYyAoKSA9PiB7XHJcbiAgICB0cnkge1xyXG4gICAgICBzZXRBbm5vdW5jZW1lbnRzKGF3YWl0IGdldEFubm91bmNlbWVudHMoKSk7XHJcbiAgICB9IGNhdGNoIChlOiBhbnkpIHtcclxuICAgICAgc2V0RXJyb3IoZS5tZXNzYWdlIHx8ICfliqDovb3lhazlkYrlpLHotKUnKTtcclxuICAgIH1cclxuICB9LCBbXSk7XHJcblxyXG4gIHVzZUVmZmVjdCgoKSA9PiB7XHJcbiAgICBsb2FkKCk7XHJcbiAgfSwgW2xvYWRdKTtcclxuXHJcbiAgY29uc3QgcmVzZXRGb3JtID0gKCkgPT4ge1xyXG4gICAgc2V0U2hvd0Zvcm0oZmFsc2UpO1xyXG4gICAgc2V0RWRpdElkKG51bGwpO1xyXG4gICAgc2V0Rm9ybShFTVBUWV9GT1JNKTtcclxuICB9O1xyXG5cclxuICBjb25zdCBoYW5kbGVTYXZlID0gYXN5bmMgKCkgPT4ge1xyXG4gICAgaWYgKCFmb3JtLnRpdGxlLnRyaW0oKSkge1xyXG4gICAgICBzZXRFcnJvcign6K+35aGr5YaZ5YWs5ZGK5qCH6aKYJyk7XHJcbiAgICAgIHJldHVybjtcclxuICAgIH1cclxuICAgIGlmICghZm9ybS5jb250ZW50LnRyaW0oKSkge1xyXG4gICAgICBzZXRFcnJvcign6K+35aGr5YaZ5YWs5ZGK5YaF5a65Jyk7XHJcbiAgICAgIHJldHVybjtcclxuICAgIH1cclxuXHJcbiAgICBzZXRMb2FkaW5nKHRydWUpO1xyXG4gICAgdHJ5IHtcclxuICAgICAgY29uc3QgcGF5bG9hZCA9IHtcclxuICAgICAgICB0aXRsZTogZm9ybS50aXRsZS50cmltKCksXHJcbiAgICAgICAgY29udGVudDogZm9ybS5jb250ZW50LnRyaW0oKSxcclxuICAgICAgICBpc19hY3RpdmU6IGZvcm0uaXNfYWN0aXZlID8gMSA6IDAsXHJcbiAgICAgIH07XHJcblxyXG4gICAgICBpZiAoZWRpdElkICE9PSBudWxsKSB7XHJcbiAgICAgICAgYXdhaXQgdXBkYXRlQW5ub3VuY2VtZW50KGVkaXRJZCwgcGF5bG9hZCk7XHJcbiAgICAgIH0gZWxzZSB7XHJcbiAgICAgICAgYXdhaXQgYWRkQW5ub3VuY2VtZW50KHBheWxvYWQpO1xyXG4gICAgICB9XHJcblxyXG4gICAgICByZXNldEZvcm0oKTtcclxuICAgICAgYXdhaXQgbG9hZCgpO1xyXG4gICAgfSBjYXRjaCAoZTogYW55KSB7XHJcbiAgICAgIHNldEVycm9yKGUubWVzc2FnZSB8fCAn5L+d5a2Y5aSx6LSlJyk7XHJcbiAgICB9IGZpbmFsbHkge1xyXG4gICAgICBzZXRMb2FkaW5nKGZhbHNlKTtcclxuICAgIH1cclxuICB9O1xyXG5cclxuICBjb25zdCBoYW5kbGVEZWxldGUgPSBhc3luYyAoaWQ6IG51bWJlcikgPT4ge1xyXG4gICAgaWYgKCFjb25maXJtKCfnoa7lrprliKDpmaTov5nmnaHlhazlkYrvvJ/liKDpmaTlkI7ml6Dms5XmgaLlpI3jgIInKSkgcmV0dXJuO1xyXG4gICAgdHJ5IHtcclxuICAgICAgYXdhaXQgZGVsZXRlQW5ub3VuY2VtZW50KGlkKTtcclxuICAgICAgYXdhaXQgbG9hZCgpO1xyXG4gICAgfSBjYXRjaCAoZTogYW55KSB7XHJcbiAgICAgIHNldEVycm9yKGUubWVzc2FnZSB8fCAn5Yig6Zmk5aSx6LSlJyk7XHJcbiAgICB9XHJcbiAgfTtcclxuXHJcbiAgY29uc3QgaGFuZGxlVG9nZ2xlID0gYXN5bmMgKGlkOiBudW1iZXIpID0+IHtcclxuICAgIHRyeSB7XHJcbiAgICAgIGF3YWl0IHRvZ2dsZUFubm91bmNlbWVudChpZCk7XHJcbiAgICAgIGF3YWl0IGxvYWQoKTtcclxuICAgIH0gY2F0Y2ggKGU6IGFueSkge1xyXG4gICAgICBzZXRFcnJvcihlLm1lc3NhZ2UgfHwgJ+WIh+aNoueKtuaAgeWksei0pScpO1xyXG4gICAgfVxyXG4gIH07XHJcblxyXG4gIGNvbnN0IHN0YXJ0RWRpdCA9IChpdGVtOiBBbm5vdW5jZW1lbnQpID0+IHtcclxuICAgIHNldEVkaXRJZChpdGVtLmlkKTtcclxuICAgIHNldFNob3dGb3JtKHRydWUpO1xyXG4gICAgc2V0Rm9ybSh7XHJcbiAgICAgIHRpdGxlOiBpdGVtLnRpdGxlIHx8ICcnLFxyXG4gICAgICBjb250ZW50OiBpdGVtLmNvbnRlbnQgfHwgJycsXHJcbiAgICAgIGlzX2FjdGl2ZTogISFpdGVtLmlzX2FjdGl2ZSxcclxuICAgIH0pO1xyXG4gIH07XHJcblxyXG4gIHJldHVybiAoXHJcbiAgICA8ZGl2IGNsYXNzTmFtZT1cInAtOFwiPlxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktYmV0d2VlbiBtYi02XCI+XHJcbiAgICAgICAgPGRpdj5cclxuICAgICAgICAgIDxoMiBjbGFzc05hbWU9XCJ0ZXh0LXhsIGZvbnQtc2VtaWJvbGQgdGV4dC1ncmF5LTgwMFwiPuWFrOWRiueuoeeQhjwvaDI+XHJcbiAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXNtIHRleHQtZ3JheS01MDAgbXQtMVwiPuaWsOWinuaIluWPkeW4g+WFrOWRiuWQju+8jOeUqOaIt+S4i+asoei/m+WFpemhtemdouS8muW8ueeql+aYvuekuu+8m+WcqOe6v+eUqOaIt+S8muWcqOi9ruivouWQjuiHquWKqOaUtuWIsOOAgjwvcD5cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZ2FwLTJcIj5cclxuICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgb25DbGljaz17bG9hZH1cclxuICAgICAgICAgICAgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTEuNSBweC0zIHB5LTEuNSB0ZXh0LXNtIHRleHQtZ3JheS02MDAgYmctd2hpdGUgYm9yZGVyIGJvcmRlci1ncmF5LTIwMCByb3VuZGVkLWxnIGhvdmVyOmJnLWdyYXktNTBcIlxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICA8UmVmcmVzaEN3IHNpemU9ezE0fSAvPiDliLfmlrBcclxuICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiB7IHNldFNob3dGb3JtKHRydWUpOyBzZXRFZGl0SWQobnVsbCk7IHNldEZvcm0oRU1QVFlfRk9STSk7IH19XHJcbiAgICAgICAgICAgIGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0xLjUgcHgtMyBweS0xLjUgdGV4dC1zbSB0ZXh0LXdoaXRlIGJnLWJsdWUtNTAwIHJvdW5kZWQtbGcgaG92ZXI6YmctYmx1ZS02MDBcIlxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICA8UGx1cyBzaXplPXsxNH0gLz4g5re75Yqg5YWs5ZGKXHJcbiAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgPC9kaXY+XHJcblxyXG4gICAgICB7ZXJyb3IgJiYgKFxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWItNCBwLTMgYmctcmVkLTUwIGJvcmRlciBib3JkZXItcmVkLTIwMCByb3VuZGVkLWxnIHRleHQtc20gdGV4dC1yZWQtNjAwXCI+XHJcbiAgICAgICAgICB7ZXJyb3J9XHJcbiAgICAgICAgICA8YnV0dG9uIG9uQ2xpY2s9eygpID0+IHNldEVycm9yKCcnKX0gY2xhc3NOYW1lPVwibWwtMiB1bmRlcmxpbmVcIj7lhbPpl608L2J1dHRvbj5cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgKX1cclxuXHJcbiAgICAgIHtzaG93Rm9ybSAmJiAoXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtYi02IGJnLXdoaXRlIGJvcmRlciBib3JkZXItZ3JheS0yMDAgcm91bmRlZC14bCBwLTVcIj5cclxuICAgICAgICAgIDxoMyBjbGFzc05hbWU9XCJ0ZXh0LXNtIGZvbnQtbWVkaXVtIHRleHQtZ3JheS03MDAgbWItM1wiPntlZGl0SWQgIT09IG51bGwgPyAn57yW6L6R5YWs5ZGKJyA6ICfmt7vliqDlhazlkYonfTwvaDM+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktM1wiPlxyXG4gICAgICAgICAgICA8aW5wdXRcclxuICAgICAgICAgICAgICBwbGFjZWhvbGRlcj1cIuWFrOWRiuagh+mimCAqXCJcclxuICAgICAgICAgICAgICB2YWx1ZT17Zm9ybS50aXRsZX1cclxuICAgICAgICAgICAgICBvbkNoYW5nZT17ZSA9PiBzZXRGb3JtKHsgLi4uZm9ybSwgdGl0bGU6IGUudGFyZ2V0LnZhbHVlIH0pfVxyXG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cInctZnVsbCBweC0zIHB5LTIgYm9yZGVyIGJvcmRlci1ncmF5LTIwMCByb3VuZGVkLWxnIHRleHQtc21cIlxyXG4gICAgICAgICAgICAvPlxyXG4gICAgICAgICAgICA8dGV4dGFyZWFcclxuICAgICAgICAgICAgICBwbGFjZWhvbGRlcj1cIuWFrOWRiuWGheWuuSAqXCJcclxuICAgICAgICAgICAgICB2YWx1ZT17Zm9ybS5jb250ZW50fVxyXG4gICAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldEZvcm0oeyAuLi5mb3JtLCBjb250ZW50OiBlLnRhcmdldC52YWx1ZSB9KX1cclxuICAgICAgICAgICAgICByb3dzPXs4fVxyXG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cInctZnVsbCBweC0zIHB5LTIgYm9yZGVyIGJvcmRlci1ncmF5LTIwMCByb3VuZGVkLWxnIHRleHQtc20gcmVzaXplLXlcIlxyXG4gICAgICAgICAgICAvPlxyXG4gICAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiaW5saW5lLWZsZXggaXRlbXMtY2VudGVyIGdhcC0yIHRleHQtc20gdGV4dC1ncmF5LTYwMFwiPlxyXG4gICAgICAgICAgICAgIDxpbnB1dFxyXG4gICAgICAgICAgICAgICAgdHlwZT1cImNoZWNrYm94XCJcclxuICAgICAgICAgICAgICAgIGNoZWNrZWQ9e2Zvcm0uaXNfYWN0aXZlfVxyXG4gICAgICAgICAgICAgICAgb25DaGFuZ2U9e2UgPT4gc2V0Rm9ybSh7IC4uLmZvcm0sIGlzX2FjdGl2ZTogZS50YXJnZXQuY2hlY2tlZCB9KX1cclxuICAgICAgICAgICAgICAvPlxyXG4gICAgICAgICAgICAgIOS/neWtmOWQjueri+WNs+WPkeW4g1xyXG4gICAgICAgICAgICA8L2xhYmVsPlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZ2FwLTIgbXQtNFwiPlxyXG4gICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2F2ZX1cclxuICAgICAgICAgICAgICBkaXNhYmxlZD17bG9hZGluZ31cclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMS41IHB4LTQgcHktMiB0ZXh0LXNtIHRleHQtd2hpdGUgYmctYmx1ZS01MDAgcm91bmRlZC1sZyBob3ZlcjpiZy1ibHVlLTYwMCBkaXNhYmxlZDpvcGFjaXR5LTUwXCJcclxuICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgIDxDaGVjayBzaXplPXsxNH0gLz4ge2xvYWRpbmcgPyAn5L+d5a2Y5LitLi4uJyA6ICfkv53lrZgnfVxyXG4gICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgIG9uQ2xpY2s9e3Jlc2V0Rm9ybX1cclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMS41IHB4LTQgcHktMiB0ZXh0LXNtIHRleHQtZ3JheS02MDAgYmctZ3JheS0xMDAgcm91bmRlZC1sZyBob3ZlcjpiZy1ncmF5LTIwMFwiXHJcbiAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICA8WCBzaXplPXsxNH0gLz4g5Y+W5raIXHJcbiAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICAgICl9XHJcblxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLXdoaXRlIGJvcmRlciBib3JkZXItZ3JheS0yMDAgcm91bmRlZC14bCBvdmVyZmxvdy1oaWRkZW5cIj5cclxuICAgICAgICA8dGFibGUgY2xhc3NOYW1lPVwidy1mdWxsIHRleHQtc21cIj5cclxuICAgICAgICAgIDx0aGVhZCBjbGFzc05hbWU9XCJiZy1ncmF5LTUwIGJvcmRlci1iIGJvcmRlci1ncmF5LTIwMFwiPlxyXG4gICAgICAgICAgICA8dHI+XHJcbiAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWxlZnQgdGV4dC1ncmF5LTYwMCBmb250LW1lZGl1bVwiPuWFrOWRijwvdGg+XHJcbiAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWxlZnQgdGV4dC1ncmF5LTYwMCBmb250LW1lZGl1bVwiPueKtuaAgTwvdGg+XHJcbiAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWxlZnQgdGV4dC1ncmF5LTYwMCBmb250LW1lZGl1bVwiPuW3suivu+S6uuaVsDwvdGg+XHJcbiAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWxlZnQgdGV4dC1ncmF5LTYwMCBmb250LW1lZGl1bVwiPuWIm+W7uuaXtumXtDwvdGg+XHJcbiAgICAgICAgICAgICAgPHRoIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWxlZnQgdGV4dC1ncmF5LTYwMCBmb250LW1lZGl1bVwiPuaTjeS9nDwvdGg+XHJcbiAgICAgICAgICAgIDwvdHI+XHJcbiAgICAgICAgICA8L3RoZWFkPlxyXG4gICAgICAgICAgPHRib2R5PlxyXG4gICAgICAgICAgICB7YW5ub3VuY2VtZW50cy5sZW5ndGggPT09IDAgJiYgKFxyXG4gICAgICAgICAgICAgIDx0cj5cclxuICAgICAgICAgICAgICAgIDx0ZCBjb2xTcGFuPXs1fSBjbGFzc05hbWU9XCJweC00IHB5LTggdGV4dC1jZW50ZXIgdGV4dC1ncmF5LTQwMFwiPuaaguaXoOWFrOWRijwvdGQ+XHJcbiAgICAgICAgICAgICAgPC90cj5cclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAge2Fubm91bmNlbWVudHMubWFwKGl0ZW0gPT4gKFxyXG4gICAgICAgICAgICAgIDx0ciBrZXk9e2l0ZW0uaWR9IGNsYXNzTmFtZT17YGJvcmRlci1iIGJvcmRlci1ncmF5LTEwMCAkeyFpdGVtLmlzX2FjdGl2ZSA/ICdvcGFjaXR5LTYwJyA6ICcnfWB9PlxyXG4gICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktM1wiPlxyXG4gICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZvbnQtbWVkaXVtIHRleHQtZ3JheS04MDBcIj57aXRlbS50aXRsZX08L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJ0ZXh0LXhzIHRleHQtZ3JheS01MDAgbXQtMSB3aGl0ZXNwYWNlLXByZS13cmFwIGJyZWFrLXdvcmRzXCI+XHJcbiAgICAgICAgICAgICAgICAgICAge2l0ZW0uY29udGVudC5sZW5ndGggPiAxNjAgPyBgJHtpdGVtLmNvbnRlbnQuc2xpY2UoMCwgMTYwKX0uLi5gIDogaXRlbS5jb250ZW50fVxyXG4gICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIDwvdGQ+XHJcbiAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNCBweS0zXCI+XHJcbiAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT17YHRleHQteHMgcHgtMiBweS0wLjUgcm91bmRlZC1mdWxsICR7aXRlbS5pc19hY3RpdmUgPyAnYmctZ3JlZW4tMTAwIHRleHQtZ3JlZW4tNjAwJyA6ICdiZy1ncmF5LTEwMCB0ZXh0LWdyYXktNTAwJ31gfT5cclxuICAgICAgICAgICAgICAgICAgICB7aXRlbS5pc19hY3RpdmUgPyAn5Y+R5biD5LitJyA6ICfmnKrlj5HluIMnfVxyXG4gICAgICAgICAgICAgICAgICA8L3NwYW4+XHJcbiAgICAgICAgICAgICAgICA8L3RkPlxyXG4gICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktMyB0ZXh0LWdyYXktNjAwXCI+e2l0ZW0ucmVhZF9jb3VudCB8fCAwfTwvdGQ+XHJcbiAgICAgICAgICAgICAgICA8dGQgY2xhc3NOYW1lPVwicHgtNCBweS0zIHRleHQteHMgdGV4dC1ncmF5LTUwMFwiPntpdGVtLmNyZWF0ZWRfYXQ/LnNsaWNlKDAsIDE2KS5yZXBsYWNlKCdUJywgJyAnKX08L3RkPlxyXG4gICAgICAgICAgICAgICAgPHRkIGNsYXNzTmFtZT1cInB4LTQgcHktM1wiPlxyXG4gICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0xXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gc3RhcnRFZGl0KGl0ZW0pfVxyXG4gICAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwicC0xLjUgdGV4dC1ncmF5LTQwMCBob3Zlcjp0ZXh0LWJsdWUtNTAwIHJvdW5kZWRcIlxyXG4gICAgICAgICAgICAgICAgICAgICAgdGl0bGU9XCLnvJbovpFcIlxyXG4gICAgICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAgICAgIDxFZGl0MiBzaXplPXsxNH0gLz5cclxuICAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiBoYW5kbGVUb2dnbGUoaXRlbS5pZCl9XHJcbiAgICAgICAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJwLTEuNSB0ZXh0LWdyYXktNDAwIGhvdmVyOnRleHQteWVsbG93LTUwMCByb3VuZGVkXCJcclxuICAgICAgICAgICAgICAgICAgICAgIHRpdGxlPXtpdGVtLmlzX2FjdGl2ZSA/ICfkuIvnur8nIDogJ+WPkeW4gyd9XHJcbiAgICAgICAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgICAgICAgPFBvd2VyIHNpemU9ezE0fSAvPlxyXG4gICAgICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IGhhbmRsZURlbGV0ZShpdGVtLmlkKX1cclxuICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cInAtMS41IHRleHQtZ3JheS00MDAgaG92ZXI6dGV4dC1yZWQtNTAwIHJvdW5kZWRcIlxyXG4gICAgICAgICAgICAgICAgICAgICAgdGl0bGU9XCLliKDpmaRcIlxyXG4gICAgICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAgICAgIDxUcmFzaDIgc2l6ZT17MTR9IC8+XHJcbiAgICAgICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC90ZD5cclxuICAgICAgICAgICAgICA8L3RyPlxyXG4gICAgICAgICAgICApKX1cclxuICAgICAgICAgIDwvdGJvZHk+XHJcbiAgICAgICAgPC90YWJsZT5cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L2Rpdj5cclxuICApO1xyXG59XHJcbiJdLCJmaWxlIjoiRDovd29yay9weS9jbGF1ZGUvY2xhdWRlLWRlc2t0b3Avc3JjL2NvbXBvbmVudHMvYWRtaW4vQWRtaW5Bbm5vdW5jZW1lbnRzLnRzeCJ9

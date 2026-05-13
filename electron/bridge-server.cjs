@@ -1374,10 +1374,12 @@ function initServer(mainWindow) {
 
     server.post('/api/projects', (req, res) => {
         const id = uuidv4();
-        const { name, description = '' } = req.body;
+        const { name, description = '', workspace_path = null } = req.body;
         if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
 
-        const projectDir = path.join(workspacesDir, `project-${id}`);
+        const projectDir = workspace_path && typeof workspace_path === 'string'
+            ? path.resolve(workspace_path)
+            : path.join(workspacesDir, `project-${id}`);
         if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
 
         const project = {

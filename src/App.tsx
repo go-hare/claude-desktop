@@ -28,6 +28,7 @@ import CustomizePage from './components/CustomizePage';
 import ProjectsPage from './components/ProjectsPage';
 import CoworkPage from './components/CoworkPage';
 import ScheduledPage from './components/ScheduledPage';
+import CodePage from './components/CodePage';
 
 const Tooltip = ({ children, text, shortcut }: { children: React.ReactNode; text: string; shortcut?: string }) => {
   const [show, setShow] = useState(false);
@@ -675,7 +676,7 @@ const Layout = () => {
             {/* Main Content Area - takes remaining width after panel */}
             <div className="flex-1 flex flex-col h-full min-w-0">
               {/* Header - Only render here if NOT in Artifacts-only mode */}
-              {isChatMode && (!showArtifacts || documentPanelDoc) && !showSettings && !showUpgrade && location.pathname !== '/chats' && location.pathname !== '/customize' && location.pathname !== '/projects' && location.pathname !== '/artifacts' && !location.pathname.startsWith('/cowork') && location.pathname !== '/scheduled' && (
+              {isChatMode && (!showArtifacts || documentPanelDoc) && !showSettings && !showUpgrade && location.pathname !== '/chats' && location.pathname !== '/customize' && location.pathname !== '/projects' && location.pathname !== '/artifacts' && !location.pathname.startsWith('/cowork') && location.pathname !== '/task' && !location.pathname.startsWith('/task/') && location.pathname !== '/scheduled' && (
                 <ChatHeader
                   title={currentChatTitle}
                   showArtifacts={showArtifacts}
@@ -700,7 +701,7 @@ const Layout = () => {
                 }} />
               ) : location.pathname === '/projects' ? (
                 <ProjectsPage />
-              ) : location.pathname === '/cowork' ? (
+              ) : location.pathname === '/task/new' || location.pathname === '/cowork' ? (
                 <CoworkPage />
               ) : location.pathname === '/cowork/projects' ? (
                 <ProjectsPage />
@@ -711,9 +712,17 @@ const Layout = () => {
                   window.location.hash = '#/';
                 }} />
               ) : location.pathname === '/cowork/scheduled' ? (
-                <ScheduledPage onNewTask={() => navigate('/cowork')} />
+                <ScheduledPage onNewTask={() => navigate('/task/new')} />
               ) : location.pathname === '/scheduled' ? (
-                <ScheduledPage onNewTask={() => navigate('/cowork')} />
+                <ScheduledPage onNewTask={() => navigate('/task/new')} />
+              ) : location.pathname === '/code/scheduled' ? (
+                <ScheduledPage onNewTask={() => navigate('/code')} />
+              ) : location.pathname === '/code/customize' ? (
+                <CustomizePage onCreateWithClaude={() => {
+                  sessionStorage.setItem('prefill_input', '让我们一起使用你的 skill-creator skill 来创建一个 skill 吧。请先问我这个 skill 应该做什么。');
+                  handleNewChat();
+                  window.location.hash = '#/';
+                }} />
               ) : location.pathname === '/artifacts' ? (
                 <ArtifactsPage onTryPrompt={(prompt) => {
                   if (prompt === '__remix__') {
@@ -725,6 +734,8 @@ const Layout = () => {
                   handleNewChat();
                   window.location.hash = '#/';
                 }} />
+              ) : location.pathname === '/code' || location.pathname === '/code/' ? (
+                <CodePage />
               ) : (
                 <MainContent
                   onNewChat={refreshSidebar}
@@ -833,11 +844,16 @@ const App = () => {
         <Route path="/customize" element={<Layout />} />
         <Route path="/projects" element={<Layout />} />
         <Route path="/artifacts" element={<Layout />} />
+        <Route path="/new" element={<Layout />} />
+        <Route path="/task/new" element={<Layout />} />
         <Route path="/cowork" element={<Layout />} />
         <Route path="/cowork/projects" element={<Layout />} />
         <Route path="/cowork/customize" element={<Layout />} />
         <Route path="/cowork/scheduled" element={<Layout />} />
         <Route path="/scheduled" element={<Layout />} />
+        <Route path="/code" element={<Layout />} />
+        <Route path="/code/scheduled" element={<Layout />} />
+        <Route path="/code/customize" element={<Layout />} />
         <Route path="/chat/:id" element={<Layout />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

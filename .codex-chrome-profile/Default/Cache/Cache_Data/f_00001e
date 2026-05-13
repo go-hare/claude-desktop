@@ -1,0 +1,625 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/CoworkPage.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=12cb7fed"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=12cb7fed"; const useEffect = __vite__cjsImport1_react["useEffect"]; const useMemo = __vite__cjsImport1_react["useMemo"]; const useRef = __vite__cjsImport1_react["useRef"]; const useState = __vite__cjsImport1_react["useState"];
+import {
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  CornerDownRight,
+  FileText,
+  Folder,
+  PanelRight,
+  Plus,
+  Shuffle,
+  Square
+} from "/node_modules/.vite/deps/lucide-react.js?v=12cb7fed";
+import starSparkleImg from "/src/assets/figma-exports/cowork-icons/star-sparkle.png?import";
+import { COWORK_SUGGESTIONS } from "/src/data/coworkSuggestions.tsx?t=1778637904499";
+const DEFAULT_TASK_PROMPT = COWORK_SUGGESTIONS[0].prompt;
+const CoworkPage = () => {
+  _s();
+  const [draft, setDraft] = useState("");
+  const [queuedDraft, setQueuedDraft] = useState("");
+  const [activePrompt, setActivePrompt] = useState(null);
+  const textareaRef = useRef(null);
+  const queueRef = useRef(null);
+  const isRunning = Boolean(activePrompt);
+  useEffect(() => {
+    if (isRunning) {
+      queueRef.current?.focus();
+      return;
+    }
+    textareaRef.current?.focus();
+  }, [isRunning]);
+  const startTask = (prompt) => {
+    const value = prompt.trim();
+    if (!value) return;
+    setActivePrompt(value);
+    setDraft("");
+  };
+  const submitTask = () => startTask(draft);
+  const handleKeyDown = (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      submitTask();
+    }
+  };
+  const taskPreview = useMemo(() => {
+    if (!activePrompt) return "";
+    const maxChars = 390;
+    return activePrompt.length > maxChars ? `${activePrompt.slice(0, maxChars).trimEnd()}` : activePrompt;
+  }, [activePrompt]);
+  if (isRunning) {
+    return /* @__PURE__ */ jsxDEV("div", { className: "cowork-run-page flex-1 h-full overflow-hidden", children: [
+      /* @__PURE__ */ jsxDEV("header", { className: "cowork-run-header", children: [
+        /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-title", children: [
+          "新建任务",
+          /* @__PURE__ */ jsxDEV(ChevronDown, { size: 18, strokeWidth: 1.8 }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 64,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 62,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-panel-toggle", "aria-label": "Toggle task panel", children: /* @__PURE__ */ jsxDEV(PanelRight, { size: 21, strokeWidth: 1.8 }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 67,
+          columnNumber: 13
+        }, this) }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 66,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 61,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("main", { className: "cowork-run-main", children: [
+        /* @__PURE__ */ jsxDEV("section", { className: "cowork-run-thread", children: [
+          /* @__PURE__ */ jsxDEV("article", { className: "cowork-run-message-card", children: [
+            /* @__PURE__ */ jsxDEV("p", { children: taskPreview }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 74,
+              columnNumber: 15
+            }, this),
+            activePrompt && activePrompt.length > taskPreview.length ? /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-show-more", children: "Show more" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 76,
+              columnNumber: 15
+            }, this) : null,
+            /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-copy", "aria-label": "Copy task prompt", children: /* @__PURE__ */ jsxDEV(Copy, { size: 18, strokeWidth: 1.7 }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 79,
+              columnNumber: 17
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 78,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 73,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "cowork-run-status", children: [
+            /* @__PURE__ */ jsxDEV("img", { src: starSparkleImg, alt: "", "aria-hidden": "true" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 84,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { children: "Working on it..." }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 85,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 83,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 72,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("aside", { className: "cowork-run-panel", children: [
+          /* @__PURE__ */ jsxDEV("section", { className: "cowork-run-side-card cowork-run-side-card-progress", children: [
+            /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-side-title", children: [
+              /* @__PURE__ */ jsxDEV("span", { children: "进度" }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 92,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV(ChevronDown, { size: 18, strokeWidth: 1.7 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 93,
+                columnNumber: 17
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 91,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "cowork-run-progress-dots", "aria-hidden": "true", children: [
+              /* @__PURE__ */ jsxDEV("span", { className: "is-complete" }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 96,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { className: "is-complete" }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 97,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", {}, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 98,
+                columnNumber: 17
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 95,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV("p", { children: "See task progress for longer tasks." }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 100,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 90,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-folder-card", children: [
+            /* @__PURE__ */ jsxDEV("span", { children: "工作文件夹" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 104,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV(ChevronRight, { size: 20, strokeWidth: 1.7 }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 105,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 103,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV("section", { className: "cowork-run-side-card cowork-run-side-card-context", children: [
+            /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-side-title", children: [
+              /* @__PURE__ */ jsxDEV("span", { children: "上下文" }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 110,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV(ChevronDown, { size: 18, strokeWidth: 1.7 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 111,
+                columnNumber: 17
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 109,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "cowork-run-context-illustration", "aria-hidden": "true", children: [
+              /* @__PURE__ */ jsxDEV(FileText, { size: 32, strokeWidth: 1.4 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 114,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV(FileText, { size: 32, strokeWidth: 1.4 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 115,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { children: /* @__PURE__ */ jsxDEV(Plus, { size: 18, strokeWidth: 1.8 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 116,
+                columnNumber: 23
+              }, this) }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 116,
+                columnNumber: 17
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 113,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV("p", { children: "Track tools and referenced files used in this task." }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 118,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 108,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 89,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 71,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("section", { className: "cowork-run-composer-wrap", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "cowork-run-composer", children: [
+          /* @__PURE__ */ jsxDEV(
+            "textarea",
+            {
+              ref: queueRef,
+              value: queuedDraft,
+              onChange: (event) => setQueuedDraft(event.target.value),
+              placeholder: "Write a message...",
+              rows: 1,
+              className: "cowork-run-textarea"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 125,
+              columnNumber: 13
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV("div", { className: "cowork-run-composer-actions", children: [
+            /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-plus", "aria-label": "Add attachment", children: /* @__PURE__ */ jsxDEV(Plus, { size: 24, strokeWidth: 1.8 }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 135,
+              columnNumber: 17
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 134,
+              columnNumber: 15
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "cowork-run-composer-right", children: [
+              /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-model", children: [
+                "gpt-5.2",
+                /* @__PURE__ */ jsxDEV(ChevronDown, { size: 16, strokeWidth: 1.6 }, void 0, false, {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                  lineNumber: 140,
+                  columnNumber: 19
+                }, this)
+              ] }, void 0, true, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 138,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-stop", "aria-label": "Stop task", children: /* @__PURE__ */ jsxDEV(Square, { size: 15, strokeWidth: 1.8 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 143,
+                columnNumber: 19
+              }, this) }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 142,
+                columnNumber: 17
+              }, this),
+              /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-run-queue", disabled: !queuedDraft.trim(), children: [
+                /* @__PURE__ */ jsxDEV(CornerDownRight, { size: 18, strokeWidth: 1.9 }, void 0, false, {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                  lineNumber: 146,
+                  columnNumber: 19
+                }, this),
+                "Queue"
+              ] }, void 0, true, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 145,
+                columnNumber: 17
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 137,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 133,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 124,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "cowork-run-disclaimer", children: "Claude 是 AI，可能会出错。请务必再次核对回复内容。" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 152,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 123,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+      lineNumber: 60,
+      columnNumber: 7
+    }, this);
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-page flex-1 h-full overflow-y-auto", children: /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-shell", children: [
+    /* @__PURE__ */ jsxDEV("section", { className: "cowork-task-hero", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-heading-row", children: [
+        /* @__PURE__ */ jsxDEV(
+          "img",
+          {
+            src: starSparkleImg,
+            alt: "",
+            "aria-hidden": "true",
+            className: "cowork-task-star",
+            width: 28,
+            height: 28
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 163,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("h1", { className: "cowork-task-title", children: "先把清单上的一件事做完" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 171,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 162,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-task-subtitle", children: "了解如何安全使用 Cowork。" }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 173,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+      lineNumber: 161,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("section", { className: "cowork-task-composer-card", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-composer-main", children: [
+        /* @__PURE__ */ jsxDEV(
+          "textarea",
+          {
+            ref: textareaRef,
+            value: draft,
+            onChange: (event) => setDraft(event.target.value),
+            onKeyDown: handleKeyDown,
+            placeholder: "今天我能为你提供什么帮助吗?",
+            rows: 1,
+            className: "cowork-task-textarea"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 180,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-composer-actions", children: [
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              className: "cowork-task-plus",
+              "aria-label": "Add attachment",
+              children: /* @__PURE__ */ jsxDEV(Plus, { size: 24, strokeWidth: 1.8 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 196,
+                columnNumber: 17
+              }, this)
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 191,
+              columnNumber: 15
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              className: "cowork-task-send",
+              "aria-label": "Start task",
+              disabled: !draft.trim(),
+              onClick: submitTask,
+              children: /* @__PURE__ */ jsxDEV(ArrowUp, { size: 24, strokeWidth: 2.1 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                lineNumber: 206,
+                columnNumber: 17
+              }, this)
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 199,
+              columnNumber: 15
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 190,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 179,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-composer-footer", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-project-pill", children: [
+          /* @__PURE__ */ jsxDEV(Folder, { size: 20, strokeWidth: 1.8 }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 213,
+            columnNumber: 15
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { children: "项目工作区" }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 214,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 212,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("button", { type: "button", className: "cowork-task-model-pill", children: [
+          "gpt-5.2",
+          /* @__PURE__ */ jsxDEV(ChevronDown, { size: 14, strokeWidth: 1.7 }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 218,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 216,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 211,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+      lineNumber: 178,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("section", { className: "cowork-task-suggestions", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-suggestions-label", children: [
+        /* @__PURE__ */ jsxDEV(Shuffle, { size: 14, strokeWidth: 1.6 }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 225,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("span", { children: "选择一个任务，任何任务" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+          lineNumber: 226,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 224,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "cowork-task-suggestion-list", children: [
+        COWORK_SUGGESTIONS.map(
+          (item) => /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              className: "cowork-task-suggestion",
+              onClick: () => startTask(item.prompt),
+              children: [
+                /* @__PURE__ */ jsxDEV("span", { className: "cowork-task-suggestion-icon", children: item.icon }, void 0, false, {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                  lineNumber: 236,
+                  columnNumber: 17
+                }, this),
+                /* @__PURE__ */ jsxDEV("span", { className: "cowork-task-suggestion-title", children: item.title }, void 0, false, {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+                  lineNumber: 237,
+                  columnNumber: 17
+                }, this)
+              ]
+            },
+            item.id,
+            true,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+              lineNumber: 230,
+              columnNumber: 13
+            },
+            this
+          )
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            type: "button",
+            className: "cowork-task-custom-link",
+            onClick: () => startTask(DEFAULT_TASK_PROMPT),
+            children: "用插件自定义"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+            lineNumber: 240,
+            columnNumber: 13
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+        lineNumber: 228,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+      lineNumber: 223,
+      columnNumber: 9
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+    lineNumber: 160,
+    columnNumber: 7
+  }, this) }, void 0, false, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx",
+    lineNumber: 159,
+    columnNumber: 5
+  }, this);
+};
+_s(CoworkPage, "YVfN7f9W5Ww5rbXoa1Ze0uhmCb0=");
+_c = CoworkPage;
+export default CoworkPage;
+var _c;
+$RefreshReg$(_c, "CoworkPage");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/work/py/claude/claude-desktop/src/components/CoworkPage.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFBO0FBQUEsdUJBQXlEO0FBQUEsZ0JBQ3pELHVCQUFDLFVBQUssV0FBVSxnQ0FBZ0NELGVBQUtFLFNBQXJEO0FBQUE7QUFBQTtBQUFBO0FBQUEsdUJBQTJEO0FBQUE7QUFBQTtBQUFBLFlBTnRERixLQUFLRztBQUFBQSxZQURaO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUEsVUFRQTtBQUFBLFFBQ0Q7QUFBQSxRQUNEO0FBQUEsVUFBQztBQUFBO0FBQUEsWUFDQyxNQUFLO0FBQUEsWUFDTCxXQUFVO0FBQUEsWUFDVixTQUFTLE1BQU1wQixVQUFVaEIsbUJBQW1CO0FBQUEsWUFBRTtBQUFBO0FBQUEsVUFIaEQ7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLFFBTUE7QUFBQSxXQWxCRjtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBbUJBO0FBQUEsU0F4QkY7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQXlCQTtBQUFBLE9BeEZGO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0F5RkEsS0ExRkY7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQTJGQTtBQUVKO0FBQUVHLEdBeE9JRCxZQUFvQjtBQUFBLEtBQXBCQTtBQTBPTixlQUFlQTtBQUFXLElBQUFtQztBQUFBLGFBQUFBLElBQUEiLCJuYW1lcyI6WyJ1c2VFZmZlY3QiLCJ1c2VNZW1vIiwidXNlUmVmIiwidXNlU3RhdGUiLCJBcnJvd1VwIiwiQ2hldnJvbkRvd24iLCJDaGV2cm9uUmlnaHQiLCJDb3B5IiwiQ29ybmVyRG93blJpZ2h0IiwiRmlsZVRleHQiLCJGb2xkZXIiLCJQYW5lbFJpZ2h0IiwiUGx1cyIsIlNodWZmbGUiLCJTcXVhcmUiLCJzdGFyU3BhcmtsZUltZyIsIkNPV09SS19TVUdHRVNUSU9OUyIsIkRFRkFVTFRfVEFTS19QUk9NUFQiLCJwcm9tcHQiLCJDb3dvcmtQYWdlIiwiX3MiLCJkcmFmdCIsInNldERyYWZ0IiwicXVldWVkRHJhZnQiLCJzZXRRdWV1ZWREcmFmdCIsImFjdGl2ZVByb21wdCIsInNldEFjdGl2ZVByb21wdCIsInRleHRhcmVhUmVmIiwicXVldWVSZWYiLCJpc1J1bm5pbmciLCJCb29sZWFuIiwiY3VycmVudCIsImZvY3VzIiwic3RhcnRUYXNrIiwidmFsdWUiLCJ0cmltIiwic3VibWl0VGFzayIsImhhbmRsZUtleURvd24iLCJldmVudCIsIm1ldGFLZXkiLCJjdHJsS2V5Iiwia2V5IiwicHJldmVudERlZmF1bHQiLCJ0YXNrUHJldmlldyIsIm1heENoYXJzIiwibGVuZ3RoIiwic2xpY2UiLCJ0cmltRW5kIiwidGFyZ2V0IiwibWFwIiwiaXRlbSIsImljb24iLCJ0aXRsZSIsImlkIiwiX2MiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiQ293b3JrUGFnZS50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0LCB7IHVzZUVmZmVjdCwgdXNlTWVtbywgdXNlUmVmLCB1c2VTdGF0ZSB9IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHtcclxuICBBcnJvd1VwLFxyXG4gIENoZXZyb25Eb3duLFxyXG4gIENoZXZyb25SaWdodCxcclxuICBDb3B5LFxyXG4gIENvcm5lckRvd25SaWdodCxcclxuICBGaWxlVGV4dCxcbiAgRm9sZGVyLFxuICBQYW5lbFJpZ2h0LFxuICBQbHVzLFxuICBTaHVmZmxlLFxuICBTcXVhcmUsXG59IGZyb20gJ2x1Y2lkZS1yZWFjdCc7XG5pbXBvcnQgc3RhclNwYXJrbGVJbWcgZnJvbSAnLi4vYXNzZXRzL2ZpZ21hLWV4cG9ydHMvY293b3JrLWljb25zL3N0YXItc3BhcmtsZS5wbmcnO1xyXG5pbXBvcnQgeyBDT1dPUktfU1VHR0VTVElPTlMgfSBmcm9tICcuLi9kYXRhL2Nvd29ya1N1Z2dlc3Rpb25zJztcclxuXHJcbmNvbnN0IERFRkFVTFRfVEFTS19QUk9NUFQgPSBDT1dPUktfU1VHR0VTVElPTlNbMF0ucHJvbXB0O1xyXG5cclxuY29uc3QgQ293b3JrUGFnZTogUmVhY3QuRkMgPSAoKSA9PiB7XHJcbiAgY29uc3QgW2RyYWZ0LCBzZXREcmFmdF0gPSB1c2VTdGF0ZSgnJyk7XHJcbiAgY29uc3QgW3F1ZXVlZERyYWZ0LCBzZXRRdWV1ZWREcmFmdF0gPSB1c2VTdGF0ZSgnJyk7XHJcbiAgY29uc3QgW2FjdGl2ZVByb21wdCwgc2V0QWN0aXZlUHJvbXB0XSA9IHVzZVN0YXRlPHN0cmluZyB8IG51bGw+KG51bGwpO1xyXG4gIGNvbnN0IHRleHRhcmVhUmVmID0gdXNlUmVmPEhUTUxUZXh0QXJlYUVsZW1lbnQ+KG51bGwpO1xyXG4gIGNvbnN0IHF1ZXVlUmVmID0gdXNlUmVmPEhUTUxUZXh0QXJlYUVsZW1lbnQ+KG51bGwpO1xyXG4gIGNvbnN0IGlzUnVubmluZyA9IEJvb2xlYW4oYWN0aXZlUHJvbXB0KTtcclxuXHJcbiAgdXNlRWZmZWN0KCgpID0+IHtcclxuICAgIGlmIChpc1J1bm5pbmcpIHtcclxuICAgICAgcXVldWVSZWYuY3VycmVudD8uZm9jdXMoKTtcclxuICAgICAgcmV0dXJuO1xyXG4gICAgfVxyXG4gICAgdGV4dGFyZWFSZWYuY3VycmVudD8uZm9jdXMoKTtcclxuICB9LCBbaXNSdW5uaW5nXSk7XHJcblxyXG4gIGNvbnN0IHN0YXJ0VGFzayA9IChwcm9tcHQ6IHN0cmluZykgPT4ge1xyXG4gICAgY29uc3QgdmFsdWUgPSBwcm9tcHQudHJpbSgpO1xyXG4gICAgaWYgKCF2YWx1ZSkgcmV0dXJuO1xyXG4gICAgc2V0QWN0aXZlUHJvbXB0KHZhbHVlKTtcclxuICAgIHNldERyYWZ0KCcnKTtcclxuICB9O1xyXG5cclxuICBjb25zdCBzdWJtaXRUYXNrID0gKCkgPT4gc3RhcnRUYXNrKGRyYWZ0KTtcclxuXHJcbiAgY29uc3QgaGFuZGxlS2V5RG93biA9IChldmVudDogUmVhY3QuS2V5Ym9hcmRFdmVudDxIVE1MVGV4dEFyZWFFbGVtZW50PikgPT4ge1xyXG4gICAgaWYgKChldmVudC5tZXRhS2V5IHx8IGV2ZW50LmN0cmxLZXkpICYmIGV2ZW50LmtleSA9PT0gJ0VudGVyJykge1xyXG4gICAgICBldmVudC5wcmV2ZW50RGVmYXVsdCgpO1xyXG4gICAgICBzdWJtaXRUYXNrKCk7XHJcbiAgICB9XHJcbiAgfTtcclxuXHJcbiAgY29uc3QgdGFza1ByZXZpZXcgPSB1c2VNZW1vKCgpID0+IHtcclxuICAgIGlmICghYWN0aXZlUHJvbXB0KSByZXR1cm4gJyc7XHJcbiAgICBjb25zdCBtYXhDaGFycyA9IDM5MDtcclxuICAgIHJldHVybiBhY3RpdmVQcm9tcHQubGVuZ3RoID4gbWF4Q2hhcnMgPyBgJHthY3RpdmVQcm9tcHQuc2xpY2UoMCwgbWF4Q2hhcnMpLnRyaW1FbmQoKX1gIDogYWN0aXZlUHJvbXB0O1xyXG4gIH0sIFthY3RpdmVQcm9tcHRdKTtcclxuXHJcbiAgaWYgKGlzUnVubmluZykge1xyXG4gICAgcmV0dXJuIChcclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLXBhZ2UgZmxleC0xIGgtZnVsbCBvdmVyZmxvdy1oaWRkZW5cIj5cclxuICAgICAgICA8aGVhZGVyIGNsYXNzTmFtZT1cImNvd29yay1ydW4taGVhZGVyXCI+XHJcbiAgICAgICAgICA8YnV0dG9uIHR5cGU9XCJidXR0b25cIiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLXRpdGxlXCI+XHJcbiAgICAgICAgICAgIOaWsOW7uuS7u+WKoVxuICAgICAgICAgICAgPENoZXZyb25Eb3duIHNpemU9ezE4fSBzdHJva2VXaWR0aD17MS44fSAvPlxyXG4gICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICA8YnV0dG9uIHR5cGU9XCJidXR0b25cIiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLXBhbmVsLXRvZ2dsZVwiIGFyaWEtbGFiZWw9XCJUb2dnbGUgdGFzayBwYW5lbFwiPlxyXG4gICAgICAgICAgICA8UGFuZWxSaWdodCBzaXplPXsyMX0gc3Ryb2tlV2lkdGg9ezEuOH0gLz5cclxuICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgIDwvaGVhZGVyPlxyXG5cclxuICAgICAgICA8bWFpbiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLW1haW5cIj5cclxuICAgICAgICAgIDxzZWN0aW9uIGNsYXNzTmFtZT1cImNvd29yay1ydW4tdGhyZWFkXCI+XHJcbiAgICAgICAgICAgIDxhcnRpY2xlIGNsYXNzTmFtZT1cImNvd29yay1ydW4tbWVzc2FnZS1jYXJkXCI+XHJcbiAgICAgICAgICAgICAgPHA+e3Rhc2tQcmV2aWV3fTwvcD5cclxuICAgICAgICAgICAgICB7YWN0aXZlUHJvbXB0ICYmIGFjdGl2ZVByb21wdC5sZW5ndGggPiB0YXNrUHJldmlldy5sZW5ndGggPyAoXHJcbiAgICAgICAgICAgICAgICA8YnV0dG9uIHR5cGU9XCJidXR0b25cIiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLXNob3ctbW9yZVwiPlNob3cgbW9yZTwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgICkgOiBudWxsfVxyXG4gICAgICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIGNsYXNzTmFtZT1cImNvd29yay1ydW4tY29weVwiIGFyaWEtbGFiZWw9XCJDb3B5IHRhc2sgcHJvbXB0XCI+XHJcbiAgICAgICAgICAgICAgICA8Q29weSBzaXplPXsxOH0gc3Ryb2tlV2lkdGg9ezEuN30gLz5cclxuICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgPC9hcnRpY2xlPlxyXG5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLXN0YXR1c1wiPlxyXG4gICAgICAgICAgICAgIDxpbWcgc3JjPXtzdGFyU3BhcmtsZUltZ30gYWx0PVwiXCIgYXJpYS1oaWRkZW49XCJ0cnVlXCIgLz5cclxuICAgICAgICAgICAgICA8c3Bhbj5Xb3JraW5nIG9uIGl0Li4uPC9zcGFuPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgIDwvc2VjdGlvbj5cclxuXHJcbiAgICAgICAgICA8YXNpZGUgY2xhc3NOYW1lPVwiY293b3JrLXJ1bi1wYW5lbFwiPlxyXG4gICAgICAgICAgICA8c2VjdGlvbiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLXNpZGUtY2FyZCBjb3dvcmstcnVuLXNpZGUtY2FyZC1wcm9ncmVzc1wiPlxyXG4gICAgICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIGNsYXNzTmFtZT1cImNvd29yay1ydW4tc2lkZS10aXRsZVwiPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4+6L+b5bqmPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPENoZXZyb25Eb3duIHNpemU9ezE4fSBzdHJva2VXaWR0aD17MS43fSAvPlxyXG4gICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXJ1bi1wcm9ncmVzcy1kb3RzXCIgYXJpYS1oaWRkZW49XCJ0cnVlXCI+XHJcbiAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJpcy1jb21wbGV0ZVwiIC8+XHJcbiAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJpcy1jb21wbGV0ZVwiIC8+XHJcbiAgICAgICAgICAgICAgICA8c3BhbiAvPlxyXG4gICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgIDxwPlNlZSB0YXNrIHByb2dyZXNzIGZvciBsb25nZXIgdGFza3MuPC9wPlxyXG4gICAgICAgICAgICA8L3NlY3Rpb24+XHJcblxyXG4gICAgICAgICAgICA8YnV0dG9uIHR5cGU9XCJidXR0b25cIiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLWZvbGRlci1jYXJkXCI+XHJcbiAgICAgICAgICAgICAgPHNwYW4+5bel5L2c5paH5Lu25aS5PC9zcGFuPlxyXG4gICAgICAgICAgICAgIDxDaGV2cm9uUmlnaHQgc2l6ZT17MjB9IHN0cm9rZVdpZHRoPXsxLjd9IC8+XHJcbiAgICAgICAgICAgIDwvYnV0dG9uPlxyXG5cclxuICAgICAgICAgICAgPHNlY3Rpb24gY2xhc3NOYW1lPVwiY293b3JrLXJ1bi1zaWRlLWNhcmQgY293b3JrLXJ1bi1zaWRlLWNhcmQtY29udGV4dFwiPlxyXG4gICAgICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIGNsYXNzTmFtZT1cImNvd29yay1ydW4tc2lkZS10aXRsZVwiPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4+5LiK5LiL5paHPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPENoZXZyb25Eb3duIHNpemU9ezE4fSBzdHJva2VXaWR0aD17MS43fSAvPlxyXG4gICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXJ1bi1jb250ZXh0LWlsbHVzdHJhdGlvblwiIGFyaWEtaGlkZGVuPVwidHJ1ZVwiPlxyXG4gICAgICAgICAgICAgICAgPEZpbGVUZXh0IHNpemU9ezMyfSBzdHJva2VXaWR0aD17MS40fSAvPlxyXG4gICAgICAgICAgICAgICAgPEZpbGVUZXh0IHNpemU9ezMyfSBzdHJva2VXaWR0aD17MS40fSAvPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4+PFBsdXMgc2l6ZT17MTh9IHN0cm9rZVdpZHRoPXsxLjh9IC8+PC9zcGFuPlxyXG4gICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgIDxwPlRyYWNrIHRvb2xzIGFuZCByZWZlcmVuY2VkIGZpbGVzIHVzZWQgaW4gdGhpcyB0YXNrLjwvcD5cclxuICAgICAgICAgICAgPC9zZWN0aW9uPlxyXG4gICAgICAgICAgPC9hc2lkZT5cclxuICAgICAgICA8L21haW4+XHJcblxyXG4gICAgICAgIDxzZWN0aW9uIGNsYXNzTmFtZT1cImNvd29yay1ydW4tY29tcG9zZXItd3JhcFwiPlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLWNvbXBvc2VyXCI+XHJcbiAgICAgICAgICAgIDx0ZXh0YXJlYVxyXG4gICAgICAgICAgICAgIHJlZj17cXVldWVSZWZ9XHJcbiAgICAgICAgICAgICAgdmFsdWU9e3F1ZXVlZERyYWZ0fVxyXG4gICAgICAgICAgICAgIG9uQ2hhbmdlPXsoZXZlbnQpID0+IHNldFF1ZXVlZERyYWZ0KGV2ZW50LnRhcmdldC52YWx1ZSl9XHJcbiAgICAgICAgICAgICAgcGxhY2Vob2xkZXI9XCJXcml0ZSBhIG1lc3NhZ2UuLi5cIlxyXG4gICAgICAgICAgICAgIHJvd3M9ezF9XHJcbiAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiY293b3JrLXJ1bi10ZXh0YXJlYVwiXHJcbiAgICAgICAgICAgIC8+XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXJ1bi1jb21wb3Nlci1hY3Rpb25zXCI+XHJcbiAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPVwiYnV0dG9uXCIgY2xhc3NOYW1lPVwiY293b3JrLXJ1bi1wbHVzXCIgYXJpYS1sYWJlbD1cIkFkZCBhdHRhY2htZW50XCI+XHJcbiAgICAgICAgICAgICAgICA8UGx1cyBzaXplPXsyNH0gc3Ryb2tlV2lkdGg9ezEuOH0gLz5cclxuICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImNvd29yay1ydW4tY29tcG9zZXItcmlnaHRcIj5cclxuICAgICAgICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIGNsYXNzTmFtZT1cImNvd29yay1ydW4tbW9kZWxcIj5cclxuICAgICAgICAgICAgICAgICAgZ3B0LTUuMlxuICAgICAgICAgICAgICAgICAgPENoZXZyb25Eb3duIHNpemU9ezE2fSBzdHJva2VXaWR0aD17MS42fSAvPlxyXG4gICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgICA8YnV0dG9uIHR5cGU9XCJidXR0b25cIiBjbGFzc05hbWU9XCJjb3dvcmstcnVuLXN0b3BcIiBhcmlhLWxhYmVsPVwiU3RvcCB0YXNrXCI+XHJcbiAgICAgICAgICAgICAgICAgIDxTcXVhcmUgc2l6ZT17MTV9IHN0cm9rZVdpZHRoPXsxLjh9IC8+XHJcbiAgICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIGNsYXNzTmFtZT1cImNvd29yay1ydW4tcXVldWVcIiBkaXNhYmxlZD17IXF1ZXVlZERyYWZ0LnRyaW0oKX0+XHJcbiAgICAgICAgICAgICAgICAgIDxDb3JuZXJEb3duUmlnaHQgc2l6ZT17MTh9IHN0cm9rZVdpZHRoPXsxLjl9IC8+XHJcbiAgICAgICAgICAgICAgICAgIFF1ZXVlXHJcbiAgICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgIDxwIGNsYXNzTmFtZT1cImNvd29yay1ydW4tZGlzY2xhaW1lclwiPkNsYXVkZSDmmK8gQUnvvIzlj6/og73kvJrlh7rplJnjgILor7fliqHlv4Xlho3mrKHmoLjlr7nlm57lpI3lhoXlrrnjgII8L3A+XHJcbiAgICAgICAgPC9zZWN0aW9uPlxyXG4gICAgICA8L2Rpdj5cclxuICAgICk7XHJcbiAgfVxyXG5cclxuICByZXR1cm4gKFxyXG4gICAgPGRpdiBjbGFzc05hbWU9XCJjb3dvcmstdGFzay1wYWdlIGZsZXgtMSBoLWZ1bGwgb3ZlcmZsb3cteS1hdXRvXCI+XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXRhc2stc2hlbGxcIj5cclxuICAgICAgICA8c2VjdGlvbiBjbGFzc05hbWU9XCJjb3dvcmstdGFzay1oZXJvXCI+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImNvd29yay10YXNrLWhlYWRpbmctcm93XCI+XHJcbiAgICAgICAgICAgIDxpbWdcclxuICAgICAgICAgICAgICBzcmM9e3N0YXJTcGFya2xlSW1nfVxyXG4gICAgICAgICAgICAgIGFsdD1cIlwiXHJcbiAgICAgICAgICAgICAgYXJpYS1oaWRkZW49XCJ0cnVlXCJcclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJjb3dvcmstdGFzay1zdGFyXCJcclxuICAgICAgICAgICAgICB3aWR0aD17Mjh9XHJcbiAgICAgICAgICAgICAgaGVpZ2h0PXsyOH1cclxuICAgICAgICAgICAgLz5cclxuICAgICAgICAgICAgPGgxIGNsYXNzTmFtZT1cImNvd29yay10YXNrLXRpdGxlXCI+5YWI5oqK5riF5Y2V5LiK55qE5LiA5Lu25LqL5YGa5a6MPC9oMT5cbiAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIGNsYXNzTmFtZT1cImNvd29yay10YXNrLXN1YnRpdGxlXCI+XHJcbiAgICAgICAgICAgIOS6huino+WmguS9leWuieWFqOS9v+eUqCBDb3dvcmvjgIJcbiAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICA8L3NlY3Rpb24+XHJcblxyXG4gICAgICAgIDxzZWN0aW9uIGNsYXNzTmFtZT1cImNvd29yay10YXNrLWNvbXBvc2VyLWNhcmRcIj5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXRhc2stY29tcG9zZXItbWFpblwiPlxyXG4gICAgICAgICAgICA8dGV4dGFyZWFcclxuICAgICAgICAgICAgICByZWY9e3RleHRhcmVhUmVmfVxyXG4gICAgICAgICAgICAgIHZhbHVlPXtkcmFmdH1cclxuICAgICAgICAgICAgICBvbkNoYW5nZT17KGV2ZW50KSA9PiBzZXREcmFmdChldmVudC50YXJnZXQudmFsdWUpfVxyXG4gICAgICAgICAgICAgIG9uS2V5RG93bj17aGFuZGxlS2V5RG93bn1cclxuICAgICAgICAgICAgICBwbGFjZWhvbGRlcj1cIuS7iuWkqeaIkeiDveS4uuS9oOaPkOS+m+S7gOS5iOW4ruWKqeWQlz9cIlxuICAgICAgICAgICAgICByb3dzPXsxfVxyXG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cImNvd29yay10YXNrLXRleHRhcmVhXCJcclxuICAgICAgICAgICAgLz5cclxuXHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXRhc2stY29tcG9zZXItYWN0aW9uc1wiPlxyXG4gICAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICAgIHR5cGU9XCJidXR0b25cIlxyXG4gICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiY293b3JrLXRhc2stcGx1c1wiXHJcbiAgICAgICAgICAgICAgICBhcmlhLWxhYmVsPVwiQWRkIGF0dGFjaG1lbnRcIlxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIDxQbHVzIHNpemU9ezI0fSBzdHJva2VXaWR0aD17MS44fSAvPlxyXG4gICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG5cclxuICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcclxuICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cImNvd29yay10YXNrLXNlbmRcIlxyXG4gICAgICAgICAgICAgICAgYXJpYS1sYWJlbD1cIlN0YXJ0IHRhc2tcIlxyXG4gICAgICAgICAgICAgICAgZGlzYWJsZWQ9eyFkcmFmdC50cmltKCl9XHJcbiAgICAgICAgICAgICAgICBvbkNsaWNrPXtzdWJtaXRUYXNrfVxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIDxBcnJvd1VwIHNpemU9ezI0fSBzdHJva2VXaWR0aD17Mi4xfSAvPlxyXG4gICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXRhc2stY29tcG9zZXItZm9vdGVyXCI+XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiY293b3JrLXRhc2stcHJvamVjdC1waWxsXCI+XHJcbiAgICAgICAgICAgICAgPEZvbGRlciBzaXplPXsyMH0gc3Ryb2tlV2lkdGg9ezEuOH0gLz5cclxuICAgICAgICAgICAgICA8c3Bhbj7pobnnm67lt6XkvZzljLo8L3NwYW4+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgIDxidXR0b24gdHlwZT1cImJ1dHRvblwiIGNsYXNzTmFtZT1cImNvd29yay10YXNrLW1vZGVsLXBpbGxcIj5cbiAgICAgICAgICAgICAgZ3B0LTUuMlxuICAgICAgICAgICAgICA8Q2hldnJvbkRvd24gc2l6ZT17MTR9IHN0cm9rZVdpZHRoPXsxLjd9IC8+XG4gICAgICAgICAgICA8L2J1dHRvbj5cbiAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC9zZWN0aW9uPlxuXG4gICAgICAgIDxzZWN0aW9uIGNsYXNzTmFtZT1cImNvd29yay10YXNrLXN1Z2dlc3Rpb25zXCI+XG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb3dvcmstdGFzay1zdWdnZXN0aW9ucy1sYWJlbFwiPlxuICAgICAgICAgICAgPFNodWZmbGUgc2l6ZT17MTR9IHN0cm9rZVdpZHRoPXsxLjZ9IC8+XG4gICAgICAgICAgICA8c3Bhbj7pgInmi6nkuIDkuKrku7vliqHvvIzku7vkvZXku7vliqE8L3NwYW4+XG4gICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjb3dvcmstdGFzay1zdWdnZXN0aW9uLWxpc3RcIj5cclxuICAgICAgICAgICAge0NPV09SS19TVUdHRVNUSU9OUy5tYXAoKGl0ZW0pID0+IChcclxuICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICBrZXk9e2l0ZW0uaWR9XHJcbiAgICAgICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcclxuICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cImNvd29yay10YXNrLXN1Z2dlc3Rpb25cIlxyXG4gICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gc3RhcnRUYXNrKGl0ZW0ucHJvbXB0KX1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJjb3dvcmstdGFzay1zdWdnZXN0aW9uLWljb25cIj57aXRlbS5pY29ufTwvc3Bhbj5cclxuICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cImNvd29yay10YXNrLXN1Z2dlc3Rpb24tdGl0bGVcIj57aXRlbS50aXRsZX08L3NwYW4+XHJcbiAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiY293b3JrLXRhc2stY3VzdG9tLWxpbmtcIlxyXG4gICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IHN0YXJ0VGFzayhERUZBVUxUX1RBU0tfUFJPTVBUKX1cclxuICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgIOeUqOaPkuS7tuiHquWumuS5iVxyXG4gICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDwvc2VjdGlvbj5cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L2Rpdj5cclxuICApO1xyXG59O1xyXG5cclxuZXhwb3J0IGRlZmF1bHQgQ293b3JrUGFnZTtcclxuIl0sImZpbGUiOiJEOi93b3JrL3B5L2NsYXVkZS9jbGF1ZGUtZGVza3RvcC9zcmMvY29tcG9uZW50cy9Db3dvcmtQYWdlLnRzeCJ9

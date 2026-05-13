@@ -13,14 +13,15 @@ import FileUploadPreview, { PendingFile } from './FileUploadPreview';
 import AddFromGithubModal, { GithubAddPayload } from './AddFromGithubModal';
 import MessageAttachments from './MessageAttachments';
 import DocumentCard, { DocumentInfo } from './DocumentCard';
+import { ProjectCreateChooser, ProjectCreateNewFolderForm } from './ProjectCreateDialog';
 import { copyToClipboard } from '../utils/clipboard';
-import { normalizeGeneratedDocumentFormat } from './documentCardMeta.js';
+import { normalizeGeneratedDocumentFormat } from './documentCardMeta';
 import SearchProcess from './SearchProcess';
 import AssistantThinkingChain, { AssistantThinkingCompactStatus } from './AssistantThinkingChain';
 import DocumentCreationProcess, { DocumentDraftInfo } from './DocumentCreationProcess';
 import CodeExecution from './CodeExecution';
 import ToolDiffView, { shouldUseDiffView, hasExpandableContent, getToolStats } from './ToolDiffView';
-import { buildToolFallbackThinking, buildReasoningTimelineEvents, buildResponseFallbackThinking, getToolDisplayName, HIDDEN_TOOL_NAMES } from './toolThinkingFallback.js';
+import { buildToolFallbackThinking, buildReasoningTimelineEvents, buildResponseFallbackThinking, getToolDisplayName, HIDDEN_TOOL_NAMES } from './toolThinkingFallback';
 import { executeCode, sendCodeResult, setStatusCallback } from '../pyodideRunner';
 import inspirationsData from '../data/inspirations.json';
 import inputPlusIcon from '../assets/home/input-plus.svg';
@@ -1689,8 +1690,10 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
+  const [newProjectDialogMode, setNewProjectDialogMode] = useState<'chooser' | 'new-folder'>('chooser');
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [newProjectNameError, setNewProjectNameError] = useState<string | null>(null);
   const [projectAddToast, setProjectAddToast] = useState<string | null>(null);
   const [compactStatus, setCompactStatus] = useState<{ state: 'idle' | 'compacting' | 'done' | 'error'; message?: string }>({ state: 'idle' });
   const [showCompactDialog, setShowCompactDialog] = useState(false);
@@ -2517,12 +2520,17 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
 
   const handleCreateProjectFromMenu = async () => {
     const name = newProjectName.trim();
-    if (!name) return;
+    if (!name) {
+      setNewProjectNameError('Project name is required');
+      return;
+    }
     try {
       const project = await createProject(name, newProjectDescription.trim());
       setShowNewProjectDialog(false);
+      setNewProjectDialogMode('chooser');
       setNewProjectName('');
       setNewProjectDescription('');
+      setNewProjectNameError(null);
       setProjectList(prev => [project, ...prev]);
       await handleAttachToProject(project);
     } catch (err) {
@@ -3906,6 +3914,7 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
                 closePlusMenu();
                 setNewProjectName('');
                 setNewProjectDescription('');
+                setNewProjectDialogMode('chooser');
                 setShowNewProjectDialog(true);
               }}
               className="flex h-[32px] w-full items-center gap-[8px] rounded-[8px] px-[8px] text-left transition-colors hover:bg-[#F5F4F1] dark:hover:bg-white/5"
@@ -4010,58 +4019,37 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
     <>
       {showNewProjectDialog && (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40"
-          onClick={() => { setShowNewProjectDialog(false); setNewProjectName(''); setNewProjectDescription(''); }}
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => { setShowNewProjectDialog(false); setNewProjectDialogMode('chooser'); setNewProjectName(''); setNewProjectDescription(''); setNewProjectNameError(null); }}
         >
-          <div className="bg-claude-bg border border-claude-border rounded-2xl shadow-xl w-[560px] max-w-[92vw] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between px-7 pt-6 pb-4">
-              <h2 className="font-[Spectral] text-[22px] text-claude-text" style={{ fontWeight: 600 }}>Create a project</h2>
-              <button
-                onClick={() => { setShowNewProjectDialog(false); setNewProjectName(''); setNewProjectDescription(''); }}
-                className="p-1 text-claude-textSecondary hover:text-claude-text hover:bg-claude-hover rounded-lg transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-7 pb-4 space-y-5">
-              <div>
-                <label className="block text-[15px] font-medium text-claude-textSecondary mb-2">What are you working on?</label>
-                <input
-                  type="text"
-                  placeholder="Name your project"
-                  value={newProjectName}
-                  onChange={e => setNewProjectName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && newProjectName.trim()) handleCreateProjectFromMenu(); }}
-                  className="w-full px-4 py-3 bg-white dark:bg-claude-input border border-gray-200 dark:border-claude-border rounded-xl text-claude-text placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#387ee0] focus:ring-0 transition-all text-[15px]"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-[15px] font-medium text-claude-textSecondary mb-2">What are you trying to achieve?</label>
-                <textarea
-                  placeholder="Describe your project, goals, subject, etc..."
-                  rows={3}
-                  value={newProjectDescription}
-                  onChange={e => setNewProjectDescription(e.target.value)}
-                  className="w-full px-4 py-3 bg-white dark:bg-claude-input border border-gray-200 dark:border-claude-border rounded-xl text-claude-text placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#387ee0] focus:ring-0 transition-all text-[15px] resize-none"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 px-7 pb-6 pt-2">
-              <button
-                onClick={() => { setShowNewProjectDialog(false); setNewProjectName(''); setNewProjectDescription(''); }}
-                className="px-5 py-2.5 text-[15px] font-medium text-claude-text bg-white dark:bg-claude-bg border border-gray-300 dark:border-claude-border hover:bg-gray-50 dark:hover:bg-claude-hover rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateProjectFromMenu}
-                disabled={!newProjectName.trim()}
-                className="px-5 py-2.5 text-[15px] font-medium text-claude-bg bg-black dark:bg-white dark:text-black hover:opacity-90 rounded-xl transition-opacity disabled:opacity-40"
-              >
-                Create project
-              </button>
-            </div>
+          <div onClick={e => e.stopPropagation()}>
+            {newProjectDialogMode === 'chooser' ? (
+              <ProjectCreateChooser
+                onClose={() => { setShowNewProjectDialog(false); setNewProjectDialogMode('chooser'); setNewProjectName(''); setNewProjectDescription(''); setNewProjectNameError(null); }}
+                onCreateNewFolder={() => setNewProjectDialogMode('new-folder')}
+                onUseExistingFolder={handleCreateProjectFromExistingFolder}
+              />
+            ) : (
+              <ProjectCreateNewFolderForm
+                title="创建项目"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleCreateProjectFromMenu();
+                }}
+                onCancel={() => {
+                  setNewProjectDialogMode('chooser');
+                  setNewProjectNameError(null);
+                }}
+                projectName={newProjectName}
+                projectDescription={newProjectDescription}
+                projectNameError={newProjectNameError}
+                onProjectNameChange={(value) => {
+                  setNewProjectName(value);
+                  if (newProjectNameError) setNewProjectNameError(null);
+                }}
+                onProjectDescriptionChange={setNewProjectDescription}
+              />
+            )}
           </div>
         </div>
       )}
@@ -4821,3 +4809,23 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
 };
 
 export default MainContent;
+  const handleCreateProjectFromExistingFolder = async () => {
+    const api = (window as any).electronAPI;
+    if (!api?.selectDirectory) return;
+    const dir = await api.selectDirectory();
+    if (!dir) return;
+
+    const folderName = String(dir).split(/[\\/]/).filter(Boolean).pop() || 'Imported Project';
+    try {
+      const project = await createProject(folderName, '', dir);
+      setShowNewProjectDialog(false);
+      setNewProjectDialogMode('chooser');
+      setNewProjectName('');
+      setNewProjectDescription('');
+      setNewProjectNameError(null);
+      setProjectList(prev => [project, ...prev]);
+      await handleAttachToProject(project);
+    } catch (err) {
+      console.error(err);
+    }
+  };

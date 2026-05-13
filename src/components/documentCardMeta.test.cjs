@@ -6,7 +6,7 @@ test('document card metadata adapts subtitle to semantic file type', async () =>
     resolveDocumentFormat,
     getDocumentKindLabel,
     getDocumentSubtitle,
-  } = await import('./documentCardMeta.js');
+  } = await import('./documentCardMeta.ts');
 
   const htmlDoc = {
     title: 'index.html',

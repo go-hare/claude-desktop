@@ -1,0 +1,1120 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/AssistantThinkingChain.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=12cb7fed"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$(), _s2 = $RefreshSig$(), _s3 = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=12cb7fed"; const useEffect = __vite__cjsImport1_react["useEffect"]; const useMemo = __vite__cjsImport1_react["useMemo"]; const useRef = __vite__cjsImport1_react["useRef"]; const useState = __vite__cjsImport1_react["useState"];
+import { ChevronDown, Lightbulb } from "/node_modules/.vite/deps/lucide-react.js?v=12cb7fed";
+import AssistantActivityIndicator from "/src/components/AssistantActivityIndicator.tsx";
+import thoughtChainDirectIcon from "/src/assets/figma-thinking-chain/thought-chain-direct.svg?import";
+import thoughtChainExtendedStartIcon from "/src/assets/figma-thinking-chain/thought-chain-extended-start.svg?import";
+import thoughtChainStepIcon from "/src/assets/figma-thinking-chain/thought-chain-step.svg?import";
+import thoughtChainWebSearchIcon from "/src/assets/figma-thinking-chain/thought-chain-web-search.svg?import";
+import thoughtChainDoneIcon from "/src/assets/figma-thinking-chain/thought-chain-done.svg?import";
+import thoughtChainWritePreviewIcon from "/src/assets/figma-thinking-chain/thought-chain-write-preview.svg?import";
+const railClassName = "bg-[rgba(31,31,30,0.15)] dark:bg-[rgba(248,248,246,0.18)]";
+const thoughtChainIconStyle = { width: 15, height: 15 };
+const thoughtChainRowEnterAnimation = "thought-chain-row-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both";
+const thoughtChainResultEnterAnimation = "thought-chain-result-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both";
+const THINKING_STATUS_FALLBACK = "Thinking deeply, stand by...";
+const thoughtHeaderLabel = "Thought";
+const thoughtChainAnimationStyles = `
+  @keyframes thought-chain-row-enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes thought-chain-result-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes thought-chain-text-shimmer {
+    from {
+      background-position: 200% center;
+    }
+    to {
+      background-position: 0% center;
+    }
+  }
+`;
+const TextShimmer = ({ children, className }) => /* @__PURE__ */ jsxDEV(
+  "span",
+  {
+    className,
+    style: {
+      color: "transparent",
+      backgroundImage: "linear-gradient(90deg, rgba(123,121,116,0.72) 0%, rgba(55,55,52,0.92) 48%, rgba(123,121,116,0.72) 100%)",
+      backgroundSize: "220% 100%",
+      backgroundClip: "text",
+      WebkitBackgroundClip: "text",
+      WebkitTextFillColor: "transparent",
+      animation: "thought-chain-text-shimmer 1.6s linear infinite"
+    },
+    children
+  },
+  void 0,
+  false,
+  {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+    lineNumber: 88,
+    columnNumber: 1
+  },
+  this
+);
+_c = TextShimmer;
+const getThinkingSummary = (thinking, thinkingSummary, isThinking) => {
+  if (isThinking && !thinkingSummary) return "Thinking deeply, stand by...";
+  if (thinkingSummary) return thinkingSummary;
+  const lines = thinking.split("\n").map((line) => line.trim()).filter(Boolean);
+  const last = lines[lines.length - 1] || "";
+  if (!last) return isThinking ? "Thinking..." : "Thought complete";
+  return last.length > 64 ? `${last.slice(0, 64)}...` : last;
+};
+const normalizeThinkingLine = (line) => line.trim().replace(/^[-*•]\s*/, "").replace(/^\d+[\.\)]\s*/, "").trim();
+const getThinkingLines = (thinking) => thinking.split("\n").map(normalizeThinkingLine).filter(Boolean);
+const isMeaningfullyDifferent = (a, b) => a.trim().toLowerCase() !== b.trim().toLowerCase();
+const getEventIcon = (kind) => {
+  switch (kind) {
+    case "direct":
+      return thoughtChainDirectIcon;
+    case "web_search":
+      return thoughtChainWebSearchIcon;
+    case "write_preview":
+      return thoughtChainWritePreviewIcon;
+    case "done":
+      return thoughtChainDoneIcon;
+    case "focus":
+    case "skill":
+    case "tool":
+    default:
+      return thoughtChainStepIcon;
+  }
+};
+const isMutedEvent = (kind) => kind !== "done";
+const getActiveEventIndex = (events, isThinking) => {
+  if (!isThinking || !Array.isArray(events) || events.length === 0) return -1;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (events[index]?.kind !== "done") return index;
+  }
+  return -1;
+};
+const buildPreviewLines = (preview) => {
+  const content = String(preview?.content || "").replace(/\r\n/g, "\n").replace(/\t/g, "  ");
+  const lines = content.split("\n").map((line) => line.trimEnd()).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) {
+    return ["Preparing preview…"];
+  }
+  return lines.slice(0, 8).map((line) => line.length > 92 ? `${line.slice(0, 92)}…` : line);
+};
+const tokenizeStreamingLabel = (text) => text.split(/(\s+)/).filter((token) => token.length > 0);
+function useAnimatedStatusLabel(label, isThinking) {
+  _s();
+  const [animatedStatusText, setAnimatedStatusText] = useState(label);
+  useEffect(() => {
+    const normalizedLabel = label.trim() || THINKING_STATUS_FALLBACK;
+    if (!isThinking) {
+      setAnimatedStatusText(normalizedLabel);
+      return;
+    }
+    const tokens = tokenizeStreamingLabel(normalizedLabel);
+    if (tokens.length === 0) {
+      setAnimatedStatusText(THINKING_STATUS_FALLBACK);
+      return;
+    }
+    setAnimatedStatusText(tokens[0]);
+    let visibleTokenCount = 1;
+    const timer = window.setInterval(() => {
+      visibleTokenCount += 1;
+      setAnimatedStatusText(tokens.slice(0, visibleTokenCount).join(""));
+      if (visibleTokenCount >= tokens.length) {
+        window.clearInterval(timer);
+      }
+    }, 42);
+    return () => window.clearInterval(timer);
+  }, [isThinking, label]);
+  return animatedStatusText;
+}
+_s(useAnimatedStatusLabel, "L9GKa6Kvo8aM/W1VwCR0b31Uz2E=");
+const renderSparkStatusCopy = (label, isThinking) => {
+  const textClassName = "font-['Anthropic_Serif_Text:Italic',serif] text-[14px] italic leading-[21px] tracking-[-0.07px]";
+  if (isThinking) {
+    return /* @__PURE__ */ jsxDEV(TextShimmer, { className: textClassName, children: label }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 225,
+      columnNumber: 12
+    }, this);
+  }
+  return /* @__PURE__ */ jsxDEV("span", { className: textClassName, children: label }, void 0, false, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+    lineNumber: 228,
+    columnNumber: 10
+  }, this);
+};
+export const AssistantThinkingCompactStatus = ({
+  event,
+  isThinking = true
+}) => {
+  _s2();
+  if (!event) return null;
+  const animatedStatusText = useAnimatedStatusLabel(event.label || THINKING_STATUS_FALLBACK, isThinking);
+  return /* @__PURE__ */ jsxDEV("div", { className: "mt-[14px] flex min-h-[36px] items-center gap-[12px] pl-[11px] text-[#3d3d3a] dark:text-claude-text", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex h-[28px] w-[28px] items-center justify-center", children: /* @__PURE__ */ jsxDEV(
+      AssistantActivityIndicator,
+      {
+        phase: isThinking ? "streaming" : "done",
+        size: 28,
+        className: "inline-block"
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 242,
+        columnNumber: 9
+      },
+      this
+    ) }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 241,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1", children: renderSparkStatusCopy(animatedStatusText || THINKING_STATUS_FALLBACK, isThinking) }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 248,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+    lineNumber: 240,
+    columnNumber: 5
+  }, this);
+};
+_s2(AssistantThinkingCompactStatus, "Evr0jkbJRK3wBYAYSqtHyaGMVO8=", false, function() {
+  return [useAnimatedStatusLabel];
+});
+_c2 = AssistantThinkingCompactStatus;
+const AssistantThinkingChain = ({
+  thinking,
+  thinkingSummary,
+  isThinking = false,
+  isExpanded = false,
+  onToggleExpanded,
+  events
+}) => {
+  _s3();
+  const [isBodyExpanded, setIsBodyExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [expandedDetailRows, setExpandedDetailRows] = useState({});
+  const bodyRef = useRef(null);
+  const summary = useMemo(
+    () => getThinkingSummary(thinking, thinkingSummary, isThinking),
+    [thinking, thinkingSummary, isThinking]
+  );
+  const syntheticEvents = useMemo(() => {
+    if (!Array.isArray(events) || events.length === 0) return null;
+    const normalized = events.filter(Boolean).map((event) => ({ ...event }));
+    if (!isThinking && normalized[normalized.length - 1]?.kind !== "done") {
+      normalized.push({ kind: "done", label: "Done" });
+    }
+    return normalized;
+  }, [events, isThinking]);
+  const activeEventIndex = useMemo(
+    () => getActiveEventIndex(syntheticEvents, isThinking),
+    [syntheticEvents, isThinking]
+  );
+  const hasDetailedEvents = useMemo(
+    () => Boolean(syntheticEvents?.some((event) => typeof event.detail === "string" && event.detail.trim().length > 0)),
+    [syntheticEvents]
+  );
+  const hasRichResultEvents = useMemo(
+    () => Boolean(
+      syntheticEvents?.some(
+        (event) => event.kind === "web_search" && Array.isArray(event.results) && event.results.length > 0 || event.kind === "write_preview" && Boolean(event.preview)
+      )
+    ),
+    [syntheticEvents]
+  );
+  const stepLabel = useMemo(() => {
+    const lines = getThinkingLines(thinking);
+    const candidate = [...lines].reverse().find((line) => line.length <= 120 && isMeaningfullyDifferent(line, summary));
+    return candidate || summary;
+  }, [thinking, summary]);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    setIsOverflowing(el.scrollHeight > 200);
+  }, [thinking, isExpanded, isBodyExpanded]);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !isThinking || !isExpanded) return;
+    el.scrollTop = el.scrollHeight;
+  }, [thinking, isThinking, isExpanded, isBodyExpanded]);
+  if (!thinking && !syntheticEvents?.length) return null;
+  const canToggle = Boolean(syntheticEvents?.length) && Boolean(onToggleExpanded);
+  const renderSummaryButton = () => /* @__PURE__ */ jsxDEV(
+    "button",
+    {
+      type: "button",
+      onClick: canToggle ? onToggleExpanded : void 0,
+      className: `group/think flex w-full items-center gap-[4px] py-[4px] text-left text-[#7b7974] transition-colors dark:text-claude-textSecondary ${canToggle ? "cursor-pointer hover:text-[#373734] dark:hover:text-claude-text" : "cursor-default"}`,
+      children: [
+        hasDetailedEvents && /* @__PURE__ */ jsxDEV(
+          Lightbulb,
+          {
+            size: 14,
+            strokeWidth: 1.75,
+            className: "mr-[2px] shrink-0 text-[#7b7974] dark:text-claude-textSecondary"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 338,
+            columnNumber: 5
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("span", { className: "min-w-0 flex-1 truncate text-[14px] leading-[19.6px] tracking-[-0.1504px]", children: hasDetailedEvents ? thoughtHeaderLabel : summary }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+          lineNumber: 344,
+          columnNumber: 7
+        }, this),
+        canToggle && /* @__PURE__ */ jsxDEV(
+          ChevronDown,
+          {
+            size: 12,
+            className: `shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 348,
+            columnNumber: 5
+          },
+          this
+        )
+      ]
+    },
+    void 0,
+    true,
+    {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 328,
+      columnNumber: 3
+    },
+    this
+  );
+  const renderRailSpacer = (visible, height = 8) => /* @__PURE__ */ jsxDEV("div", { className: "relative w-full", style: { height: `${height}px` }, children: /* @__PURE__ */ jsxDEV(
+    "div",
+    {
+      className: visible ? `absolute left-[9.5px] w-px ${railClassName}` : "absolute left-[9.5px] w-px",
+      style: { height: `${height}px` }
+    },
+    void 0,
+    false,
+    {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 358,
+      columnNumber: 7
+    },
+    this
+  ) }, void 0, false, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+    lineNumber: 357,
+    columnNumber: 3
+  }, this);
+  const isActiveEvent = (event, index) => isThinking && event.kind !== "done" && index === activeEventIndex;
+  const renderShimmerLabel = (label, className) => /* @__PURE__ */ jsxDEV(TextShimmer, { className, children: label }, void 0, false, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+    lineNumber: 371,
+    columnNumber: 3
+  }, this);
+  const renderTimelineEvent = (event, index, total) => {
+    const muted = isMutedEvent(event.kind);
+    const active = isActiveEvent(event, index);
+    return /* @__PURE__ */ jsxDEV(
+      "div",
+      {
+        className: "w-full",
+        style: { animation: thoughtChainRowEnterAnimation, animationDelay: `${index * 45}ms` },
+        children: [
+          renderRailSpacer(index > 0),
+          /* @__PURE__ */ jsxDEV("div", { className: "flex items-start rounded-[8px]", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] items-start justify-center px-[2px] pt-[4px]", children: /* @__PURE__ */ jsxDEV(
+              "img",
+              {
+                src: getEventIcon(event.kind),
+                alt: "",
+                className: "shrink-0",
+                style: thoughtChainIconStyle
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 391,
+                columnNumber: 13
+              },
+              this
+            ) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 390,
+              columnNumber: 11
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[2px]", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-start justify-between gap-[12px]", children: [
+              /* @__PURE__ */ jsxDEV(
+                "p",
+                {
+                  className: `min-w-0 flex-1 text-[14px] tracking-[-0.1504px] ${active ? "font-['Anthropic_Sans:Regular',sans-serif] leading-[19.6px] text-[#373734] dark:text-claude-text" : muted ? "font-['Anthropic_Sans:Regular',sans-serif] leading-[20px] text-[#7b7974] dark:text-claude-textSecondary" : "font-['Anthropic_Sans:Regular',sans-serif] leading-[19.6px] text-[#373734] dark:text-claude-text"}`,
+                  children: active ? renderShimmerLabel(
+                    event.label,
+                    "font-['Anthropic_Sans:Regular',sans-serif] leading-[19.6px]"
+                  ) : event.label
+                },
+                void 0,
+                false,
+                {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                  lineNumber: 400,
+                  columnNumber: 15
+                },
+                this
+              ),
+              event.meta && /* @__PURE__ */ jsxDEV("p", { className: "shrink-0 pt-[1px] text-[12px] leading-[16.8px] text-[#7b7974] dark:text-claude-textSecondary", children: event.meta }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 417,
+                columnNumber: 15
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 399,
+              columnNumber: 13
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 398,
+              columnNumber: 11
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 389,
+            columnNumber: 9
+          }, this),
+          renderRailSpacer(index < total - 1)
+        ]
+      },
+      `${event.kind}-${event.label}-${index}`,
+      true,
+      {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 383,
+        columnNumber: 7
+      },
+      this
+    );
+  };
+  const renderCompactTimelineEvent = (event, index, total) => {
+    const muted = isMutedEvent(event.kind);
+    return /* @__PURE__ */ jsxDEV(
+      "div",
+      {
+        className: "w-full",
+        style: { animation: thoughtChainRowEnterAnimation, animationDelay: `${index * 40}ms` },
+        children: [
+          renderRailSpacer(index > 0, 6),
+          /* @__PURE__ */ jsxDEV("div", { className: "flex items-start rounded-[8px]", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] items-start justify-center px-[2px] pt-[4px]", children: /* @__PURE__ */ jsxDEV(
+              "img",
+              {
+                src: getEventIcon(event.kind),
+                alt: "",
+                className: "shrink-0",
+                style: thoughtChainIconStyle
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 445,
+                columnNumber: 13
+              },
+              this
+            ) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 444,
+              columnNumber: 11
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[2px]", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-start justify-between gap-[12px]", children: [
+              /* @__PURE__ */ jsxDEV(
+                "p",
+                {
+                  className: `min-w-0 flex-1 text-[13px] tracking-[-0.1304px] ${muted ? "font-['Anthropic_Sans:Regular',sans-serif] leading-[18px] text-[#7b7974] dark:text-claude-textSecondary" : "font-['Anthropic_Sans:Regular',sans-serif] leading-[18px] text-[#373734] dark:text-claude-text"}`,
+                  children: event.label
+                },
+                void 0,
+                false,
+                {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                  lineNumber: 454,
+                  columnNumber: 15
+                },
+                this
+              ),
+              event.meta && /* @__PURE__ */ jsxDEV("p", { className: "shrink-0 pt-[1px] text-[11px] leading-[15px] text-[#7b7974] dark:text-claude-textSecondary", children: event.meta }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 464,
+                columnNumber: 15
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 453,
+              columnNumber: 13
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 452,
+              columnNumber: 11
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 443,
+            columnNumber: 9
+          }, this),
+          renderRailSpacer(index < total - 1, 6)
+        ]
+      },
+      `${event.kind}-${event.label}-${index}`,
+      true,
+      {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 437,
+        columnNumber: 7
+      },
+      this
+    );
+  };
+  const isExpandableDetail = (detail) => {
+    if (typeof detail !== "string") return false;
+    const lines = detail.split("\n").filter((line) => line.trim().length > 0);
+    return detail.length > 280 || lines.length > 8;
+  };
+  const renderDetailedThoughtEvent = (event, index, total) => {
+    const detail = String(event.detail || "").trim();
+    const detailKey = `${event.kind}-${index}`;
+    const expandable = isExpandableDetail(detail);
+    const expanded = Boolean(expandedDetailRows[detailKey]);
+    return /* @__PURE__ */ jsxDEV(
+      "div",
+      {
+        className: "w-full",
+        style: { animation: thoughtChainRowEnterAnimation, animationDelay: `${index * 45}ms` },
+        children: [
+          renderRailSpacer(index > 0),
+          /* @__PURE__ */ jsxDEV("div", { className: "flex items-start rounded-[8px]", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] flex-col items-center gap-[4px] px-[2px] pt-[4px]", children: /* @__PURE__ */ jsxDEV(
+              "img",
+              {
+                src: thoughtChainExtendedStartIcon,
+                alt: "",
+                className: "shrink-0",
+                style: thoughtChainIconStyle
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 501,
+                columnNumber: 13
+              },
+              this
+            ) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 500,
+              columnNumber: 11
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[2px]", children: [
+              /* @__PURE__ */ jsxDEV("div", { className: "relative", children: [
+                /* @__PURE__ */ jsxDEV(
+                  "div",
+                  {
+                    className: "overflow-hidden whitespace-pre-wrap font-['Anthropic_Sans:Regular',sans-serif] text-[14px] leading-[19.6px] tracking-[-0.1504px] text-[#373734] dark:text-claude-text",
+                    style: { maxHeight: expandable && !expanded ? "200px" : "none" },
+                    children: detail
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                    lineNumber: 511,
+                    columnNumber: 15
+                  },
+                  this
+                ),
+                expandable && !expanded && /* @__PURE__ */ jsxDEV("div", { className: "pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-claude-bg to-transparent" }, void 0, false, {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                  lineNumber: 518,
+                  columnNumber: 15
+                }, this)
+              ] }, void 0, true, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 510,
+                columnNumber: 13
+              }, this),
+              expandable && /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => setExpandedDetailRows((prev) => ({
+                    ...prev,
+                    [detailKey]: !prev[detailKey]
+                  })),
+                  className: "mt-[8px] text-[12px] leading-[16px] text-[rgba(123,121,116,0.8)] transition-colors hover:text-[#373734] dark:hover:text-claude-text",
+                  children: expanded ? "Show less" : "Show more"
+                },
+                void 0,
+                false,
+                {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                  lineNumber: 523,
+                  columnNumber: 13
+                },
+                this
+              )
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 509,
+              columnNumber: 11
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 499,
+            columnNumber: 9
+          }, this),
+          renderRailSpacer(index < total - 1)
+        ]
+      },
+      `${event.kind}-${event.label}-${index}`,
+      true,
+      {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 493,
+        columnNumber: 7
+      },
+      this
+    );
+  };
+  const renderWebSearchEvent = (event, index, total) => {
+    const active = isActiveEvent(event, index);
+    return /* @__PURE__ */ jsxDEV(
+      "div",
+      {
+        className: "w-full",
+        style: { animation: thoughtChainRowEnterAnimation, animationDelay: `${index * 45}ms` },
+        children: [
+          renderRailSpacer(index > 0),
+          /* @__PURE__ */ jsxDEV("div", { className: "flex items-start rounded-[8px]", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] items-start justify-center px-[2px] pt-[4px]", children: /* @__PURE__ */ jsxDEV(
+              "img",
+              {
+                src: thoughtChainWebSearchIcon,
+                alt: "",
+                className: "shrink-0",
+                style: thoughtChainIconStyle
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 559,
+                columnNumber: 11
+              },
+              this
+            ) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 558,
+              columnNumber: 9
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[2px]", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-start justify-between gap-[12px]", children: [
+              /* @__PURE__ */ jsxDEV("p", { className: "min-w-0 flex-1 font-['Anthropic_Sans:Regular',sans-serif] text-[14px] leading-[20px] tracking-[-0.1504px] text-[#7b7974] dark:text-claude-textSecondary", children: active ? renderShimmerLabel(
+                event.label,
+                "font-['Anthropic_Sans:Regular',sans-serif] leading-[20px]"
+              ) : event.label }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 568,
+                columnNumber: 13
+              }, this),
+              event.meta && /* @__PURE__ */ jsxDEV("p", { className: "shrink-0 pt-[1px] text-[12px] leading-[16.8px] text-[#7b7974] dark:text-claude-textSecondary", children: event.meta }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 577,
+                columnNumber: 15
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 567,
+              columnNumber: 11
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 566,
+              columnNumber: 9
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 557,
+            columnNumber: 7
+          }, this),
+          event.results && event.results.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "flex items-stretch", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] justify-center px-[9.5px]", children: /* @__PURE__ */ jsxDEV("div", { className: `w-px ${railClassName}` }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 588,
+              columnNumber: 13
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 587,
+              columnNumber: 11
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[4px]", children: /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden rounded-[8px] border border-[rgba(31,31,30,0.15)] bg-[rgba(255,255,255,0.5)] pb-px pl-[5px] pr-[16px] pt-[5px] dark:border-[rgba(248,248,246,0.12)] dark:bg-[rgba(255,255,255,0.05)]", children: event.results.map(
+              (result, resultIndex) => /* @__PURE__ */ jsxDEV(
+                "div",
+                {
+                  className: "flex items-center gap-[12px] rounded-[6px] px-[8px] py-[6px]",
+                  style: {
+                    animation: thoughtChainResultEnterAnimation,
+                    animationDelay: `${100 + resultIndex * 55}ms`
+                  },
+                  children: [
+                    /* @__PURE__ */ jsxDEV("div", { className: "h-[12px] w-[12px] shrink-0 rounded-full border border-[rgba(31,31,30,0.12)] bg-[rgba(31,31,30,0.04)] dark:border-[rgba(248,248,246,0.12)] dark:bg-[rgba(248,248,246,0.05)]" }, void 0, false, {
+                      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                      lineNumber: 601,
+                      columnNumber: 19
+                    }, this),
+                    /* @__PURE__ */ jsxDEV("p", { className: "min-w-0 flex-1 truncate font-['Anthropic_Sans:Regular',sans-serif] text-[12px] leading-[16.8px] text-[#373734] dark:text-claude-text", children: result.title }, void 0, false, {
+                      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                      lineNumber: 602,
+                      columnNumber: 19
+                    }, this),
+                    result.source && /* @__PURE__ */ jsxDEV("p", { className: "shrink-0 text-[12px] leading-[16px] text-[#7b7974] dark:text-claude-textSecondary", children: result.source }, void 0, false, {
+                      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                      lineNumber: 606,
+                      columnNumber: 17
+                    }, this)
+                  ]
+                },
+                `${result.url || result.title}-${resultIndex}`,
+                true,
+                {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                  lineNumber: 593,
+                  columnNumber: 15
+                },
+                this
+              )
+            ) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 591,
+              columnNumber: 13
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 590,
+              columnNumber: 11
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 586,
+            columnNumber: 9
+          }, this),
+          renderRailSpacer(index < total - 1)
+        ]
+      },
+      `${event.kind}-${event.label}-${index}`,
+      true,
+      {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 551,
+        columnNumber: 7
+      },
+      this
+    );
+  };
+  const renderWritePreviewEvent = (event, index, total) => {
+    const previewLines = buildPreviewLines(event.preview);
+    const previewFormat = (event.preview?.format || "text").toLowerCase();
+    const active = isActiveEvent(event, index);
+    return /* @__PURE__ */ jsxDEV(
+      "div",
+      {
+        className: "w-full",
+        style: { animation: thoughtChainRowEnterAnimation, animationDelay: `${index * 45}ms` },
+        children: [
+          renderRailSpacer(index > 0),
+          /* @__PURE__ */ jsxDEV("div", { className: "flex items-start rounded-[8px]", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] items-start justify-center px-[2px] pt-[4px]", children: /* @__PURE__ */ jsxDEV(
+              "img",
+              {
+                src: thoughtChainWritePreviewIcon,
+                alt: "",
+                className: "shrink-0",
+                style: thoughtChainIconStyle
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 640,
+                columnNumber: 13
+              },
+              this
+            ) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 639,
+              columnNumber: 11
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[2px]", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-start justify-between gap-[12px]", children: [
+              /* @__PURE__ */ jsxDEV("p", { className: "min-w-0 flex-1 font-['Anthropic_Sans:Regular',sans-serif] text-[14px] leading-[20px] tracking-[-0.1504px] text-[#7b7974] dark:text-claude-textSecondary", children: active ? renderShimmerLabel(
+                event.label,
+                "font-['Anthropic_Sans:Regular',sans-serif] leading-[20px]"
+              ) : event.label }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 649,
+                columnNumber: 15
+              }, this),
+              event.meta && /* @__PURE__ */ jsxDEV("p", { className: "shrink-0 pt-[1px] text-[12px] leading-[16.8px] text-[#7b7974] dark:text-claude-textSecondary", children: event.meta }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 658,
+                columnNumber: 15
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 648,
+              columnNumber: 13
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 647,
+              columnNumber: 11
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 638,
+            columnNumber: 9
+          }, this),
+          event.preview && /* @__PURE__ */ jsxDEV("div", { className: "flex items-stretch", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] justify-center px-[9.5px]", children: /* @__PURE__ */ jsxDEV("div", { className: `w-px ${railClassName}` }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 669,
+              columnNumber: 15
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 668,
+              columnNumber: 13
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[4px]", children: /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden rounded-[12px] border border-[rgba(31,31,30,0.15)] bg-[rgba(255,255,255,0.3)] p-px dark:border-[rgba(248,248,246,0.12)] dark:bg-[rgba(255,255,255,0.04)]", children: /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden rounded-[6px] bg-white dark:bg-[#1F1F1D]", children: [
+              /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between px-[12px] py-[10px]", children: /* @__PURE__ */ jsxDEV("span", { className: "font-['Anthropic_Mono:Regular',monospace] text-[11px] leading-[16px] text-[#373734] dark:text-claude-text", children: previewFormat }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 675,
+                columnNumber: 21
+              }, this) }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 674,
+                columnNumber: 19
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: "max-h-[124px] overflow-hidden px-[12px] pb-[12px]", children: /* @__PURE__ */ jsxDEV("pre", { className: "whitespace-pre-wrap font-['Anthropic_Mono:Regular',monospace] text-[12px] leading-[16px] text-[#2B303B] dark:text-[#D7D7D4]", children: previewLines.join("\n") }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 680,
+                columnNumber: 21
+              }, this) }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 679,
+                columnNumber: 19
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 673,
+              columnNumber: 17
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 672,
+              columnNumber: 15
+            }, this) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 671,
+              columnNumber: 13
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 667,
+            columnNumber: 9
+          }, this),
+          renderRailSpacer(index < total - 1)
+        ]
+      },
+      `${event.kind}-${event.label}-${index}`,
+      true,
+      {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 632,
+        columnNumber: 7
+      },
+      this
+    );
+  };
+  if (syntheticEvents?.length && !hasDetailedEvents && !hasRichResultEvents) {
+    const compactEvents = isThinking && activeEventIndex !== -1 ? syntheticEvents.slice(0, activeEventIndex) : syntheticEvents;
+    const shouldShowEvents = !canToggle || isExpanded;
+    return /* @__PURE__ */ jsxDEV("div", { className: "mb-3 pl-[8px] pt-[6px]", children: [
+      /* @__PURE__ */ jsxDEV("style", { children: thoughtChainAnimationStyles }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 703,
+        columnNumber: 9
+      }, this),
+      renderSummaryButton(),
+      shouldShowEvents && compactEvents.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden", children: compactEvents.map(
+        (event, index) => renderCompactTimelineEvent(event, index, compactEvents.length)
+      ) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 706,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 702,
+      columnNumber: 7
+    }, this);
+  }
+  if (syntheticEvents?.length && !hasDetailedEvents) {
+    const shouldShowEvents = !canToggle || isExpanded;
+    return /* @__PURE__ */ jsxDEV("div", { className: "mb-4 pl-[8px] pt-[6px]", children: [
+      /* @__PURE__ */ jsxDEV("style", { children: thoughtChainAnimationStyles }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 721,
+        columnNumber: 9
+      }, this),
+      renderSummaryButton(),
+      shouldShowEvents && /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden", children: syntheticEvents.map(
+        (event, index) => event.kind === "web_search" ? renderWebSearchEvent(event, index, syntheticEvents.length) : event.kind === "write_preview" ? renderWritePreviewEvent(event, index, syntheticEvents.length) : renderTimelineEvent(event, index, syntheticEvents.length)
+      ) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 724,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 720,
+      columnNumber: 7
+    }, this);
+  }
+  if (syntheticEvents?.length) {
+    const shouldShowEvents = !canToggle || isExpanded;
+    return /* @__PURE__ */ jsxDEV("div", { className: "mb-4 pl-[8px] pt-[6px]", children: [
+      /* @__PURE__ */ jsxDEV("style", { children: thoughtChainAnimationStyles }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 743,
+        columnNumber: 9
+      }, this),
+      renderSummaryButton(),
+      shouldShowEvents && /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden", children: syntheticEvents.map((event, index) => {
+        if (event.detail) {
+          return renderDetailedThoughtEvent(event, index, syntheticEvents.length);
+        }
+        if (event.kind === "web_search") {
+          return renderWebSearchEvent(event, index, syntheticEvents.length);
+        }
+        if (event.kind === "write_preview") {
+          return renderWritePreviewEvent(event, index, syntheticEvents.length);
+        }
+        return renderTimelineEvent(event, index, syntheticEvents.length);
+      }) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 746,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 742,
+      columnNumber: 7
+    }, this);
+  }
+  if (!hasDetailedEvents) {
+    return /* @__PURE__ */ jsxDEV("div", { className: "mb-4 pl-[8px] pt-[6px]", children: [
+      /* @__PURE__ */ jsxDEV("style", { children: thoughtChainAnimationStyles }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 768,
+        columnNumber: 9
+      }, this),
+      renderSummaryButton(),
+      /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden", children: [
+        renderTimelineEvent(
+          { kind: "skill", label: summary },
+          0,
+          isThinking ? 1 : 2
+        ),
+        !isThinking && renderTimelineEvent(
+          { kind: "done", label: "Done" },
+          1,
+          2
+        )
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 770,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 767,
+      columnNumber: 7
+    }, this);
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "mb-4 pl-[8px] pt-[6px]", children: [
+    /* @__PURE__ */ jsxDEV("style", { children: thoughtChainAnimationStyles }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 789,
+      columnNumber: 7
+    }, this),
+    renderSummaryButton(),
+    isExpanded && /* @__PURE__ */ jsxDEV("div", { className: "overflow-hidden", children: [
+      renderRailSpacer(false),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex items-start rounded-[8px]", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "flex w-[20px] flex-col items-center gap-[4px] px-[2px] pt-[4px]", children: [
+          /* @__PURE__ */ jsxDEV(
+            "img",
+            {
+              src: thoughtChainExtendedStartIcon,
+              alt: "",
+              className: "shrink-0",
+              style: thoughtChainIconStyle
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 797,
+              columnNumber: 15
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV("div", { className: `min-h-px w-px flex-1 ${railClassName}` }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 803,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+          lineNumber: 796,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "min-w-0 flex-1 pl-[10px] pt-[2px]", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "relative", children: [
+            /* @__PURE__ */ jsxDEV(
+              "div",
+              {
+                ref: bodyRef,
+                className: "overflow-hidden whitespace-pre-wrap font-['Anthropic_Sans:Regular',sans-serif] text-[14px] leading-[19.6px] tracking-[-0.1504px] text-[#373734] dark:text-claude-text",
+                style: { maxHeight: isBodyExpanded ? "none" : "200px" },
+                children: thinking
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+                lineNumber: 808,
+                columnNumber: 17
+              },
+              this
+            ),
+            !isBodyExpanded && isOverflowing && /* @__PURE__ */ jsxDEV("div", { className: "pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-claude-bg to-transparent" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 816,
+              columnNumber: 15
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+            lineNumber: 807,
+            columnNumber: 15
+          }, this),
+          isOverflowing && /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              onClick: () => setIsBodyExpanded((prev) => !prev),
+              className: "mt-[8px] text-[12px] leading-[16px] text-[rgba(123,121,116,0.8)] transition-colors hover:text-[#373734] dark:hover:text-claude-text",
+              children: isBodyExpanded ? "Show less" : "Show more"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+              lineNumber: 821,
+              columnNumber: 13
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+          lineNumber: 806,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+        lineNumber: 795,
+        columnNumber: 11
+      }, this),
+      renderTimelineEvent(
+        { kind: "skill", label: stepLabel },
+        1,
+        isThinking ? 2 : 3
+      ),
+      !isThinking && renderTimelineEvent(
+        { kind: "done", label: "Done" },
+        2,
+        3
+      )
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+      lineNumber: 793,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx",
+    lineNumber: 788,
+    columnNumber: 5
+  }, this);
+};
+_s3(AssistantThinkingChain, "CC98Nl3B8jPRIzdTcudJI/pEGJ8=");
+_c3 = AssistantThinkingChain;
+export default AssistantThinkingChain;
+var _c, _c2, _c3;
+$RefreshReg$(_c, "TextShimmer");
+$RefreshReg$(_c2, "AssistantThinkingCompactStatus");
+$RefreshReg$(_c3, "AssistantThinkingChain");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/work/py/claude/claude-desktop/src/components/AssistantThinkingChain.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QixJQUFBeEQsSUFBQXNILEtBQUFDO0FBQUEsYUFBQXZILElBQUE7QUFBQSxhQUFBc0gsS0FBQTtBQUFBLGFBQUFDLEtBQUEiLCJuYW1lcyI6WyJ1c2VFZmZlY3QiLCJ1c2VNZW1vIiwidXNlUmVmIiwidXNlU3RhdGUiLCJDaGV2cm9uRG93biIsIkxpZ2h0YnVsYiIsIkFzc2lzdGFudEFjdGl2aXR5SW5kaWNhdG9yIiwidGhvdWdodENoYWluRGlyZWN0SWNvbiIsInRob3VnaHRDaGFpbkV4dGVuZGVkU3RhcnRJY29uIiwidGhvdWdodENoYWluU3RlcEljb24iLCJ0aG91Z2h0Q2hhaW5XZWJTZWFyY2hJY29uIiwidGhvdWdodENoYWluRG9uZUljb24iLCJ0aG91Z2h0Q2hhaW5Xcml0ZVByZXZpZXdJY29uIiwicmFpbENsYXNzTmFtZSIsInRob3VnaHRDaGFpbkljb25TdHlsZSIsIndpZHRoIiwiaGVpZ2h0IiwidGhvdWdodENoYWluUm93RW50ZXJBbmltYXRpb24iLCJ0aG91Z2h0Q2hhaW5SZXN1bHRFbnRlckFuaW1hdGlvbiIsIlRISU5LSU5HX1NUQVRVU19GQUxMQkFDSyIsInRob3VnaHRIZWFkZXJMYWJlbCIsInRob3VnaHRDaGFpbkFuaW1hdGlvblN0eWxlcyIsIlRleHRTaGltbWVyIiwiY2hpbGRyZW4iLCJjbGFzc05hbWUiLCJjb2xvciIsImJhY2tncm91bmRJbWFnZSIsImJhY2tncm91bmRTaXplIiwiYmFja2dyb3VuZENsaXAiLCJXZWJraXRCYWNrZ3JvdW5kQ2xpcCIsIldlYmtpdFRleHRGaWxsQ29sb3IiLCJhbmltYXRpb24iLCJfYyIsImdldFRoaW5raW5nU3VtbWFyeSIsInRoaW5raW5nIiwidGhpbmtpbmdTdW1tYXJ5IiwiaXNUaGlua2luZyIsImxpbmVzIiwic3BsaXQiLCJtYXAiLCJsaW5lIiwidHJpbSIsImZpbHRlciIsIkJvb2xlYW4iLCJsYXN0IiwibGVuZ3RoIiwic2xpY2UiLCJub3JtYWxpemVUaGlua2luZ0xpbmUiLCJyZXBsYWNlIiwiZ2V0VGhpbmtpbmdMaW5lcyIsImlzTWVhbmluZ2Z1bGx5RGlmZmVyZW50IiwiYSIsImIiLCJ0b0xvd2VyQ2FzZSIsImdldEV2ZW50SWNvbiIsImtpbmQiLCJpc011dGVkRXZlbnQiLCJnZXRBY3RpdmVFdmVudEluZGV4IiwiZXZlbnRzIiwiQXJyYXkiLCJpc0FycmF5IiwiaW5kZXgiLCJidWlsZFByZXZpZXdMaW5lcyIsInByZXZpZXciLCJjb250ZW50IiwiU3RyaW5nIiwidHJpbUVuZCIsInRva2VuaXplU3RyZWFtaW5nTGFiZWwiLCJ0ZXh0IiwidG9rZW4iLCJ1c2VBbmltYXRlZFN0YXR1c0xhYmVsIiwibGFiZWwiLCJfcyIsImFuaW1hdGVkU3RhdHVzVGV4dCIsInNldEFuaW1hdGVkU3RhdHVzVGV4dCIsIm5vcm1hbGl6ZWRMYWJlbCIsInRva2VucyIsInZpc2libGVUb2tlbkNvdW50IiwidGltZXIiLCJ3aW5kb3ciLCJzZXRJbnRlcnZhbCIsImpvaW4iLCJjbGVhckludGVydmFsIiwicmVuZGVyU3BhcmtTdGF0dXNDb3B5IiwidGV4dENsYXNzTmFtZSIsIkFzc2lzdGFudFRoaW5raW5nQ29tcGFjdFN0YXR1cyIsImV2ZW50IiwiX3MyIiwiQXNzaXN0YW50VGhpbmtpbmdDaGFpbiIsImlzRXhwYW5kZWQiLCJvblRvZ2dsZUV4cGFuZGVkIiwiX3MzIiwiaXNCb2R5RXhwYW5kZWQiLCJzZXRJc0JvZHlFeHBhbmRlZCIsImlzT3ZlcmZsb3dpbmciLCJzZXRJc092ZXJmbG93aW5nIiwiZXhwYW5kZWREZXRhaWxSb3dzIiwic2V0RXhwYW5kZWREZXRhaWxSb3dzIiwiYm9keVJlZiIsInN1bW1hcnkiLCJzeW50aGV0aWNFdmVudHMiLCJub3JtYWxpemVkIiwicHVzaCIsImFjdGl2ZUV2ZW50SW5kZXgiLCJoYXNEZXRhaWxlZEV2ZW50cyIsInNvbWUiLCJkZXRhaWwiLCJoYXNSaWNoUmVzdWx0RXZlbnRzIiwicmVzdWx0cyIsInN0ZXBMYWJlbCIsImNhbmRpZGF0ZSIsInJldmVyc2UiLCJmaW5kIiwiZWwiLCJjdXJyZW50Iiwic2Nyb2xsSGVpZ2h0Iiwic2Nyb2xsVG9wIiwiY2FuVG9nZ2xlIiwicmVuZGVyU3VtbWFyeUJ1dHRvbiIsInVuZGVmaW5lZCIsInJlbmRlclJhaWxTcGFjZXIiLCJ2aXNpYmxlIiwiaXNBY3RpdmVFdmVudCIsInJlbmRlclNoaW1tZXJMYWJlbCIsInJlbmRlclRpbWVsaW5lRXZlbnQiLCJ0b3RhbCIsIm11dGVkIiwiYWN0aXZlIiwiYW5pbWF0aW9uRGVsYXkiLCJtZXRhIiwicmVuZGVyQ29tcGFjdFRpbWVsaW5lRXZlbnQiLCJpc0V4cGFuZGFibGVEZXRhaWwiLCJyZW5kZXJEZXRhaWxlZFRob3VnaHRFdmVudCIsImRldGFpbEtleSIsImV4cGFuZGFibGUiLCJleHBhbmRlZCIsIm1heEhlaWdodCIsInByZXYiLCJyZW5kZXJXZWJTZWFyY2hFdmVudCIsInJlc3VsdCIsInJlc3VsdEluZGV4IiwidGl0bGUiLCJzb3VyY2UiLCJ1cmwiLCJyZW5kZXJXcml0ZVByZXZpZXdFdmVudCIsInByZXZpZXdMaW5lcyIsInByZXZpZXdGb3JtYXQiLCJmb3JtYXQiLCJjb21wYWN0RXZlbnRzIiwic2hvdWxkU2hvd0V2ZW50cyIsIl9jMiIsIl9jMyJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJBc3Npc3RhbnRUaGlua2luZ0NoYWluLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QsIHsgdXNlRWZmZWN0LCB1c2VNZW1vLCB1c2VSZWYsIHVzZVN0YXRlIH0gZnJvbSAncmVhY3QnO1xyXG5pbXBvcnQgeyBDaGV2cm9uRG93biwgTGlnaHRidWxiIH0gZnJvbSAnbHVjaWRlLXJlYWN0JztcclxuXHJcbmltcG9ydCBBc3Npc3RhbnRBY3Rpdml0eUluZGljYXRvciBmcm9tICcuL0Fzc2lzdGFudEFjdGl2aXR5SW5kaWNhdG9yJztcclxuaW1wb3J0IHRob3VnaHRDaGFpbkRpcmVjdEljb24gZnJvbSAnLi4vYXNzZXRzL2ZpZ21hLXRoaW5raW5nLWNoYWluL3Rob3VnaHQtY2hhaW4tZGlyZWN0LnN2Zyc7XHJcbmltcG9ydCB0aG91Z2h0Q2hhaW5FeHRlbmRlZFN0YXJ0SWNvbiBmcm9tICcuLi9hc3NldHMvZmlnbWEtdGhpbmtpbmctY2hhaW4vdGhvdWdodC1jaGFpbi1leHRlbmRlZC1zdGFydC5zdmcnO1xyXG5pbXBvcnQgdGhvdWdodENoYWluU3RlcEljb24gZnJvbSAnLi4vYXNzZXRzL2ZpZ21hLXRoaW5raW5nLWNoYWluL3Rob3VnaHQtY2hhaW4tc3RlcC5zdmcnO1xyXG5pbXBvcnQgdGhvdWdodENoYWluV2ViU2VhcmNoSWNvbiBmcm9tICcuLi9hc3NldHMvZmlnbWEtdGhpbmtpbmctY2hhaW4vdGhvdWdodC1jaGFpbi13ZWItc2VhcmNoLnN2Zyc7XHJcbmltcG9ydCB0aG91Z2h0Q2hhaW5Eb25lSWNvbiBmcm9tICcuLi9hc3NldHMvZmlnbWEtdGhpbmtpbmctY2hhaW4vdGhvdWdodC1jaGFpbi1kb25lLnN2Zyc7XHJcbmltcG9ydCB0aG91Z2h0Q2hhaW5Xcml0ZVByZXZpZXdJY29uIGZyb20gJy4uL2Fzc2V0cy9maWdtYS10aGlua2luZy1jaGFpbi90aG91Z2h0LWNoYWluLXdyaXRlLXByZXZpZXcuc3ZnJztcclxuXHJcbmludGVyZmFjZSBUaG91Z2h0Q2hhaW5TZWFyY2hSZXN1bHQge1xyXG4gIHRpdGxlOiBzdHJpbmc7XHJcbiAgc291cmNlPzogc3RyaW5nO1xyXG4gIHVybD86IHN0cmluZztcclxufVxyXG5cclxuaW50ZXJmYWNlIFRob3VnaHRDaGFpbkZpbGVQcmV2aWV3IHtcclxuICB0aXRsZTogc3RyaW5nO1xyXG4gIGZvcm1hdDogc3RyaW5nO1xyXG4gIGNvbnRlbnQ6IHN0cmluZztcclxufVxyXG5cclxuZXhwb3J0IGludGVyZmFjZSBBc3Npc3RhbnRUaGlua2luZ0V2ZW50IHtcclxuICBraW5kOiAnZGlyZWN0JyB8ICdmb2N1cycgfCAnc2tpbGwnIHwgJ3Rvb2wnIHwgJ3dlYl9zZWFyY2gnIHwgJ3dyaXRlX3ByZXZpZXcnIHwgJ2RvbmUnO1xyXG4gIGxhYmVsOiBzdHJpbmc7XHJcbiAgZGV0YWlsPzogc3RyaW5nO1xyXG4gIG1ldGE/OiBzdHJpbmc7XHJcbiAgcmVzdWx0cz86IFRob3VnaHRDaGFpblNlYXJjaFJlc3VsdFtdO1xyXG4gIHByZXZpZXc/OiBUaG91Z2h0Q2hhaW5GaWxlUHJldmlldztcclxufVxyXG5cclxuaW50ZXJmYWNlIEFzc2lzdGFudFRoaW5raW5nQ2hhaW5Qcm9wcyB7XHJcbiAgdGhpbmtpbmc6IHN0cmluZztcclxuICB0aGlua2luZ1N1bW1hcnk/OiBzdHJpbmc7XHJcbiAgaXNUaGlua2luZz86IGJvb2xlYW47XHJcbiAgaXNFeHRlbmRlZD86IGJvb2xlYW47XHJcbiAgaXNFeHBhbmRlZD86IGJvb2xlYW47XHJcbiAgb25Ub2dnbGVFeHBhbmRlZD86ICgpID0+IHZvaWQ7XHJcbiAgZXZlbnRzPzogQXNzaXN0YW50VGhpbmtpbmdFdmVudFtdO1xyXG59XHJcblxyXG5pbnRlcmZhY2UgQXNzaXN0YW50VGhpbmtpbmdDb21wYWN0U3RhdHVzUHJvcHMge1xyXG4gIGV2ZW50PzogQXNzaXN0YW50VGhpbmtpbmdFdmVudCB8IG51bGw7XHJcbiAgaXNUaGlua2luZz86IGJvb2xlYW47XHJcbn1cclxuXHJcbmNvbnN0IHJhaWxDbGFzc05hbWUgPSAnYmctW3JnYmEoMzEsMzEsMzAsMC4xNSldIGRhcms6YmctW3JnYmEoMjQ4LDI0OCwyNDYsMC4xOCldJztcclxuY29uc3QgdGhvdWdodENoYWluSWNvblN0eWxlID0geyB3aWR0aDogMTUsIGhlaWdodDogMTUgfSBhcyBjb25zdDtcclxuY29uc3QgdGhvdWdodENoYWluUm93RW50ZXJBbmltYXRpb24gPSAndGhvdWdodC1jaGFpbi1yb3ctZW50ZXIgMjIwbXMgY3ViaWMtYmV6aWVyKDAuMjIsIDEsIDAuMzYsIDEpIGJvdGgnO1xyXG5jb25zdCB0aG91Z2h0Q2hhaW5SZXN1bHRFbnRlckFuaW1hdGlvbiA9ICd0aG91Z2h0LWNoYWluLXJlc3VsdC1lbnRlciAyNDBtcyBjdWJpYy1iZXppZXIoMC4yMiwgMSwgMC4zNiwgMSkgYm90aCc7XHJcbmNvbnN0IFRISU5LSU5HX1NUQVRVU19GQUxMQkFDSyA9ICdUaGlua2luZyBkZWVwbHksIHN0YW5kIGJ5Li4uJztcclxuY29uc3QgdGhvdWdodEhlYWRlckxhYmVsID0gJ1Rob3VnaHQnO1xyXG5jb25zdCB0aG91Z2h0Q2hhaW5BbmltYXRpb25TdHlsZXMgPSBgXHJcbiAgQGtleWZyYW1lcyB0aG91Z2h0LWNoYWluLXJvdy1lbnRlciB7XHJcbiAgICBmcm9tIHtcclxuICAgICAgb3BhY2l0eTogMDtcclxuICAgICAgdHJhbnNmb3JtOiB0cmFuc2xhdGVZKDRweCk7XHJcbiAgICB9XHJcbiAgICB0byB7XHJcbiAgICAgIG9wYWNpdHk6IDE7XHJcbiAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSgwKTtcclxuICAgIH1cclxuICB9XHJcblxyXG4gIEBrZXlmcmFtZXMgdGhvdWdodC1jaGFpbi1yZXN1bHQtZW50ZXIge1xyXG4gICAgZnJvbSB7XHJcbiAgICAgIG9wYWNpdHk6IDA7XHJcbiAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSg2cHgpO1xyXG4gICAgfVxyXG4gICAgdG8ge1xyXG4gICAgICBvcGFjaXR5OiAxO1xyXG4gICAgICB0cmFuc2Zvcm06IHRyYW5zbGF0ZVkoMCk7XHJcbiAgICB9XHJcbiAgfVxyXG5cclxuICBAa2V5ZnJhbWVzIHRob3VnaHQtY2hhaW4tdGV4dC1zaGltbWVyIHtcclxuICAgIGZyb20ge1xyXG4gICAgICBiYWNrZ3JvdW5kLXBvc2l0aW9uOiAyMDAlIGNlbnRlcjtcclxuICAgIH1cclxuICAgIHRvIHtcclxuICAgICAgYmFja2dyb3VuZC1wb3NpdGlvbjogMCUgY2VudGVyO1xyXG4gICAgfVxyXG4gIH1cclxuYDtcclxuXHJcbmNvbnN0IFRleHRTaGltbWVyOiBSZWFjdC5GQzx7IGNoaWxkcmVuOiBSZWFjdC5SZWFjdE5vZGU7IGNsYXNzTmFtZT86IHN0cmluZyB9PiA9ICh7IGNoaWxkcmVuLCBjbGFzc05hbWUgfSkgPT4gKFxyXG4gIDxzcGFuXHJcbiAgICBjbGFzc05hbWU9e2NsYXNzTmFtZX1cclxuICAgIHN0eWxlPXt7XHJcbiAgICAgIGNvbG9yOiAndHJhbnNwYXJlbnQnLFxyXG4gICAgICBiYWNrZ3JvdW5kSW1hZ2U6XHJcbiAgICAgICAgJ2xpbmVhci1ncmFkaWVudCg5MGRlZywgcmdiYSgxMjMsMTIxLDExNiwwLjcyKSAwJSwgcmdiYSg1NSw1NSw1MiwwLjkyKSA0OCUsIHJnYmEoMTIzLDEyMSwxMTYsMC43MikgMTAwJSknLFxyXG4gICAgICBiYWNrZ3JvdW5kU2l6ZTogJzIyMCUgMTAwJScsXHJcbiAgICAgIGJhY2tncm91bmRDbGlwOiAndGV4dCcsXHJcbiAgICAgIFdlYmtpdEJhY2tncm91bmRDbGlwOiAndGV4dCcsXHJcbiAgICAgIFdlYmtpdFRleHRGaWxsQ29sb3I6ICd0cmFuc3BhcmVudCcsXHJcbiAgICAgIGFuaW1hdGlvbjogJ3Rob3VnaHQtY2hhaW4tdGV4dC1zaGltbWVyIDEuNnMgbGluZWFyIGluZmluaXRlJyxcclxuICAgIH19XHJcbiAgPlxyXG4gICAge2NoaWxkcmVufVxyXG4gIDwvc3Bhbj5cclxuKTtcclxuXHJcbmNvbnN0IGdldFRoaW5raW5nU3VtbWFyeSA9ICh0aGlua2luZzogc3RyaW5nLCB0aGlua2luZ1N1bW1hcnk/OiBzdHJpbmcsIGlzVGhpbmtpbmc/OiBib29sZWFuKSA9PiB7XHJcbiAgaWYgKGlzVGhpbmtpbmcgJiYgIXRoaW5raW5nU3VtbWFyeSkgcmV0dXJuICdUaGlua2luZyBkZWVwbHksIHN0YW5kIGJ5Li4uJztcclxuICBpZiAodGhpbmtpbmdTdW1tYXJ5KSByZXR1cm4gdGhpbmtpbmdTdW1tYXJ5O1xyXG5cclxuICBjb25zdCBsaW5lcyA9IHRoaW5raW5nXHJcbiAgICAuc3BsaXQoJ1xcbicpXHJcbiAgICAubWFwKChsaW5lKSA9PiBsaW5lLnRyaW0oKSlcclxuICAgIC5maWx0ZXIoQm9vbGVhbik7XHJcblxyXG4gIGNvbnN0IGxhc3QgPSBsaW5lc1tsaW5lcy5sZW5ndGggLSAxXSB8fCAnJztcclxuICBpZiAoIWxhc3QpIHJldHVybiBpc1RoaW5raW5nID8gJ1RoaW5raW5nLi4uJyA6ICdUaG91Z2h0IGNvbXBsZXRlJztcclxuICByZXR1cm4gbGFzdC5sZW5ndGggPiA2NCA/IGAke2xhc3Quc2xpY2UoMCwgNjQpfS4uLmAgOiBsYXN0O1xyXG59O1xyXG5cclxuY29uc3Qgbm9ybWFsaXplVGhpbmtpbmdMaW5lID0gKGxpbmU6IHN0cmluZykgPT5cclxuICBsaW5lXHJcbiAgICAudHJpbSgpXHJcbiAgICAucmVwbGFjZSgvXlstKuKAol1cXHMqLywgJycpXHJcbiAgICAucmVwbGFjZSgvXlxcZCtbXFwuXFwpXVxccyovLCAnJylcclxuICAgIC50cmltKCk7XHJcblxyXG5jb25zdCBnZXRUaGlua2luZ0xpbmVzID0gKHRoaW5raW5nOiBzdHJpbmcpID0+XHJcbiAgdGhpbmtpbmdcclxuICAgIC5zcGxpdCgnXFxuJylcclxuICAgIC5tYXAobm9ybWFsaXplVGhpbmtpbmdMaW5lKVxyXG4gICAgLmZpbHRlcihCb29sZWFuKTtcclxuXHJcbmNvbnN0IGlzTWVhbmluZ2Z1bGx5RGlmZmVyZW50ID0gKGE6IHN0cmluZywgYjogc3RyaW5nKSA9PlxyXG4gIGEudHJpbSgpLnRvTG93ZXJDYXNlKCkgIT09IGIudHJpbSgpLnRvTG93ZXJDYXNlKCk7XHJcblxyXG5jb25zdCBnZXRFdmVudEljb24gPSAoa2luZDogQXNzaXN0YW50VGhpbmtpbmdFdmVudFsna2luZCddKSA9PiB7XHJcbiAgc3dpdGNoIChraW5kKSB7XHJcbiAgICBjYXNlICdkaXJlY3QnOlxyXG4gICAgICByZXR1cm4gdGhvdWdodENoYWluRGlyZWN0SWNvbjtcclxuICAgIGNhc2UgJ3dlYl9zZWFyY2gnOlxyXG4gICAgICByZXR1cm4gdGhvdWdodENoYWluV2ViU2VhcmNoSWNvbjtcclxuICAgIGNhc2UgJ3dyaXRlX3ByZXZpZXcnOlxyXG4gICAgICByZXR1cm4gdGhvdWdodENoYWluV3JpdGVQcmV2aWV3SWNvbjtcclxuICAgIGNhc2UgJ2RvbmUnOlxyXG4gICAgICByZXR1cm4gdGhvdWdodENoYWluRG9uZUljb247XHJcbiAgICBjYXNlICdmb2N1cyc6XHJcbiAgICBjYXNlICdza2lsbCc6XHJcbiAgICBjYXNlICd0b29sJzpcclxuICAgIGRlZmF1bHQ6XHJcbiAgICAgIHJldHVybiB0aG91Z2h0Q2hhaW5TdGVwSWNvbjtcclxuICB9XHJcbn07XHJcblxyXG5jb25zdCBpc011dGVkRXZlbnQgPSAoa2luZDogQXNzaXN0YW50VGhpbmtpbmdFdmVudFsna2luZCddKSA9PiBraW5kICE9PSAnZG9uZSc7XHJcblxyXG5jb25zdCBnZXRBY3RpdmVFdmVudEluZGV4ID0gKGV2ZW50czogQXNzaXN0YW50VGhpbmtpbmdFdmVudFtdIHwgbnVsbCwgaXNUaGlua2luZzogYm9vbGVhbikgPT4ge1xyXG4gIGlmICghaXNUaGlua2luZyB8fCAhQXJyYXkuaXNBcnJheShldmVudHMpIHx8IGV2ZW50cy5sZW5ndGggPT09IDApIHJldHVybiAtMTtcclxuXHJcbiAgZm9yIChsZXQgaW5kZXggPSBldmVudHMubGVuZ3RoIC0gMTsgaW5kZXggPj0gMDsgaW5kZXggLT0gMSkge1xyXG4gICAgaWYgKGV2ZW50c1tpbmRleF0/LmtpbmQgIT09ICdkb25lJykgcmV0dXJuIGluZGV4O1xyXG4gIH1cclxuXHJcbiAgcmV0dXJuIC0xO1xyXG59O1xyXG5cclxuY29uc3QgYnVpbGRQcmV2aWV3TGluZXMgPSAocHJldmlldz86IFRob3VnaHRDaGFpbkZpbGVQcmV2aWV3KSA9PiB7XHJcbiAgY29uc3QgY29udGVudCA9IFN0cmluZyhwcmV2aWV3Py5jb250ZW50IHx8ICcnKVxyXG4gICAgLnJlcGxhY2UoL1xcclxcbi9nLCAnXFxuJylcclxuICAgIC5yZXBsYWNlKC9cXHQvZywgJyAgJyk7XHJcblxyXG4gIGNvbnN0IGxpbmVzID0gY29udGVudFxyXG4gICAgLnNwbGl0KCdcXG4nKVxyXG4gICAgLm1hcCgobGluZSkgPT4gbGluZS50cmltRW5kKCkpXHJcbiAgICAuZmlsdGVyKChsaW5lKSA9PiBsaW5lLnRyaW0oKS5sZW5ndGggPiAwKTtcclxuXHJcbiAgaWYgKGxpbmVzLmxlbmd0aCA9PT0gMCkge1xyXG4gICAgcmV0dXJuIFsnUHJlcGFyaW5nIHByZXZpZXfigKYnXTtcclxuICB9XHJcblxyXG4gIHJldHVybiBsaW5lcy5zbGljZSgwLCA4KS5tYXAoKGxpbmUpID0+IChsaW5lLmxlbmd0aCA+IDkyID8gYCR7bGluZS5zbGljZSgwLCA5Mil94oCmYCA6IGxpbmUpKTtcclxufTtcclxuXHJcbmNvbnN0IHRva2VuaXplU3RyZWFtaW5nTGFiZWwgPSAodGV4dDogc3RyaW5nKSA9PlxyXG4gIHRleHRcclxuICAgIC5zcGxpdCgvKFxccyspLylcclxuICAgIC5maWx0ZXIoKHRva2VuKSA9PiB0b2tlbi5sZW5ndGggPiAwKTtcclxuXHJcbmZ1bmN0aW9uIHVzZUFuaW1hdGVkU3RhdHVzTGFiZWwobGFiZWw6IHN0cmluZywgaXNUaGlua2luZzogYm9vbGVhbikge1xyXG4gIGNvbnN0IFthbmltYXRlZFN0YXR1c1RleHQsIHNldEFuaW1hdGVkU3RhdHVzVGV4dF0gPSB1c2VTdGF0ZShsYWJlbCk7XHJcblxyXG4gIHVzZUVmZmVjdCgoKSA9PiB7XHJcbiAgICBjb25zdCBub3JtYWxpemVkTGFiZWwgPSBsYWJlbC50cmltKCkgfHwgVEhJTktJTkdfU1RBVFVTX0ZBTExCQUNLO1xyXG5cclxuICAgIGlmICghaXNUaGlua2luZykge1xyXG4gICAgICBzZXRBbmltYXRlZFN0YXR1c1RleHQobm9ybWFsaXplZExhYmVsKTtcclxuICAgICAgcmV0dXJuO1xyXG4gICAgfVxyXG5cclxuICAgIGNvbnN0IHRva2VucyA9IHRva2VuaXplU3RyZWFtaW5nTGFiZWwobm9ybWFsaXplZExhYmVsKTtcclxuICAgIGlmICh0b2tlbnMubGVuZ3RoID09PSAwKSB7XHJcbiAgICAgIHNldEFuaW1hdGVkU3RhdHVzVGV4dChUSElOS0lOR19TVEFUVVNfRkFMTEJBQ0spO1xyXG4gICAgICByZXR1cm47XHJcbiAgICB9XHJcblxyXG4gICAgc2V0QW5pbWF0ZWRTdGF0dXNUZXh0KHRva2Vuc1swXSk7XHJcbiAgICBsZXQgdmlzaWJsZVRva2VuQ291bnQgPSAxO1xyXG4gICAgY29uc3QgdGltZXIgPSB3aW5kb3cuc2V0SW50ZXJ2YWwoKCkgPT4ge1xyXG4gICAgICB2aXNpYmxlVG9rZW5Db3VudCArPSAxO1xyXG4gICAgICBzZXRBbmltYXRlZFN0YXR1c1RleHQodG9rZW5zLnNsaWNlKDAsIHZpc2libGVUb2tlbkNvdW50KS5qb2luKCcnKSk7XHJcbiAgICAgIGlmICh2aXNpYmxlVG9rZW5Db3VudCA+PSB0b2tlbnMubGVuZ3RoKSB7XHJcbiAgICAgICAgd2luZG93LmNsZWFySW50ZXJ2YWwodGltZXIpO1xyXG4gICAgICB9XHJcbiAgICB9LCA0Mik7XHJcblxyXG4gICAgcmV0dXJuICgpID0+IHdpbmRvdy5jbGVhckludGVydmFsKHRpbWVyKTtcclxuICB9LCBbaXNUaGlua2luZywgbGFiZWxdKTtcclxuXHJcbiAgcmV0dXJuIGFuaW1hdGVkU3RhdHVzVGV4dDtcclxufVxyXG5cclxuY29uc3QgcmVuZGVyU3BhcmtTdGF0dXNDb3B5ID0gKGxhYmVsOiBzdHJpbmcsIGlzVGhpbmtpbmc6IGJvb2xlYW4pID0+IHtcclxuICBjb25zdCB0ZXh0Q2xhc3NOYW1lID1cclxuICAgIFwiZm9udC1bJ0FudGhyb3BpY19TZXJpZl9UZXh0Okl0YWxpYycsc2VyaWZdIHRleHQtWzE0cHhdIGl0YWxpYyBsZWFkaW5nLVsyMXB4XSB0cmFja2luZy1bLTAuMDdweF1cIjtcclxuXHJcbiAgaWYgKGlzVGhpbmtpbmcpIHtcclxuICAgIHJldHVybiA8VGV4dFNoaW1tZXIgY2xhc3NOYW1lPXt0ZXh0Q2xhc3NOYW1lfT57bGFiZWx9PC9UZXh0U2hpbW1lcj47XHJcbiAgfVxyXG5cclxuICByZXR1cm4gPHNwYW4gY2xhc3NOYW1lPXt0ZXh0Q2xhc3NOYW1lfT57bGFiZWx9PC9zcGFuPjtcclxufTtcclxuXHJcbmV4cG9ydCBjb25zdCBBc3Npc3RhbnRUaGlua2luZ0NvbXBhY3RTdGF0dXM6IFJlYWN0LkZDPEFzc2lzdGFudFRoaW5raW5nQ29tcGFjdFN0YXR1c1Byb3BzPiA9ICh7XHJcbiAgZXZlbnQsXHJcbiAgaXNUaGlua2luZyA9IHRydWUsXHJcbn0pID0+IHtcclxuICBpZiAoIWV2ZW50KSByZXR1cm4gbnVsbDtcclxuXHJcbiAgY29uc3QgYW5pbWF0ZWRTdGF0dXNUZXh0ID0gdXNlQW5pbWF0ZWRTdGF0dXNMYWJlbChldmVudC5sYWJlbCB8fCBUSElOS0lOR19TVEFUVVNfRkFMTEJBQ0ssIGlzVGhpbmtpbmcpO1xyXG5cclxuICByZXR1cm4gKFxyXG4gICAgPGRpdiBjbGFzc05hbWU9XCJtdC1bMTRweF0gZmxleCBtaW4taC1bMzZweF0gaXRlbXMtY2VudGVyIGdhcC1bMTJweF0gcGwtWzExcHhdIHRleHQtWyMzZDNkM2FdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFwiPlxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaC1bMjhweF0gdy1bMjhweF0gaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyXCI+XHJcbiAgICAgICAgPEFzc2lzdGFudEFjdGl2aXR5SW5kaWNhdG9yXHJcbiAgICAgICAgICBwaGFzZT17aXNUaGlua2luZyA/ICdzdHJlYW1pbmcnIDogJ2RvbmUnfVxyXG4gICAgICAgICAgc2l6ZT17Mjh9XHJcbiAgICAgICAgICBjbGFzc05hbWU9XCJpbmxpbmUtYmxvY2tcIlxyXG4gICAgICAgIC8+XHJcbiAgICAgIDwvZGl2PlxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cIm1pbi13LTAgZmxleC0xXCI+XHJcbiAgICAgICAge3JlbmRlclNwYXJrU3RhdHVzQ29weShhbmltYXRlZFN0YXR1c1RleHQgfHwgVEhJTktJTkdfU1RBVFVTX0ZBTExCQUNLLCBpc1RoaW5raW5nKX1cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L2Rpdj5cclxuICApO1xyXG59O1xyXG5cclxuY29uc3QgQXNzaXN0YW50VGhpbmtpbmdDaGFpbjogUmVhY3QuRkM8QXNzaXN0YW50VGhpbmtpbmdDaGFpblByb3BzPiA9ICh7XHJcbiAgdGhpbmtpbmcsXHJcbiAgdGhpbmtpbmdTdW1tYXJ5LFxyXG4gIGlzVGhpbmtpbmcgPSBmYWxzZSxcclxuICBpc0V4cGFuZGVkID0gZmFsc2UsXHJcbiAgb25Ub2dnbGVFeHBhbmRlZCxcclxuICBldmVudHMsXHJcbn0pID0+IHtcclxuICBjb25zdCBbaXNCb2R5RXhwYW5kZWQsIHNldElzQm9keUV4cGFuZGVkXSA9IHVzZVN0YXRlKGZhbHNlKTtcclxuICBjb25zdCBbaXNPdmVyZmxvd2luZywgc2V0SXNPdmVyZmxvd2luZ10gPSB1c2VTdGF0ZShmYWxzZSk7XHJcbiAgY29uc3QgW2V4cGFuZGVkRGV0YWlsUm93cywgc2V0RXhwYW5kZWREZXRhaWxSb3dzXSA9IHVzZVN0YXRlPFJlY29yZDxzdHJpbmcsIGJvb2xlYW4+Pih7fSk7XHJcbiAgY29uc3QgYm9keVJlZiA9IHVzZVJlZjxIVE1MRGl2RWxlbWVudCB8IG51bGw+KG51bGwpO1xyXG5cclxuICBjb25zdCBzdW1tYXJ5ID0gdXNlTWVtbyhcclxuICAgICgpID0+IGdldFRoaW5raW5nU3VtbWFyeSh0aGlua2luZywgdGhpbmtpbmdTdW1tYXJ5LCBpc1RoaW5raW5nKSxcclxuICAgIFt0aGlua2luZywgdGhpbmtpbmdTdW1tYXJ5LCBpc1RoaW5raW5nXVxyXG4gICk7XHJcblxyXG4gIGNvbnN0IHN5bnRoZXRpY0V2ZW50cyA9IHVzZU1lbW8oKCkgPT4ge1xyXG4gICAgaWYgKCFBcnJheS5pc0FycmF5KGV2ZW50cykgfHwgZXZlbnRzLmxlbmd0aCA9PT0gMCkgcmV0dXJuIG51bGw7XHJcblxyXG4gICAgY29uc3Qgbm9ybWFsaXplZCA9IGV2ZW50cy5maWx0ZXIoQm9vbGVhbikubWFwKChldmVudCkgPT4gKHsgLi4uZXZlbnQgfSkpO1xyXG4gICAgaWYgKCFpc1RoaW5raW5nICYmIG5vcm1hbGl6ZWRbbm9ybWFsaXplZC5sZW5ndGggLSAxXT8ua2luZCAhPT0gJ2RvbmUnKSB7XHJcbiAgICAgIG5vcm1hbGl6ZWQucHVzaCh7IGtpbmQ6ICdkb25lJywgbGFiZWw6ICdEb25lJyB9KTtcclxuICAgIH1cclxuICAgIHJldHVybiBub3JtYWxpemVkO1xyXG4gIH0sIFtldmVudHMsIGlzVGhpbmtpbmddKTtcclxuXHJcbiAgY29uc3QgYWN0aXZlRXZlbnRJbmRleCA9IHVzZU1lbW8oXHJcbiAgICAoKSA9PiBnZXRBY3RpdmVFdmVudEluZGV4KHN5bnRoZXRpY0V2ZW50cywgaXNUaGlua2luZyksXHJcbiAgICBbc3ludGhldGljRXZlbnRzLCBpc1RoaW5raW5nXVxyXG4gICk7XHJcblxyXG4gIGNvbnN0IGhhc0RldGFpbGVkRXZlbnRzID0gdXNlTWVtbyhcclxuICAgICgpID0+IEJvb2xlYW4oc3ludGhldGljRXZlbnRzPy5zb21lKChldmVudCkgPT4gdHlwZW9mIGV2ZW50LmRldGFpbCA9PT0gJ3N0cmluZycgJiYgZXZlbnQuZGV0YWlsLnRyaW0oKS5sZW5ndGggPiAwKSksXHJcbiAgICBbc3ludGhldGljRXZlbnRzXVxyXG4gICk7XHJcblxyXG4gIGNvbnN0IGhhc1JpY2hSZXN1bHRFdmVudHMgPSB1c2VNZW1vKFxyXG4gICAgKCkgPT4gQm9vbGVhbihcclxuICAgICAgc3ludGhldGljRXZlbnRzPy5zb21lKChldmVudCkgPT5cclxuICAgICAgICAoZXZlbnQua2luZCA9PT0gJ3dlYl9zZWFyY2gnICYmIEFycmF5LmlzQXJyYXkoZXZlbnQucmVzdWx0cykgJiYgZXZlbnQucmVzdWx0cy5sZW5ndGggPiAwKSB8fFxyXG4gICAgICAgIChldmVudC5raW5kID09PSAnd3JpdGVfcHJldmlldycgJiYgQm9vbGVhbihldmVudC5wcmV2aWV3KSlcclxuICAgICAgKVxyXG4gICAgKSxcclxuICAgIFtzeW50aGV0aWNFdmVudHNdXHJcbiAgKTtcclxuXHJcbiAgY29uc3Qgc3RlcExhYmVsID0gdXNlTWVtbygoKSA9PiB7XHJcbiAgICBjb25zdCBsaW5lcyA9IGdldFRoaW5raW5nTGluZXModGhpbmtpbmcpO1xyXG4gICAgY29uc3QgY2FuZGlkYXRlID0gWy4uLmxpbmVzXVxyXG4gICAgICAucmV2ZXJzZSgpXHJcbiAgICAgIC5maW5kKChsaW5lKSA9PiBsaW5lLmxlbmd0aCA8PSAxMjAgJiYgaXNNZWFuaW5nZnVsbHlEaWZmZXJlbnQobGluZSwgc3VtbWFyeSkpO1xyXG5cclxuICAgIHJldHVybiBjYW5kaWRhdGUgfHwgc3VtbWFyeTtcclxuICB9LCBbdGhpbmtpbmcsIHN1bW1hcnldKTtcclxuXHJcbiAgdXNlRWZmZWN0KCgpID0+IHtcclxuICAgIGNvbnN0IGVsID0gYm9keVJlZi5jdXJyZW50O1xyXG4gICAgaWYgKCFlbCkgcmV0dXJuO1xyXG4gICAgc2V0SXNPdmVyZmxvd2luZyhlbC5zY3JvbGxIZWlnaHQgPiAyMDApO1xyXG4gIH0sIFt0aGlua2luZywgaXNFeHBhbmRlZCwgaXNCb2R5RXhwYW5kZWRdKTtcclxuXHJcbiAgdXNlRWZmZWN0KCgpID0+IHtcclxuICAgIGNvbnN0IGVsID0gYm9keVJlZi5jdXJyZW50O1xyXG4gICAgaWYgKCFlbCB8fCAhaXNUaGlua2luZyB8fCAhaXNFeHBhbmRlZCkgcmV0dXJuO1xyXG4gICAgZWwuc2Nyb2xsVG9wID0gZWwuc2Nyb2xsSGVpZ2h0O1xyXG4gIH0sIFt0aGlua2luZywgaXNUaGlua2luZywgaXNFeHBhbmRlZCwgaXNCb2R5RXhwYW5kZWRdKTtcclxuICBpZiAoIXRoaW5raW5nICYmICFzeW50aGV0aWNFdmVudHM/Lmxlbmd0aCkgcmV0dXJuIG51bGw7XHJcblxyXG4gIGNvbnN0IGNhblRvZ2dsZSA9IEJvb2xlYW4oc3ludGhldGljRXZlbnRzPy5sZW5ndGgpICYmIEJvb2xlYW4ob25Ub2dnbGVFeHBhbmRlZCk7XHJcblxyXG4gIGNvbnN0IHJlbmRlclN1bW1hcnlCdXR0b24gPSAoKSA9PiAoXHJcbiAgICA8YnV0dG9uXHJcbiAgICAgIHR5cGU9XCJidXR0b25cIlxyXG4gICAgICBvbkNsaWNrPXtjYW5Ub2dnbGUgPyBvblRvZ2dsZUV4cGFuZGVkIDogdW5kZWZpbmVkfVxyXG4gICAgICBjbGFzc05hbWU9e2Bncm91cC90aGluayBmbGV4IHctZnVsbCBpdGVtcy1jZW50ZXIgZ2FwLVs0cHhdIHB5LVs0cHhdIHRleHQtbGVmdCB0ZXh0LVsjN2I3OTc0XSB0cmFuc2l0aW9uLWNvbG9ycyBkYXJrOnRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnkgJHtcclxuICAgICAgICBjYW5Ub2dnbGVcclxuICAgICAgICAgID8gJ2N1cnNvci1wb2ludGVyIGhvdmVyOnRleHQtWyMzNzM3MzRdIGRhcms6aG92ZXI6dGV4dC1jbGF1ZGUtdGV4dCdcclxuICAgICAgICAgIDogJ2N1cnNvci1kZWZhdWx0J1xyXG4gICAgICB9YH1cclxuICAgID5cclxuICAgICAge2hhc0RldGFpbGVkRXZlbnRzICYmIChcclxuICAgICAgICA8TGlnaHRidWxiXHJcbiAgICAgICAgICBzaXplPXsxNH1cclxuICAgICAgICAgIHN0cm9rZVdpZHRoPXsxLjc1fVxyXG4gICAgICAgICAgY2xhc3NOYW1lPVwibXItWzJweF0gc2hyaW5rLTAgdGV4dC1bIzdiNzk3NF0gZGFyazp0ZXh0LWNsYXVkZS10ZXh0U2Vjb25kYXJ5XCJcclxuICAgICAgICAvPlxyXG4gICAgICApfVxyXG4gICAgICA8c3BhbiBjbGFzc05hbWU9XCJtaW4tdy0wIGZsZXgtMSB0cnVuY2F0ZSB0ZXh0LVsxNHB4XSBsZWFkaW5nLVsxOS42cHhdIHRyYWNraW5nLVstMC4xNTA0cHhdXCI+XHJcbiAgICAgICAge2hhc0RldGFpbGVkRXZlbnRzID8gdGhvdWdodEhlYWRlckxhYmVsIDogc3VtbWFyeX1cclxuICAgICAgPC9zcGFuPlxyXG4gICAgICB7Y2FuVG9nZ2xlICYmIChcclxuICAgICAgICA8Q2hldnJvbkRvd25cclxuICAgICAgICAgIHNpemU9ezEyfVxyXG4gICAgICAgICAgY2xhc3NOYW1lPXtgc2hyaW5rLTAgdHJhbnNpdGlvbi10cmFuc2Zvcm0gZHVyYXRpb24tMjAwICR7aXNFeHBhbmRlZCA/ICdyb3RhdGUtMTgwJyA6ICcnfWB9XHJcbiAgICAgICAgLz5cclxuICAgICAgKX1cclxuICAgIDwvYnV0dG9uPlxyXG4gICk7XHJcblxyXG4gIGNvbnN0IHJlbmRlclJhaWxTcGFjZXIgPSAodmlzaWJsZTogYm9vbGVhbiwgaGVpZ2h0OiBudW1iZXIgPSA4KSA9PiAoXHJcbiAgICA8ZGl2IGNsYXNzTmFtZT1cInJlbGF0aXZlIHctZnVsbFwiIHN0eWxlPXt7IGhlaWdodDogYCR7aGVpZ2h0fXB4YCB9fT5cclxuICAgICAgPGRpdlxyXG4gICAgICAgIGNsYXNzTmFtZT17dmlzaWJsZSA/IGBhYnNvbHV0ZSBsZWZ0LVs5LjVweF0gdy1weCAke3JhaWxDbGFzc05hbWV9YCA6ICdhYnNvbHV0ZSBsZWZ0LVs5LjVweF0gdy1weCd9XHJcbiAgICAgICAgc3R5bGU9e3sgaGVpZ2h0OiBgJHtoZWlnaHR9cHhgIH19XHJcbiAgICAgIC8+XHJcbiAgICA8L2Rpdj5cclxuICApO1xyXG5cclxuICBjb25zdCBpc0FjdGl2ZUV2ZW50ID0gKFxyXG4gICAgZXZlbnQ6IEFzc2lzdGFudFRoaW5raW5nRXZlbnQsXHJcbiAgICBpbmRleDogbnVtYmVyXHJcbiAgKSA9PiBpc1RoaW5raW5nICYmIGV2ZW50LmtpbmQgIT09ICdkb25lJyAmJiBpbmRleCA9PT0gYWN0aXZlRXZlbnRJbmRleDtcclxuXHJcbiAgY29uc3QgcmVuZGVyU2hpbW1lckxhYmVsID0gKGxhYmVsOiBzdHJpbmcsIGNsYXNzTmFtZTogc3RyaW5nKSA9PiAoXHJcbiAgICA8VGV4dFNoaW1tZXIgY2xhc3NOYW1lPXtjbGFzc05hbWV9PntsYWJlbH08L1RleHRTaGltbWVyPlxyXG4gICk7XHJcblxyXG4gIGNvbnN0IHJlbmRlclRpbWVsaW5lRXZlbnQgPSAoXHJcbiAgICBldmVudDogQXNzaXN0YW50VGhpbmtpbmdFdmVudCxcclxuICAgIGluZGV4OiBudW1iZXIsXHJcbiAgICB0b3RhbDogbnVtYmVyXHJcbiAgKSA9PiB7XHJcbiAgICBjb25zdCBtdXRlZCA9IGlzTXV0ZWRFdmVudChldmVudC5raW5kKTtcclxuICAgIGNvbnN0IGFjdGl2ZSA9IGlzQWN0aXZlRXZlbnQoZXZlbnQsIGluZGV4KTtcclxuXHJcbiAgICByZXR1cm4gKFxyXG4gICAgICA8ZGl2XHJcbiAgICAgICAga2V5PXtgJHtldmVudC5raW5kfS0ke2V2ZW50LmxhYmVsfS0ke2luZGV4fWB9XHJcbiAgICAgICAgY2xhc3NOYW1lPVwidy1mdWxsXCJcclxuICAgICAgICBzdHlsZT17eyBhbmltYXRpb246IHRob3VnaHRDaGFpblJvd0VudGVyQW5pbWF0aW9uLCBhbmltYXRpb25EZWxheTogYCR7aW5kZXggKiA0NX1tc2AgfX1cclxuICAgICAgPlxyXG4gICAgICAgIHtyZW5kZXJSYWlsU3BhY2VyKGluZGV4ID4gMCl9XHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLXN0YXJ0IHJvdW5kZWQtWzhweF1cIj5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCB3LVsyMHB4XSBpdGVtcy1zdGFydCBqdXN0aWZ5LWNlbnRlciBweC1bMnB4XSBwdC1bNHB4XVwiPlxyXG4gICAgICAgICAgICA8aW1nXHJcbiAgICAgICAgICAgICAgc3JjPXtnZXRFdmVudEljb24oZXZlbnQua2luZCl9XHJcbiAgICAgICAgICAgICAgYWx0PVwiXCJcclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJzaHJpbmstMFwiXHJcbiAgICAgICAgICAgICAgc3R5bGU9e3Rob3VnaHRDaGFpbkljb25TdHlsZX1cclxuICAgICAgICAgICAgLz5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtaW4tdy0wIGZsZXgtMSBwbC1bMTBweF0gcHQtWzJweF1cIj5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLXN0YXJ0IGp1c3RpZnktYmV0d2VlbiBnYXAtWzEycHhdXCI+XHJcbiAgICAgICAgICAgICAgPHBcclxuICAgICAgICAgICAgICAgIGNsYXNzTmFtZT17YG1pbi13LTAgZmxleC0xIHRleHQtWzE0cHhdIHRyYWNraW5nLVstMC4xNTA0cHhdICR7XHJcbiAgICAgICAgICAgICAgICAgIGFjdGl2ZVxyXG4gICAgICAgICAgICAgICAgICAgID8gXCJmb250LVsnQW50aHJvcGljX1NhbnM6UmVndWxhcicsc2Fucy1zZXJpZl0gbGVhZGluZy1bMTkuNnB4XSB0ZXh0LVsjMzczNzM0XSBkYXJrOnRleHQtY2xhdWRlLXRleHRcIlxyXG4gICAgICAgICAgICAgICAgICAgIDogbXV0ZWRcclxuICAgICAgICAgICAgICAgICAgICA/IFwiZm9udC1bJ0FudGhyb3BpY19TYW5zOlJlZ3VsYXInLHNhbnMtc2VyaWZdIGxlYWRpbmctWzIwcHhdIHRleHQtWyM3Yjc5NzRdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFNlY29uZGFyeVwiXHJcbiAgICAgICAgICAgICAgICAgICAgOiBcImZvbnQtWydBbnRocm9waWNfU2FuczpSZWd1bGFyJyxzYW5zLXNlcmlmXSBsZWFkaW5nLVsxOS42cHhdIHRleHQtWyMzNzM3MzRdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFwiXHJcbiAgICAgICAgICAgICAgICB9YH1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICB7YWN0aXZlXHJcbiAgICAgICAgICAgICAgICAgID8gcmVuZGVyU2hpbW1lckxhYmVsKFxyXG4gICAgICAgICAgICAgICAgICAgICAgZXZlbnQubGFiZWwsXHJcbiAgICAgICAgICAgICAgICAgICAgICBcImZvbnQtWydBbnRocm9waWNfU2FuczpSZWd1bGFyJyxzYW5zLXNlcmlmXSBsZWFkaW5nLVsxOS42cHhdXCJcclxuICAgICAgICAgICAgICAgICAgICApXHJcbiAgICAgICAgICAgICAgICAgIDogZXZlbnQubGFiZWx9XHJcbiAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICAgIHtldmVudC5tZXRhICYmIChcclxuICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInNocmluay0wIHB0LVsxcHhdIHRleHQtWzEycHhdIGxlYWRpbmctWzE2LjhweF0gdGV4dC1bIzdiNzk3NF0gZGFyazp0ZXh0LWNsYXVkZS10ZXh0U2Vjb25kYXJ5XCI+XHJcbiAgICAgICAgICAgICAgICAgIHtldmVudC5tZXRhfVxyXG4gICAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICAgICAge3JlbmRlclJhaWxTcGFjZXIoaW5kZXggPCB0b3RhbCAtIDEpfVxyXG4gICAgICA8L2Rpdj5cclxuICAgICk7XHJcbiAgfTtcclxuXHJcbiAgY29uc3QgcmVuZGVyQ29tcGFjdFRpbWVsaW5lRXZlbnQgPSAoXHJcbiAgICBldmVudDogQXNzaXN0YW50VGhpbmtpbmdFdmVudCxcclxuICAgIGluZGV4OiBudW1iZXIsXHJcbiAgICB0b3RhbDogbnVtYmVyXHJcbiAgKSA9PiB7XHJcbiAgICBjb25zdCBtdXRlZCA9IGlzTXV0ZWRFdmVudChldmVudC5raW5kKTtcclxuXHJcbiAgICByZXR1cm4gKFxyXG4gICAgICA8ZGl2XHJcbiAgICAgICAga2V5PXtgJHtldmVudC5raW5kfS0ke2V2ZW50LmxhYmVsfS0ke2luZGV4fWB9XHJcbiAgICAgICAgY2xhc3NOYW1lPVwidy1mdWxsXCJcclxuICAgICAgICBzdHlsZT17eyBhbmltYXRpb246IHRob3VnaHRDaGFpblJvd0VudGVyQW5pbWF0aW9uLCBhbmltYXRpb25EZWxheTogYCR7aW5kZXggKiA0MH1tc2AgfX1cclxuICAgICAgPlxyXG4gICAgICAgIHtyZW5kZXJSYWlsU3BhY2VyKGluZGV4ID4gMCwgNil9XHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLXN0YXJ0IHJvdW5kZWQtWzhweF1cIj5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCB3LVsyMHB4XSBpdGVtcy1zdGFydCBqdXN0aWZ5LWNlbnRlciBweC1bMnB4XSBwdC1bNHB4XVwiPlxyXG4gICAgICAgICAgICA8aW1nXHJcbiAgICAgICAgICAgICAgc3JjPXtnZXRFdmVudEljb24oZXZlbnQua2luZCl9XHJcbiAgICAgICAgICAgICAgYWx0PVwiXCJcclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJzaHJpbmstMFwiXHJcbiAgICAgICAgICAgICAgc3R5bGU9e3Rob3VnaHRDaGFpbkljb25TdHlsZX1cclxuICAgICAgICAgICAgLz5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtaW4tdy0wIGZsZXgtMSBwbC1bMTBweF0gcHQtWzJweF1cIj5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLXN0YXJ0IGp1c3RpZnktYmV0d2VlbiBnYXAtWzEycHhdXCI+XHJcbiAgICAgICAgICAgICAgPHBcclxuICAgICAgICAgICAgICAgIGNsYXNzTmFtZT17YG1pbi13LTAgZmxleC0xIHRleHQtWzEzcHhdIHRyYWNraW5nLVstMC4xMzA0cHhdICR7XHJcbiAgICAgICAgICAgICAgICAgIG11dGVkXHJcbiAgICAgICAgICAgICAgICAgICAgPyBcImZvbnQtWydBbnRocm9waWNfU2FuczpSZWd1bGFyJyxzYW5zLXNlcmlmXSBsZWFkaW5nLVsxOHB4XSB0ZXh0LVsjN2I3OTc0XSBkYXJrOnRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIlxyXG4gICAgICAgICAgICAgICAgICAgIDogXCJmb250LVsnQW50aHJvcGljX1NhbnM6UmVndWxhcicsc2Fucy1zZXJpZl0gbGVhZGluZy1bMThweF0gdGV4dC1bIzM3MzczNF0gZGFyazp0ZXh0LWNsYXVkZS10ZXh0XCJcclxuICAgICAgICAgICAgICAgIH1gfVxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIHtldmVudC5sYWJlbH1cclxuICAgICAgICAgICAgICA8L3A+XHJcbiAgICAgICAgICAgICAge2V2ZW50Lm1ldGEgJiYgKFxyXG4gICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwic2hyaW5rLTAgcHQtWzFweF0gdGV4dC1bMTFweF0gbGVhZGluZy1bMTVweF0gdGV4dC1bIzdiNzk3NF0gZGFyazp0ZXh0LWNsYXVkZS10ZXh0U2Vjb25kYXJ5XCI+XHJcbiAgICAgICAgICAgICAgICAgIHtldmVudC5tZXRhfVxyXG4gICAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICAgICAge3JlbmRlclJhaWxTcGFjZXIoaW5kZXggPCB0b3RhbCAtIDEsIDYpfVxyXG4gICAgICA8L2Rpdj5cclxuICAgICk7XHJcbiAgfTtcclxuXHJcbiAgY29uc3QgaXNFeHBhbmRhYmxlRGV0YWlsID0gKGRldGFpbD86IHN0cmluZykgPT4ge1xyXG4gICAgaWYgKHR5cGVvZiBkZXRhaWwgIT09ICdzdHJpbmcnKSByZXR1cm4gZmFsc2U7XHJcbiAgICBjb25zdCBsaW5lcyA9IGRldGFpbC5zcGxpdCgnXFxuJykuZmlsdGVyKChsaW5lKSA9PiBsaW5lLnRyaW0oKS5sZW5ndGggPiAwKTtcclxuICAgIHJldHVybiBkZXRhaWwubGVuZ3RoID4gMjgwIHx8IGxpbmVzLmxlbmd0aCA+IDg7XHJcbiAgfTtcclxuXHJcbiAgY29uc3QgcmVuZGVyRGV0YWlsZWRUaG91Z2h0RXZlbnQgPSAoXHJcbiAgICBldmVudDogQXNzaXN0YW50VGhpbmtpbmdFdmVudCxcclxuICAgIGluZGV4OiBudW1iZXIsXHJcbiAgICB0b3RhbDogbnVtYmVyXHJcbiAgKSA9PiB7XHJcbiAgICBjb25zdCBkZXRhaWwgPSBTdHJpbmcoZXZlbnQuZGV0YWlsIHx8ICcnKS50cmltKCk7XHJcbiAgICBjb25zdCBkZXRhaWxLZXkgPSBgJHtldmVudC5raW5kfS0ke2luZGV4fWA7XHJcbiAgICBjb25zdCBleHBhbmRhYmxlID0gaXNFeHBhbmRhYmxlRGV0YWlsKGRldGFpbCk7XHJcbiAgICBjb25zdCBleHBhbmRlZCA9IEJvb2xlYW4oZXhwYW5kZWREZXRhaWxSb3dzW2RldGFpbEtleV0pO1xyXG5cclxuICAgIHJldHVybiAoXHJcbiAgICAgIDxkaXZcclxuICAgICAgICBrZXk9e2Ake2V2ZW50LmtpbmR9LSR7ZXZlbnQubGFiZWx9LSR7aW5kZXh9YH1cclxuICAgICAgICBjbGFzc05hbWU9XCJ3LWZ1bGxcIlxyXG4gICAgICAgIHN0eWxlPXt7IGFuaW1hdGlvbjogdGhvdWdodENoYWluUm93RW50ZXJBbmltYXRpb24sIGFuaW1hdGlvbkRlbGF5OiBgJHtpbmRleCAqIDQ1fW1zYCB9fVxyXG4gICAgICA+XHJcbiAgICAgICAge3JlbmRlclJhaWxTcGFjZXIoaW5kZXggPiAwKX1cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtc3RhcnQgcm91bmRlZC1bOHB4XVwiPlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IHctWzIwcHhdIGZsZXgtY29sIGl0ZW1zLWNlbnRlciBnYXAtWzRweF0gcHgtWzJweF0gcHQtWzRweF1cIj5cclxuICAgICAgICAgICAgPGltZ1xyXG4gICAgICAgICAgICAgIHNyYz17dGhvdWdodENoYWluRXh0ZW5kZWRTdGFydEljb259XHJcbiAgICAgICAgICAgICAgYWx0PVwiXCJcclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJzaHJpbmstMFwiXHJcbiAgICAgICAgICAgICAgc3R5bGU9e3Rob3VnaHRDaGFpbkljb25TdHlsZX1cclxuICAgICAgICAgICAgLz5cclxuICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWluLXctMCBmbGV4LTEgcGwtWzEwcHhdIHB0LVsycHhdXCI+XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwicmVsYXRpdmVcIj5cclxuICAgICAgICAgICAgICA8ZGl2XHJcbiAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJvdmVyZmxvdy1oaWRkZW4gd2hpdGVzcGFjZS1wcmUtd3JhcCBmb250LVsnQW50aHJvcGljX1NhbnM6UmVndWxhcicsc2Fucy1zZXJpZl0gdGV4dC1bMTRweF0gbGVhZGluZy1bMTkuNnB4XSB0cmFja2luZy1bLTAuMTUwNHB4XSB0ZXh0LVsjMzczNzM0XSBkYXJrOnRleHQtY2xhdWRlLXRleHRcIlxyXG4gICAgICAgICAgICAgICAgc3R5bGU9e3sgbWF4SGVpZ2h0OiBleHBhbmRhYmxlICYmICFleHBhbmRlZCA/ICcyMDBweCcgOiAnbm9uZScgfX1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICB7ZGV0YWlsfVxyXG4gICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgIHtleHBhbmRhYmxlICYmICFleHBhbmRlZCAmJiAoXHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInBvaW50ZXItZXZlbnRzLW5vbmUgYWJzb2x1dGUgaW5zZXQteC0wIGJvdHRvbS0wIGgtMTIgYmctZ3JhZGllbnQtdG8tdCBmcm9tLWNsYXVkZS1iZyB0by10cmFuc3BhcmVudFwiIC8+XHJcbiAgICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICB7ZXhwYW5kYWJsZSAmJiAoXHJcbiAgICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgICBvbkNsaWNrPXsoKSA9PlxyXG4gICAgICAgICAgICAgICAgICBzZXRFeHBhbmRlZERldGFpbFJvd3MoKHByZXYpID0+ICh7XHJcbiAgICAgICAgICAgICAgICAgICAgLi4ucHJldixcclxuICAgICAgICAgICAgICAgICAgICBbZGV0YWlsS2V5XTogIXByZXZbZGV0YWlsS2V5XSxcclxuICAgICAgICAgICAgICAgICAgfSkpXHJcbiAgICAgICAgICAgICAgICB9XHJcbiAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJtdC1bOHB4XSB0ZXh0LVsxMnB4XSBsZWFkaW5nLVsxNnB4XSB0ZXh0LVtyZ2JhKDEyMywxMjEsMTE2LDAuOCldIHRyYW5zaXRpb24tY29sb3JzIGhvdmVyOnRleHQtWyMzNzM3MzRdIGRhcms6aG92ZXI6dGV4dC1jbGF1ZGUtdGV4dFwiXHJcbiAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAge2V4cGFuZGVkID8gJ1Nob3cgbGVzcycgOiAnU2hvdyBtb3JlJ31cclxuICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICAgIHtyZW5kZXJSYWlsU3BhY2VyKGluZGV4IDwgdG90YWwgLSAxKX1cclxuICAgICAgPC9kaXY+XHJcbiAgICApO1xyXG4gIH07XHJcblxyXG4gIGNvbnN0IHJlbmRlcldlYlNlYXJjaEV2ZW50ID0gKFxyXG4gICAgZXZlbnQ6IEFzc2lzdGFudFRoaW5raW5nRXZlbnQsXHJcbiAgICBpbmRleDogbnVtYmVyLFxyXG4gICAgdG90YWw6IG51bWJlclxyXG4gICkgPT4ge1xyXG4gICAgY29uc3QgYWN0aXZlID0gaXNBY3RpdmVFdmVudChldmVudCwgaW5kZXgpO1xyXG5cclxuICAgIHJldHVybiAoXHJcbiAgICA8ZGl2XHJcbiAgICAgIGtleT17YCR7ZXZlbnQua2luZH0tJHtldmVudC5sYWJlbH0tJHtpbmRleH1gfVxyXG4gICAgICBjbGFzc05hbWU9XCJ3LWZ1bGxcIlxyXG4gICAgICBzdHlsZT17eyBhbmltYXRpb246IHRob3VnaHRDaGFpblJvd0VudGVyQW5pbWF0aW9uLCBhbmltYXRpb25EZWxheTogYCR7aW5kZXggKiA0NX1tc2AgfX1cclxuICAgID5cclxuICAgICAge3JlbmRlclJhaWxTcGFjZXIoaW5kZXggPiAwKX1cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLXN0YXJ0IHJvdW5kZWQtWzhweF1cIj5cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggdy1bMjBweF0gaXRlbXMtc3RhcnQganVzdGlmeS1jZW50ZXIgcHgtWzJweF0gcHQtWzRweF1cIj5cclxuICAgICAgICAgIDxpbWdcclxuICAgICAgICAgICAgc3JjPXt0aG91Z2h0Q2hhaW5XZWJTZWFyY2hJY29ufVxyXG4gICAgICAgICAgICBhbHQ9XCJcIlxyXG4gICAgICAgICAgICBjbGFzc05hbWU9XCJzaHJpbmstMFwiXHJcbiAgICAgICAgICAgIHN0eWxlPXt0aG91Z2h0Q2hhaW5JY29uU3R5bGV9XHJcbiAgICAgICAgICAvPlxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWluLXctMCBmbGV4LTEgcGwtWzEwcHhdIHB0LVsycHhdXCI+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtc3RhcnQganVzdGlmeS1iZXR3ZWVuIGdhcC1bMTJweF1cIj5cclxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwibWluLXctMCBmbGV4LTEgZm9udC1bJ0FudGhyb3BpY19TYW5zOlJlZ3VsYXInLHNhbnMtc2VyaWZdIHRleHQtWzE0cHhdIGxlYWRpbmctWzIwcHhdIHRyYWNraW5nLVstMC4xNTA0cHhdIHRleHQtWyM3Yjc5NzRdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFNlY29uZGFyeVwiPlxyXG4gICAgICAgICAgICAgIHthY3RpdmVcclxuICAgICAgICAgICAgICAgID8gcmVuZGVyU2hpbW1lckxhYmVsKFxyXG4gICAgICAgICAgICAgICAgICAgIGV2ZW50LmxhYmVsLFxyXG4gICAgICAgICAgICAgICAgICAgIFwiZm9udC1bJ0FudGhyb3BpY19TYW5zOlJlZ3VsYXInLHNhbnMtc2VyaWZdIGxlYWRpbmctWzIwcHhdXCJcclxuICAgICAgICAgICAgICAgICAgKVxyXG4gICAgICAgICAgICAgICAgOiBldmVudC5sYWJlbH1cclxuICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICB7ZXZlbnQubWV0YSAmJiAoXHJcbiAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwic2hyaW5rLTAgcHQtWzFweF0gdGV4dC1bMTJweF0gbGVhZGluZy1bMTYuOHB4XSB0ZXh0LVsjN2I3OTc0XSBkYXJrOnRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj5cclxuICAgICAgICAgICAgICAgIHtldmVudC5tZXRhfVxyXG4gICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIHtldmVudC5yZXN1bHRzICYmIGV2ZW50LnJlc3VsdHMubGVuZ3RoID4gMCAmJiAoXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLXN0cmV0Y2hcIj5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCB3LVsyMHB4XSBqdXN0aWZ5LWNlbnRlciBweC1bOS41cHhdXCI+XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPXtgdy1weCAke3JhaWxDbGFzc05hbWV9YH0gLz5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtaW4tdy0wIGZsZXgtMSBwbC1bMTBweF0gcHQtWzRweF1cIj5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJvdmVyZmxvdy1oaWRkZW4gcm91bmRlZC1bOHB4XSBib3JkZXIgYm9yZGVyLVtyZ2JhKDMxLDMxLDMwLDAuMTUpXSBiZy1bcmdiYSgyNTUsMjU1LDI1NSwwLjUpXSBwYi1weCBwbC1bNXB4XSBwci1bMTZweF0gcHQtWzVweF0gZGFyazpib3JkZXItW3JnYmEoMjQ4LDI0OCwyNDYsMC4xMildIGRhcms6YmctW3JnYmEoMjU1LDI1NSwyNTUsMC4wNSldXCI+XHJcbiAgICAgICAgICAgICAge2V2ZW50LnJlc3VsdHMubWFwKChyZXN1bHQsIHJlc3VsdEluZGV4KSA9PiAoXHJcbiAgICAgICAgICAgICAgICA8ZGl2XHJcbiAgICAgICAgICAgICAgICAgIGtleT17YCR7cmVzdWx0LnVybCB8fCByZXN1bHQudGl0bGV9LSR7cmVzdWx0SW5kZXh9YH1cclxuICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLVsxMnB4XSByb3VuZGVkLVs2cHhdIHB4LVs4cHhdIHB5LVs2cHhdXCJcclxuICAgICAgICAgICAgICAgICAgc3R5bGU9e3tcclxuICAgICAgICAgICAgICAgICAgICBhbmltYXRpb246IHRob3VnaHRDaGFpblJlc3VsdEVudGVyQW5pbWF0aW9uLFxyXG4gICAgICAgICAgICAgICAgICAgIGFuaW1hdGlvbkRlbGF5OiBgJHsxMDAgKyByZXN1bHRJbmRleCAqIDU1fW1zYCxcclxuICAgICAgICAgICAgICAgICAgfX1cclxuICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJoLVsxMnB4XSB3LVsxMnB4XSBzaHJpbmstMCByb3VuZGVkLWZ1bGwgYm9yZGVyIGJvcmRlci1bcmdiYSgzMSwzMSwzMCwwLjEyKV0gYmctW3JnYmEoMzEsMzEsMzAsMC4wNCldIGRhcms6Ym9yZGVyLVtyZ2JhKDI0OCwyNDgsMjQ2LDAuMTIpXSBkYXJrOmJnLVtyZ2JhKDI0OCwyNDgsMjQ2LDAuMDUpXVwiIC8+XHJcbiAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cIm1pbi13LTAgZmxleC0xIHRydW5jYXRlIGZvbnQtWydBbnRocm9waWNfU2FuczpSZWd1bGFyJyxzYW5zLXNlcmlmXSB0ZXh0LVsxMnB4XSBsZWFkaW5nLVsxNi44cHhdIHRleHQtWyMzNzM3MzRdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFwiPlxyXG4gICAgICAgICAgICAgICAgICAgIHtyZXN1bHQudGl0bGV9XHJcbiAgICAgICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgICAgICAge3Jlc3VsdC5zb3VyY2UgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInNocmluay0wIHRleHQtWzEycHhdIGxlYWRpbmctWzE2cHhdIHRleHQtWyM3Yjc5NzRdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFNlY29uZGFyeVwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAge3Jlc3VsdC5zb3VyY2V9XHJcbiAgICAgICAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgKSl9XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICAgICl9XHJcblxyXG4gICAgICB7cmVuZGVyUmFpbFNwYWNlcihpbmRleCA8IHRvdGFsIC0gMSl9XHJcbiAgICA8L2Rpdj5cclxuICApO1xyXG4gIH07XHJcblxyXG4gIGNvbnN0IHJlbmRlcldyaXRlUHJldmlld0V2ZW50ID0gKFxyXG4gICAgZXZlbnQ6IEFzc2lzdGFudFRoaW5raW5nRXZlbnQsXHJcbiAgICBpbmRleDogbnVtYmVyLFxyXG4gICAgdG90YWw6IG51bWJlclxyXG4gICkgPT4ge1xyXG4gICAgY29uc3QgcHJldmlld0xpbmVzID0gYnVpbGRQcmV2aWV3TGluZXMoZXZlbnQucHJldmlldyk7XHJcbiAgICBjb25zdCBwcmV2aWV3Rm9ybWF0ID0gKGV2ZW50LnByZXZpZXc/LmZvcm1hdCB8fCAndGV4dCcpLnRvTG93ZXJDYXNlKCk7XHJcbiAgICBjb25zdCBhY3RpdmUgPSBpc0FjdGl2ZUV2ZW50KGV2ZW50LCBpbmRleCk7XHJcblxyXG4gICAgcmV0dXJuIChcclxuICAgICAgPGRpdlxyXG4gICAgICAgIGtleT17YCR7ZXZlbnQua2luZH0tJHtldmVudC5sYWJlbH0tJHtpbmRleH1gfVxyXG4gICAgICAgIGNsYXNzTmFtZT1cInctZnVsbFwiXHJcbiAgICAgICAgc3R5bGU9e3sgYW5pbWF0aW9uOiB0aG91Z2h0Q2hhaW5Sb3dFbnRlckFuaW1hdGlvbiwgYW5pbWF0aW9uRGVsYXk6IGAke2luZGV4ICogNDV9bXNgIH19XHJcbiAgICAgID5cclxuICAgICAgICB7cmVuZGVyUmFpbFNwYWNlcihpbmRleCA+IDApfVxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1zdGFydCByb3VuZGVkLVs4cHhdXCI+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggdy1bMjBweF0gaXRlbXMtc3RhcnQganVzdGlmeS1jZW50ZXIgcHgtWzJweF0gcHQtWzRweF1cIj5cclxuICAgICAgICAgICAgPGltZ1xyXG4gICAgICAgICAgICAgIHNyYz17dGhvdWdodENoYWluV3JpdGVQcmV2aWV3SWNvbn1cclxuICAgICAgICAgICAgICBhbHQ9XCJcIlxyXG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cInNocmluay0wXCJcclxuICAgICAgICAgICAgICBzdHlsZT17dGhvdWdodENoYWluSWNvblN0eWxlfVxyXG4gICAgICAgICAgICAvPlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm1pbi13LTAgZmxleC0xIHBsLVsxMHB4XSBwdC1bMnB4XVwiPlxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtc3RhcnQganVzdGlmeS1iZXR3ZWVuIGdhcC1bMTJweF1cIj5cclxuICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJtaW4tdy0wIGZsZXgtMSBmb250LVsnQW50aHJvcGljX1NhbnM6UmVndWxhcicsc2Fucy1zZXJpZl0gdGV4dC1bMTRweF0gbGVhZGluZy1bMjBweF0gdHJhY2tpbmctWy0wLjE1MDRweF0gdGV4dC1bIzdiNzk3NF0gZGFyazp0ZXh0LWNsYXVkZS10ZXh0U2Vjb25kYXJ5XCI+XHJcbiAgICAgICAgICAgICAgICB7YWN0aXZlXHJcbiAgICAgICAgICAgICAgICAgID8gcmVuZGVyU2hpbW1lckxhYmVsKFxyXG4gICAgICAgICAgICAgICAgICAgICAgZXZlbnQubGFiZWwsXHJcbiAgICAgICAgICAgICAgICAgICAgICBcImZvbnQtWydBbnRocm9waWNfU2FuczpSZWd1bGFyJyxzYW5zLXNlcmlmXSBsZWFkaW5nLVsyMHB4XVwiXHJcbiAgICAgICAgICAgICAgICAgICAgKVxyXG4gICAgICAgICAgICAgICAgICA6IGV2ZW50LmxhYmVsfVxyXG4gICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgICB7ZXZlbnQubWV0YSAmJiAoXHJcbiAgICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJzaHJpbmstMCBwdC1bMXB4XSB0ZXh0LVsxMnB4XSBsZWFkaW5nLVsxNi44cHhdIHRleHQtWyM3Yjc5NzRdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFNlY29uZGFyeVwiPlxyXG4gICAgICAgICAgICAgICAgICB7ZXZlbnQubWV0YX1cclxuICAgICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICB7ZXZlbnQucHJldmlldyAmJiAoXHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtc3RyZXRjaFwiPlxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggdy1bMjBweF0ganVzdGlmeS1jZW50ZXIgcHgtWzkuNXB4XVwiPlxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPXtgdy1weCAke3JhaWxDbGFzc05hbWV9YH0gLz5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWluLXctMCBmbGV4LTEgcGwtWzEwcHhdIHB0LVs0cHhdXCI+XHJcbiAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJvdmVyZmxvdy1oaWRkZW4gcm91bmRlZC1bMTJweF0gYm9yZGVyIGJvcmRlci1bcmdiYSgzMSwzMSwzMCwwLjE1KV0gYmctW3JnYmEoMjU1LDI1NSwyNTUsMC4zKV0gcC1weCBkYXJrOmJvcmRlci1bcmdiYSgyNDgsMjQ4LDI0NiwwLjEyKV0gZGFyazpiZy1bcmdiYSgyNTUsMjU1LDI1NSwwLjA0KV1cIj5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwib3ZlcmZsb3ctaGlkZGVuIHJvdW5kZWQtWzZweF0gYmctd2hpdGUgZGFyazpiZy1bIzFGMUYxRF1cIj5cclxuICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWJldHdlZW4gcHgtWzEycHhdIHB5LVsxMHB4XVwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cImZvbnQtWydBbnRocm9waWNfTW9ubzpSZWd1bGFyJyxtb25vc3BhY2VdIHRleHQtWzExcHhdIGxlYWRpbmctWzE2cHhdIHRleHQtWyMzNzM3MzRdIGRhcms6dGV4dC1jbGF1ZGUtdGV4dFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAge3ByZXZpZXdGb3JtYXR9XHJcbiAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtYXgtaC1bMTI0cHhdIG92ZXJmbG93LWhpZGRlbiBweC1bMTJweF0gcGItWzEycHhdXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPHByZSBjbGFzc05hbWU9XCJ3aGl0ZXNwYWNlLXByZS13cmFwIGZvbnQtWydBbnRocm9waWNfTW9ubzpSZWd1bGFyJyxtb25vc3BhY2VdIHRleHQtWzEycHhdIGxlYWRpbmctWzE2cHhdIHRleHQtWyMyQjMwM0JdIGRhcms6dGV4dC1bI0Q3RDdENF1cIj5cclxuICAgICAgICAgICAgICAgICAgICAgIHtwcmV2aWV3TGluZXMuam9pbignXFxuJyl9XHJcbiAgICAgICAgICAgICAgICAgICAgPC9wcmU+XHJcbiAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgKX1cclxuXHJcbiAgICAgICAge3JlbmRlclJhaWxTcGFjZXIoaW5kZXggPCB0b3RhbCAtIDEpfVxyXG4gICAgICA8L2Rpdj5cclxuICAgICk7XHJcbiAgfTtcclxuXHJcbiAgaWYgKHN5bnRoZXRpY0V2ZW50cz8ubGVuZ3RoICYmICFoYXNEZXRhaWxlZEV2ZW50cyAmJiAhaGFzUmljaFJlc3VsdEV2ZW50cykge1xyXG4gICAgY29uc3QgY29tcGFjdEV2ZW50cyA9IGlzVGhpbmtpbmcgJiYgYWN0aXZlRXZlbnRJbmRleCAhPT0gLTFcclxuICAgICAgPyBzeW50aGV0aWNFdmVudHMuc2xpY2UoMCwgYWN0aXZlRXZlbnRJbmRleClcclxuICAgICAgOiBzeW50aGV0aWNFdmVudHM7XHJcbiAgICBjb25zdCBzaG91bGRTaG93RXZlbnRzID0gIWNhblRvZ2dsZSB8fCBpc0V4cGFuZGVkO1xyXG5cclxuICAgIHJldHVybiAoXHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWItMyBwbC1bOHB4XSBwdC1bNnB4XVwiPlxyXG4gICAgICAgIDxzdHlsZT57dGhvdWdodENoYWluQW5pbWF0aW9uU3R5bGVzfTwvc3R5bGU+XHJcbiAgICAgICAge3JlbmRlclN1bW1hcnlCdXR0b24oKX1cclxuICAgICAgICB7c2hvdWxkU2hvd0V2ZW50cyAmJiBjb21wYWN0RXZlbnRzLmxlbmd0aCA+IDAgJiYgKFxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJvdmVyZmxvdy1oaWRkZW5cIj5cclxuICAgICAgICAgICAge2NvbXBhY3RFdmVudHMubWFwKChldmVudCwgaW5kZXgpID0+XHJcbiAgICAgICAgICAgICAgcmVuZGVyQ29tcGFjdFRpbWVsaW5lRXZlbnQoZXZlbnQsIGluZGV4LCBjb21wYWN0RXZlbnRzLmxlbmd0aClcclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICl9XHJcbiAgICAgIDwvZGl2PlxyXG4gICAgKTtcclxuICB9XHJcblxyXG4gIGlmIChzeW50aGV0aWNFdmVudHM/Lmxlbmd0aCAmJiAhaGFzRGV0YWlsZWRFdmVudHMpIHtcclxuICAgIGNvbnN0IHNob3VsZFNob3dFdmVudHMgPSAhY2FuVG9nZ2xlIHx8IGlzRXhwYW5kZWQ7XHJcblxyXG4gICAgcmV0dXJuIChcclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJtYi00IHBsLVs4cHhdIHB0LVs2cHhdXCI+XHJcbiAgICAgICAgPHN0eWxlPnt0aG91Z2h0Q2hhaW5BbmltYXRpb25TdHlsZXN9PC9zdHlsZT5cclxuICAgICAgICB7cmVuZGVyU3VtbWFyeUJ1dHRvbigpfVxyXG4gICAgICAgIHtzaG91bGRTaG93RXZlbnRzICYmIChcclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwib3ZlcmZsb3ctaGlkZGVuXCI+XHJcbiAgICAgICAgICAgIHtzeW50aGV0aWNFdmVudHMubWFwKChldmVudCwgaW5kZXgpID0+XHJcbiAgICAgICAgICAgICAgZXZlbnQua2luZCA9PT0gJ3dlYl9zZWFyY2gnXHJcbiAgICAgICAgICAgICAgICA/IHJlbmRlcldlYlNlYXJjaEV2ZW50KGV2ZW50LCBpbmRleCwgc3ludGhldGljRXZlbnRzLmxlbmd0aClcclxuICAgICAgICAgICAgICAgIDogZXZlbnQua2luZCA9PT0gJ3dyaXRlX3ByZXZpZXcnXHJcbiAgICAgICAgICAgICAgICAgID8gcmVuZGVyV3JpdGVQcmV2aWV3RXZlbnQoZXZlbnQsIGluZGV4LCBzeW50aGV0aWNFdmVudHMubGVuZ3RoKVxyXG4gICAgICAgICAgICAgICAgOiByZW5kZXJUaW1lbGluZUV2ZW50KGV2ZW50LCBpbmRleCwgc3ludGhldGljRXZlbnRzLmxlbmd0aClcclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICl9XHJcbiAgICAgIDwvZGl2PlxyXG4gICAgKTtcclxuICB9XHJcblxyXG4gIGlmIChzeW50aGV0aWNFdmVudHM/Lmxlbmd0aCkge1xyXG4gICAgY29uc3Qgc2hvdWxkU2hvd0V2ZW50cyA9ICFjYW5Ub2dnbGUgfHwgaXNFeHBhbmRlZDtcclxuXHJcbiAgICByZXR1cm4gKFxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cIm1iLTQgcGwtWzhweF0gcHQtWzZweF1cIj5cclxuICAgICAgICA8c3R5bGU+e3Rob3VnaHRDaGFpbkFuaW1hdGlvblN0eWxlc308L3N0eWxlPlxyXG4gICAgICAgIHtyZW5kZXJTdW1tYXJ5QnV0dG9uKCl9XHJcbiAgICAgICAge3Nob3VsZFNob3dFdmVudHMgJiYgKFxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJvdmVyZmxvdy1oaWRkZW5cIj5cclxuICAgICAgICAgICAge3N5bnRoZXRpY0V2ZW50cy5tYXAoKGV2ZW50LCBpbmRleCkgPT4ge1xyXG4gICAgICAgICAgICAgIGlmIChldmVudC5kZXRhaWwpIHtcclxuICAgICAgICAgICAgICAgIHJldHVybiByZW5kZXJEZXRhaWxlZFRob3VnaHRFdmVudChldmVudCwgaW5kZXgsIHN5bnRoZXRpY0V2ZW50cy5sZW5ndGgpO1xyXG4gICAgICAgICAgICAgIH1cclxuICAgICAgICAgICAgICBpZiAoZXZlbnQua2luZCA9PT0gJ3dlYl9zZWFyY2gnKSB7XHJcbiAgICAgICAgICAgICAgICByZXR1cm4gcmVuZGVyV2ViU2VhcmNoRXZlbnQoZXZlbnQsIGluZGV4LCBzeW50aGV0aWNFdmVudHMubGVuZ3RoKTtcclxuICAgICAgICAgICAgICB9XHJcbiAgICAgICAgICAgICAgaWYgKGV2ZW50LmtpbmQgPT09ICd3cml0ZV9wcmV2aWV3Jykge1xyXG4gICAgICAgICAgICAgICAgcmV0dXJuIHJlbmRlcldyaXRlUHJldmlld0V2ZW50KGV2ZW50LCBpbmRleCwgc3ludGhldGljRXZlbnRzLmxlbmd0aCk7XHJcbiAgICAgICAgICAgICAgfVxyXG4gICAgICAgICAgICAgIHJldHVybiByZW5kZXJUaW1lbGluZUV2ZW50KGV2ZW50LCBpbmRleCwgc3ludGhldGljRXZlbnRzLmxlbmd0aCk7XHJcbiAgICAgICAgICAgIH0pfVxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgKX1cclxuICAgICAgPC9kaXY+XHJcbiAgICApO1xyXG4gIH1cclxuXHJcbiAgaWYgKCFoYXNEZXRhaWxlZEV2ZW50cykge1xyXG4gICAgcmV0dXJuIChcclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJtYi00IHBsLVs4cHhdIHB0LVs2cHhdXCI+XHJcbiAgICAgICAgPHN0eWxlPnt0aG91Z2h0Q2hhaW5BbmltYXRpb25TdHlsZXN9PC9zdHlsZT5cclxuICAgICAgICB7cmVuZGVyU3VtbWFyeUJ1dHRvbigpfVxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwib3ZlcmZsb3ctaGlkZGVuXCI+XHJcbiAgICAgICAgICB7cmVuZGVyVGltZWxpbmVFdmVudChcclxuICAgICAgICAgICAgeyBraW5kOiAnc2tpbGwnLCBsYWJlbDogc3VtbWFyeSB9LFxyXG4gICAgICAgICAgICAwLFxyXG4gICAgICAgICAgICBpc1RoaW5raW5nID8gMSA6IDJcclxuICAgICAgICAgICl9XHJcbiAgICAgICAgICB7IWlzVGhpbmtpbmcgJiZcclxuICAgICAgICAgICAgcmVuZGVyVGltZWxpbmVFdmVudChcclxuICAgICAgICAgICAgICB7IGtpbmQ6ICdkb25lJywgbGFiZWw6ICdEb25lJyB9LFxyXG4gICAgICAgICAgICAgIDEsXHJcbiAgICAgICAgICAgICAgMlxyXG4gICAgICAgICAgICApfVxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICA8L2Rpdj5cclxuICAgICk7XHJcbiAgfVxyXG5cclxuICByZXR1cm4gKFxyXG4gICAgPGRpdiBjbGFzc05hbWU9XCJtYi00IHBsLVs4cHhdIHB0LVs2cHhdXCI+XHJcbiAgICAgIDxzdHlsZT57dGhvdWdodENoYWluQW5pbWF0aW9uU3R5bGVzfTwvc3R5bGU+XHJcbiAgICAgIHtyZW5kZXJTdW1tYXJ5QnV0dG9uKCl9XHJcblxyXG4gICAgICB7aXNFeHBhbmRlZCAmJiAoXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJvdmVyZmxvdy1oaWRkZW5cIj5cclxuICAgICAgICAgIHtyZW5kZXJSYWlsU3BhY2VyKGZhbHNlKX1cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1zdGFydCByb3VuZGVkLVs4cHhdXCI+XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCB3LVsyMHB4XSBmbGV4LWNvbCBpdGVtcy1jZW50ZXIgZ2FwLVs0cHhdIHB4LVsycHhdIHB0LVs0cHhdXCI+XHJcbiAgICAgICAgICAgICAgPGltZ1xyXG4gICAgICAgICAgICAgICAgc3JjPXt0aG91Z2h0Q2hhaW5FeHRlbmRlZFN0YXJ0SWNvbn1cclxuICAgICAgICAgICAgICAgIGFsdD1cIlwiXHJcbiAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJzaHJpbmstMFwiXHJcbiAgICAgICAgICAgICAgICBzdHlsZT17dGhvdWdodENoYWluSWNvblN0eWxlfVxyXG4gICAgICAgICAgICAgIC8+XHJcbiAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9e2BtaW4taC1weCB3LXB4IGZsZXgtMSAke3JhaWxDbGFzc05hbWV9YH0gLz5cclxuICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm1pbi13LTAgZmxleC0xIHBsLVsxMHB4XSBwdC1bMnB4XVwiPlxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwicmVsYXRpdmVcIj5cclxuICAgICAgICAgICAgICAgIDxkaXZcclxuICAgICAgICAgICAgICAgICAgcmVmPXtib2R5UmVmfVxyXG4gICAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJvdmVyZmxvdy1oaWRkZW4gd2hpdGVzcGFjZS1wcmUtd3JhcCBmb250LVsnQW50aHJvcGljX1NhbnM6UmVndWxhcicsc2Fucy1zZXJpZl0gdGV4dC1bMTRweF0gbGVhZGluZy1bMTkuNnB4XSB0cmFja2luZy1bLTAuMTUwNHB4XSB0ZXh0LVsjMzczNzM0XSBkYXJrOnRleHQtY2xhdWRlLXRleHRcIlxyXG4gICAgICAgICAgICAgICAgICBzdHlsZT17eyBtYXhIZWlnaHQ6IGlzQm9keUV4cGFuZGVkID8gJ25vbmUnIDogJzIwMHB4JyB9fVxyXG4gICAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgICB7dGhpbmtpbmd9XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgIHshaXNCb2R5RXhwYW5kZWQgJiYgaXNPdmVyZmxvd2luZyAmJiAoXHJcbiAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwicG9pbnRlci1ldmVudHMtbm9uZSBhYnNvbHV0ZSBpbnNldC14LTAgYm90dG9tLTAgaC0xMiBiZy1ncmFkaWVudC10by10IGZyb20tY2xhdWRlLWJnIHRvLXRyYW5zcGFyZW50XCIgLz5cclxuICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICAgIHtpc092ZXJmbG93aW5nICYmIChcclxuICAgICAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IHNldElzQm9keUV4cGFuZGVkKChwcmV2KSA9PiAhcHJldil9XHJcbiAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cIm10LVs4cHhdIHRleHQtWzEycHhdIGxlYWRpbmctWzE2cHhdIHRleHQtW3JnYmEoMTIzLDEyMSwxMTYsMC44KV0gdHJhbnNpdGlvbi1jb2xvcnMgaG92ZXI6dGV4dC1bIzM3MzczNF0gZGFyazpob3Zlcjp0ZXh0LWNsYXVkZS10ZXh0XCJcclxuICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAge2lzQm9keUV4cGFuZGVkID8gJ1Nob3cgbGVzcycgOiAnU2hvdyBtb3JlJ31cclxuICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAge3JlbmRlclRpbWVsaW5lRXZlbnQoXHJcbiAgICAgICAgICAgIHsga2luZDogJ3NraWxsJywgbGFiZWw6IHN0ZXBMYWJlbCB9LFxyXG4gICAgICAgICAgICAxLFxyXG4gICAgICAgICAgICBpc1RoaW5raW5nID8gMiA6IDNcclxuICAgICAgICAgICl9XHJcblxyXG4gICAgICAgICAgeyFpc1RoaW5raW5nICYmXHJcbiAgICAgICAgICAgIHJlbmRlclRpbWVsaW5lRXZlbnQoXHJcbiAgICAgICAgICAgICAgeyBraW5kOiAnZG9uZScsIGxhYmVsOiAnRG9uZScgfSxcclxuICAgICAgICAgICAgICAyLFxyXG4gICAgICAgICAgICAgIDNcclxuICAgICAgICAgICAgKX1cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgKX1cclxuICAgIDwvZGl2PlxyXG4gICk7XHJcbn07XHJcblxyXG5leHBvcnQgZGVmYXVsdCBBc3Npc3RhbnRUaGlua2luZ0NoYWluO1xyXG4iXSwiZmlsZSI6IkQ6L3dvcmsvcHkvY2xhdWRlL2NsYXVkZS1kZXNrdG9wL3NyYy9jb21wb25lbnRzL0Fzc2lzdGFudFRoaW5raW5nQ2hhaW4udHN4In0=

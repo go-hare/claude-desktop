@@ -1,0 +1,520 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/customize/ConnectorDetailsPanel.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=12cb7fed"; const Fragment = __vite__cjsImport0_react_jsxDevRuntime["Fragment"]; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import { ExternalLink } from "/node_modules/.vite/deps/lucide-react.js?v=12cb7fed";
+import {
+  getConnectorCapabilities,
+  getConnectorInstallMethodLabel,
+  getConnectorSetupSteps,
+  getConnectorStatusMeta
+} from "/src/components/customize/connectorCatalog.ts";
+const statusToneClasses = {
+  connected: "border border-[rgba(18,107,56,0.16)] bg-[rgba(22,163,74,0.1)] text-[#126b38] dark:border-[rgba(74,222,128,0.22)] dark:bg-[rgba(22,163,74,0.16)] dark:text-[#86efac]",
+  ready: "border border-[rgba(64,88,255,0.16)] bg-[rgba(64,88,255,0.08)] text-[#3340b0] dark:border-[rgba(129,140,248,0.24)] dark:bg-[rgba(79,70,229,0.16)] dark:text-[#c7d2fe]",
+  manual: "border border-[rgba(31,31,30,0.1)] bg-[#f1f0ed] text-[#5f5b52] dark:border-[#4A4A48] dark:bg-[#2f2f2d] dark:text-[#d5d1c8]",
+  preview: "border border-[rgba(147,110,43,0.14)] bg-[rgba(201,162,39,0.1)] text-[#7a5d17] dark:border-[rgba(250,204,21,0.16)] dark:bg-[rgba(161,98,7,0.18)] dark:text-[#fde68a]"
+};
+function DetailCard({
+  children,
+  title
+}) {
+  return /* @__PURE__ */ jsxDEV("section", { className: "rounded-[18px] border border-claude-border bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:bg-[#30302E]", children: [
+    /* @__PURE__ */ jsxDEV("h3", { className: "text-[15px] font-medium text-claude-text", children: title }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+      lineNumber: 53,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "mt-3", children }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+      lineNumber: 54,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+    lineNumber: 52,
+    columnNumber: 5
+  }, this);
+}
+_c = DetailCard;
+export default function ConnectorDetailsPanel({
+  connector,
+  githubUser,
+  mcpConfigPath,
+  mcpBusy = false,
+  onConnectConnector,
+  onGithubConnect,
+  onGithubDisconnect,
+  onInstallConnector,
+  onOpenWebsite,
+  onUninstallConnector,
+  runtimeStatus
+}) {
+  const status = getConnectorStatusMeta(connector, runtimeStatus);
+  const capabilities = getConnectorCapabilities(connector);
+  const setupSteps = getConnectorSetupSteps(connector);
+  const isGithubConnector = runtimeStatus.kind === "native";
+  const isComposioConnector = runtimeStatus.kind === "composio";
+  const supportsInAppInstall = runtimeStatus.kind === "mcp";
+  return /* @__PURE__ */ jsxDEV("div", { className: "flex h-full flex-col bg-claude-bg", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "border-b border-claude-border px-8 py-6", children: /* @__PURE__ */ jsxDEV("div", { className: "flex flex-wrap items-start justify-between gap-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "flex min-w-0 items-start gap-4", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "flex h-[68px] w-[68px] flex-shrink-0 items-center justify-center rounded-[18px] border border-claude-border bg-white shadow-sm dark:bg-[#30302E]", children: /* @__PURE__ */ jsxDEV("img", { src: connector.logo, alt: "", "aria-hidden": "true", className: "h-9 w-9 object-contain" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 85,
+          columnNumber: 15
+        }, this) }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 84,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "min-w-0", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "flex flex-wrap items-center gap-3", children: [
+            /* @__PURE__ */ jsxDEV("h2", { className: "truncate text-[24px] font-semibold tracking-[-0.24px] text-claude-text", children: connector.title }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 90,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { className: `rounded-full px-3 py-1 text-[12px] font-medium ${statusToneClasses[status.tone]}`, children: status.label }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 93,
+              columnNumber: 17
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 89,
+            columnNumber: 15
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-2 flex flex-wrap items-center gap-2 text-[13px] text-claude-textSecondary", children: [
+            /* @__PURE__ */ jsxDEV("span", { children: connector.provider }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 99,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { "aria-hidden": "true", children: "•" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 100,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { children: getConnectorInstallMethodLabel(connector) }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 101,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { "aria-hidden": "true", children: "•" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 102,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { className: "capitalize", children: connector.category.replace("-", " ") }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 103,
+              columnNumber: 17
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 98,
+            columnNumber: 15
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "mt-4 max-w-[720px] text-[14px] leading-6 text-claude-textSecondary", children: connector.description }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 106,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 88,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+        lineNumber: 83,
+        columnNumber: 11
+      }, this),
+      !isGithubConnector && /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          type: "button",
+          onClick: () => onOpenWebsite(connector.website),
+          className: "inline-flex h-10 items-center gap-2 rounded-[10px] border border-claude-border px-4 text-[14px] font-medium text-claude-text transition-colors hover:bg-claude-hover",
+          children: [
+            /* @__PURE__ */ jsxDEV(ExternalLink, { size: 16 }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 118,
+              columnNumber: 15
+            }, this),
+            "Open official site"
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 113,
+          columnNumber: 11
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+      lineNumber: 82,
+      columnNumber: 9
+    }, this) }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+      lineNumber: 81,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex-1 overflow-y-auto px-8 py-6", children: /* @__PURE__ */ jsxDEV("div", { className: "grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]", children: [
+      /* @__PURE__ */ jsxDEV(DetailCard, { title: "Connection status", children: [
+        /* @__PURE__ */ jsxDEV("p", { className: "text-[14px] leading-6 text-claude-textSecondary", children: status.description }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 128,
+          columnNumber: 13
+        }, this),
+        isGithubConnector && runtimeStatus.connected && githubUser && /* @__PURE__ */ jsxDEV("div", { className: "mt-4 flex items-center gap-3 rounded-[14px] border border-claude-border bg-claude-hover/60 p-3 dark:bg-[#262624]", children: [
+          /* @__PURE__ */ jsxDEV(
+            "img",
+            {
+              src: githubUser.avatar_url,
+              alt: githubUser.login,
+              className: "h-10 w-10 rounded-full border border-claude-border object-cover"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 131,
+              columnNumber: 17
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV("div", { className: "min-w-0", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "truncate text-[14px] font-medium text-claude-text", children: githubUser.name || githubUser.login }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 137,
+              columnNumber: 19
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "truncate text-[13px] text-claude-textSecondary", children: [
+              "@",
+              githubUser.login
+            ] }, void 0, true, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 140,
+              columnNumber: 19
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 136,
+            columnNumber: 17
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 130,
+          columnNumber: 13
+        }, this),
+        isComposioConnector && /* @__PURE__ */ jsxDEV("div", { className: "mt-4 rounded-[14px] border border-claude-border bg-claude-hover/60 p-3 dark:bg-[#262624]", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "text-[13px] font-medium text-claude-text", children: runtimeStatus.connected ? `Connected via ${runtimeStatus.serverName || "Composio"}` : runtimeStatus.installed ? `Composio server installed as ${runtimeStatus.serverName || "composio"}` : "Shared Composio connector flow available" }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 146,
+            columnNumber: 17
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-1 text-[13px] leading-5 text-claude-textSecondary", children: mcpConfigPath ? `Claude config: ${mcpConfigPath}` : "This connector can share a single Composio-managed MCP server with the rest of your supported app catalog." }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 153,
+            columnNumber: 17
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 145,
+          columnNumber: 13
+        }, this),
+        !isGithubConnector && supportsInAppInstall && /* @__PURE__ */ jsxDEV("div", { className: "mt-4 rounded-[14px] border border-claude-border bg-claude-hover/60 p-3 dark:bg-[#262624]", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "text-[13px] font-medium text-claude-text", children: runtimeStatus.installed ? `Installed as ${runtimeStatus.serverName}` : "One-click MCP install available" }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 162,
+            columnNumber: 17
+          }, this),
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-1 text-[13px] leading-5 text-claude-textSecondary", children: mcpConfigPath ? `Claude config: ${mcpConfigPath}` : "Install writes this connector into your Claude MCP configuration so the connection feels native to the app." }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 165,
+            columnNumber: 17
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 161,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+        lineNumber: 127,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV(DetailCard, { title: "Recommended next step", children: /* @__PURE__ */ jsxDEV("ol", { className: "space-y-3", children: setupSteps.map(
+        (step, index) => /* @__PURE__ */ jsxDEV("li", { className: "flex gap-3", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-claude-hover text-[12px] font-medium text-claude-text", children: index + 1 }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 178,
+            columnNumber: 19
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-[14px] leading-6 text-claude-textSecondary", children: step }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 181,
+            columnNumber: 19
+          }, this)
+        ] }, step, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 177,
+          columnNumber: 15
+        }, this)
+      ) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+        lineNumber: 175,
+        columnNumber: 13
+      }, this) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+        lineNumber: 174,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV(DetailCard, { title: "What Claude can do with this app", children: /* @__PURE__ */ jsxDEV("ul", { className: "space-y-3", children: capabilities.map(
+        (capability) => /* @__PURE__ */ jsxDEV("li", { className: "flex gap-3", children: [
+          /* @__PURE__ */ jsxDEV("div", { className: "mt-[9px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-claude-textSecondary/60" }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 191,
+            columnNumber: 19
+          }, this),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-[14px] leading-6 text-claude-textSecondary", children: capability }, void 0, false, {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 192,
+            columnNumber: 19
+          }, this)
+        ] }, capability, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 190,
+          columnNumber: 15
+        }, this)
+      ) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+        lineNumber: 188,
+        columnNumber: 13
+      }, this) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+        lineNumber: 187,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV(DetailCard, { title: "Availability in this build", children: [
+        /* @__PURE__ */ jsxDEV("p", { className: "text-[14px] leading-6 text-claude-textSecondary", children: isGithubConnector ? "GitHub is fully wired with a native OAuth flow in this app, so this panel can move from discovery to connection without leaving Claude Desktop." : isComposioConnector ? "This connector is now routed through Composio so the app can reuse a shared managed-auth and MCP backend instead of a separate one-off setup flow per tool." : supportsInAppInstall ? "This connector now supports an in-app MCP install path. You can add or remove the server from Claude config here, then complete any provider-side OAuth from the resulting MCP flow." : "This build now keeps the app catalog and setup context inside Claude first. External websites are still available as a deliberate next step, but clicking the app card no longer ejects you from the connector experience." }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 199,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "mt-5 flex flex-wrap gap-3", children: isGithubConnector ? runtimeStatus.connected ? /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            type: "button",
+            onClick: onGithubDisconnect,
+            className: "inline-flex h-10 items-center justify-center rounded-[10px] border border-claude-border px-4 text-[14px] font-medium text-claude-text transition-colors hover:bg-claude-hover",
+            children: "Disconnect GitHub"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 212,
+            columnNumber: 15
+          },
+          this
+        ) : /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            type: "button",
+            onClick: onGithubConnect,
+            className: "inline-flex h-10 items-center justify-center rounded-[10px] bg-claude-text px-4 text-[14px] font-medium text-claude-bg transition-opacity hover:opacity-90",
+            children: "Connect GitHub"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 220,
+            columnNumber: 15
+          },
+          this
+        ) : isComposioConnector ? /* @__PURE__ */ jsxDEV(Fragment, { children: [
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              disabled: mcpBusy,
+              onClick: onConnectConnector,
+              className: "inline-flex h-10 items-center justify-center rounded-[10px] bg-claude-text px-4 text-[14px] font-medium text-claude-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60",
+              children: mcpBusy ? runtimeStatus.connected ? "Refreshing..." : "Connecting..." : runtimeStatus.connected ? "Reconnect with Composio" : "Connect with Composio"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 230,
+              columnNumber: 19
+            },
+            this
+          ),
+          runtimeStatus.installed && /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              disabled: mcpBusy,
+              onClick: onUninstallConnector,
+              className: "inline-flex h-10 items-center justify-center rounded-[10px] border border-claude-border px-4 text-[14px] font-medium text-claude-text transition-colors hover:bg-claude-hover disabled:cursor-not-allowed disabled:opacity-60",
+              children: mcpBusy ? "Removing..." : "Remove Composio server"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 245,
+              columnNumber: 17
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 229,
+          columnNumber: 15
+        }, this) : supportsInAppInstall ? /* @__PURE__ */ jsxDEV(Fragment, { children: [
+          runtimeStatus.installed ? /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              disabled: mcpBusy,
+              onClick: onUninstallConnector,
+              className: "inline-flex h-10 items-center justify-center rounded-[10px] border border-claude-border px-4 text-[14px] font-medium text-claude-text transition-colors hover:bg-claude-hover disabled:cursor-not-allowed disabled:opacity-60",
+              children: mcpBusy ? "Removing..." : "Remove connector"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 258,
+              columnNumber: 17
+            },
+            this
+          ) : /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              disabled: mcpBusy,
+              onClick: onInstallConnector,
+              className: "inline-flex h-10 items-center justify-center rounded-[10px] bg-claude-text px-4 text-[14px] font-medium text-claude-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60",
+              children: mcpBusy ? "Installing..." : "Install connector"
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 267,
+              columnNumber: 17
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              type: "button",
+              onClick: () => onOpenWebsite(connector.website),
+              className: "inline-flex h-10 items-center gap-2 rounded-[10px] border border-claude-border px-4 text-[14px] font-medium text-claude-text transition-colors hover:bg-claude-hover",
+              children: [
+                /* @__PURE__ */ jsxDEV(ExternalLink, { size: 16 }, void 0, false, {
+                  fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+                  lineNumber: 281,
+                  columnNumber: 21
+                }, this),
+                "Open docs"
+              ]
+            },
+            void 0,
+            true,
+            {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+              lineNumber: 276,
+              columnNumber: 19
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 256,
+          columnNumber: 15
+        }, this) : /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            type: "button",
+            onClick: () => onOpenWebsite(connector.website),
+            className: "inline-flex h-10 items-center gap-2 rounded-[10px] bg-claude-text px-4 text-[14px] font-medium text-claude-bg transition-opacity hover:opacity-90",
+            children: [
+              /* @__PURE__ */ jsxDEV(ExternalLink, { size: 16 }, void 0, false, {
+                fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+                lineNumber: 291,
+                columnNumber: 19
+              }, this),
+              "Open setup guide"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+            lineNumber: 286,
+            columnNumber: 15
+          },
+          this
+        ) }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+          lineNumber: 209,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+        lineNumber: 198,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+      lineNumber: 126,
+      columnNumber: 9
+    }, this) }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+      lineNumber: 125,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx",
+    lineNumber: 80,
+    columnNumber: 5
+  }, this);
+}
+_c2 = ConnectorDetailsPanel;
+var _c, _c2;
+$RefreshReg$(_c, "DetailCard");
+$RefreshReg$(_c2, "ConnectorDetailsPanel");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/work/py/claude/claude-desktop/src/components/customize/ConnectorDetailsPanel.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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YmlsaXRpZXMiLCJnZXRDb25uZWN0b3JJbnN0YWxsTWV0aG9kTGFiZWwiLCJnZXRDb25uZWN0b3JTZXR1cFN0ZXBzIiwiZ2V0Q29ubmVjdG9yU3RhdHVzTWV0YSIsInN0YXR1c1RvbmVDbGFzc2VzIiwiY29ubmVjdGVkIiwicmVhZHkiLCJtYW51YWwiLCJwcmV2aWV3IiwiRGV0YWlsQ2FyZCIsImNoaWxkcmVuIiwidGl0bGUiLCJfYyIsIkNvbm5lY3RvckRldGFpbHNQYW5lbCIsImNvbm5lY3RvciIsImdpdGh1YlVzZXIiLCJtY3BDb25maWdQYXRoIiwibWNwQnVzeSIsIm9uQ29ubmVjdENvbm5lY3RvciIsIm9uR2l0aHViQ29ubmVjdCIsIm9uR2l0aHViRGlzY29ubmVjdCIsIm9uSW5zdGFsbENvbm5lY3RvciIsIm9uT3BlbldlYnNpdGUiLCJvblVuaW5zdGFsbENvbm5lY3RvciIsInJ1bnRpbWVTdGF0dXMiLCJzdGF0dXMiLCJjYXBhYmlsaXRpZXMiLCJzZXR1cFN0ZXBzIiwiaXNHaXRodWJDb25uZWN0b3IiLCJraW5kIiwiaXNDb21wb3Npb0Nvbm5lY3RvciIsInN1cHBvcnRzSW5BcHBJbnN0YWxsIiwibG9nbyIsInRvbmUiLCJsYWJlbCIsInByb3ZpZGVyIiwiY2F0ZWdvcnkiLCJyZXBsYWNlIiwiZGVzY3JpcHRpb24iLCJ3ZWJzaXRlIiwiYXZhdGFyX3VybCIsImxvZ2luIiwibmFtZSIsInNlcnZlck5hbWUiLCJpbnN0YWxsZWQiLCJtYXAiLCJzdGVwIiwiaW5kZXgiLCJjYXBhYmlsaXR5IiwiX2MyIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIkNvbm5lY3RvckRldGFpbHNQYW5lbC50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHsgRXh0ZXJuYWxMaW5rIH0gZnJvbSAnbHVjaWRlLXJlYWN0JztcclxuXHJcbmltcG9ydCB7XHJcbiAgZ2V0Q29ubmVjdG9yQ2FwYWJpbGl0aWVzLFxyXG4gIGdldENvbm5lY3Rvckluc3RhbGxNZXRob2RMYWJlbCxcclxuICBnZXRDb25uZWN0b3JTZXR1cFN0ZXBzLFxyXG4gIGdldENvbm5lY3RvclN0YXR1c01ldGEsXHJcbiAgdHlwZSBDb25uZWN0b3JDYXRhbG9nRW50cnksXHJcbiAgdHlwZSBDb25uZWN0b3JSdW50aW1lU3RhdHVzLFxyXG59IGZyb20gJy4vY29ubmVjdG9yQ2F0YWxvZyc7XHJcblxyXG5pbnRlcmZhY2UgR2l0aHViVXNlciB7XHJcbiAgYXZhdGFyX3VybDogc3RyaW5nO1xyXG4gIGxvZ2luOiBzdHJpbmc7XHJcbiAgbmFtZT86IHN0cmluZztcclxufVxyXG5cclxuaW50ZXJmYWNlIENvbm5lY3RvckRldGFpbHNQYW5lbFByb3BzIHtcclxuICBjb25uZWN0b3I6IENvbm5lY3RvckNhdGFsb2dFbnRyeTtcclxuICBnaXRodWJVc2VyOiBHaXRodWJVc2VyIHwgbnVsbDtcclxuICBtY3BDb25maWdQYXRoOiBzdHJpbmcgfCBudWxsO1xyXG4gIG1jcEJ1c3k/OiBib29sZWFuO1xyXG4gIG9uQ29ubmVjdENvbm5lY3RvcjogKCkgPT4gdm9pZDtcclxuICBvbkdpdGh1YkNvbm5lY3Q6ICgpID0+IHZvaWQ7XHJcbiAgb25HaXRodWJEaXNjb25uZWN0OiAoKSA9PiB2b2lkO1xyXG4gIG9uSW5zdGFsbENvbm5lY3RvcjogKCkgPT4gdm9pZDtcclxuICBvbk9wZW5XZWJzaXRlOiAodXJsOiBzdHJpbmcpID0+IHZvaWQ7XHJcbiAgb25Vbmluc3RhbGxDb25uZWN0b3I6ICgpID0+IHZvaWQ7XHJcbiAgcnVudGltZVN0YXR1czogQ29ubmVjdG9yUnVudGltZVN0YXR1cztcclxufVxyXG5cclxuY29uc3Qgc3RhdHVzVG9uZUNsYXNzZXM6IFJlY29yZDxSZXR1cm5UeXBlPHR5cGVvZiBnZXRDb25uZWN0b3JTdGF0dXNNZXRhPlsndG9uZSddLCBzdHJpbmc+ID0ge1xyXG4gIGNvbm5lY3RlZDpcclxuICAgICdib3JkZXIgYm9yZGVyLVtyZ2JhKDE4LDEwNyw1NiwwLjE2KV0gYmctW3JnYmEoMjIsMTYzLDc0LDAuMSldIHRleHQtWyMxMjZiMzhdIGRhcms6Ym9yZGVyLVtyZ2JhKDc0LDIyMiwxMjgsMC4yMildIGRhcms6YmctW3JnYmEoMjIsMTYzLDc0LDAuMTYpXSBkYXJrOnRleHQtWyM4NmVmYWNdJyxcclxuICByZWFkeTpcclxuICAgICdib3JkZXIgYm9yZGVyLVtyZ2JhKDY0LDg4LDI1NSwwLjE2KV0gYmctW3JnYmEoNjQsODgsMjU1LDAuMDgpXSB0ZXh0LVsjMzM0MGIwXSBkYXJrOmJvcmRlci1bcmdiYSgxMjksMTQwLDI0OCwwLjI0KV0gZGFyazpiZy1bcmdiYSg3OSw3MCwyMjksMC4xNildIGRhcms6dGV4dC1bI2M3ZDJmZV0nLFxyXG4gIG1hbnVhbDpcclxuICAgICdib3JkZXIgYm9yZGVyLVtyZ2JhKDMxLDMxLDMwLDAuMSldIGJnLVsjZjFmMGVkXSB0ZXh0LVsjNWY1YjUyXSBkYXJrOmJvcmRlci1bIzRBNEE0OF0gZGFyazpiZy1bIzJmMmYyZF0gZGFyazp0ZXh0LVsjZDVkMWM4XScsXHJcbiAgcHJldmlldzpcclxuICAgICdib3JkZXIgYm9yZGVyLVtyZ2JhKDE0NywxMTAsNDMsMC4xNCldIGJnLVtyZ2JhKDIwMSwxNjIsMzksMC4xKV0gdGV4dC1bIzdhNWQxN10gZGFyazpib3JkZXItW3JnYmEoMjUwLDIwNCwyMSwwLjE2KV0gZGFyazpiZy1bcmdiYSgxNjEsOTgsNywwLjE4KV0gZGFyazp0ZXh0LVsjZmRlNjhhXScsXHJcbn07XHJcblxyXG5mdW5jdGlvbiBEZXRhaWxDYXJkKHtcclxuICBjaGlsZHJlbixcclxuICB0aXRsZSxcclxufToge1xyXG4gIGNoaWxkcmVuOiBSZWFjdC5SZWFjdE5vZGU7XHJcbiAgdGl0bGU6IHN0cmluZztcclxufSkge1xyXG4gIHJldHVybiAoXHJcbiAgICA8c2VjdGlvbiBjbGFzc05hbWU9XCJyb3VuZGVkLVsxOHB4XSBib3JkZXIgYm9yZGVyLWNsYXVkZS1ib3JkZXIgYmctd2hpdGUgcC01IHNoYWRvdy1bMF8xcHhfMnB4X3JnYmEoMCwwLDAsMC4wNCldIGRhcms6YmctWyMzMDMwMkVdXCI+XHJcbiAgICAgIDxoMyBjbGFzc05hbWU9XCJ0ZXh0LVsxNXB4XSBmb250LW1lZGl1bSB0ZXh0LWNsYXVkZS10ZXh0XCI+e3RpdGxlfTwvaDM+XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtM1wiPntjaGlsZHJlbn08L2Rpdj5cclxuICAgIDwvc2VjdGlvbj5cclxuICApO1xyXG59XHJcblxyXG5leHBvcnQgZGVmYXVsdCBmdW5jdGlvbiBDb25uZWN0b3JEZXRhaWxzUGFuZWwoe1xyXG4gIGNvbm5lY3RvcixcclxuICBnaXRodWJVc2VyLFxyXG4gIG1jcENvbmZpZ1BhdGgsXHJcbiAgbWNwQnVzeSA9IGZhbHNlLFxyXG4gIG9uQ29ubmVjdENvbm5lY3RvcixcclxuICBvbkdpdGh1YkNvbm5lY3QsXHJcbiAgb25HaXRodWJEaXNjb25uZWN0LFxyXG4gIG9uSW5zdGFsbENvbm5lY3RvcixcclxuICBvbk9wZW5XZWJzaXRlLFxyXG4gIG9uVW5pbnN0YWxsQ29ubmVjdG9yLFxyXG4gIHJ1bnRpbWVTdGF0dXMsXHJcbn06IENvbm5lY3RvckRldGFpbHNQYW5lbFByb3BzKSB7XHJcbiAgY29uc3Qgc3RhdHVzID0gZ2V0Q29ubmVjdG9yU3RhdHVzTWV0YShjb25uZWN0b3IsIHJ1bnRpbWVTdGF0dXMpO1xyXG4gIGNvbnN0IGNhcGFiaWxpdGllcyA9IGdldENvbm5lY3RvckNhcGFiaWxpdGllcyhjb25uZWN0b3IpO1xyXG4gIGNvbnN0IHNldHVwU3RlcHMgPSBnZXRDb25uZWN0b3JTZXR1cFN0ZXBzKGNvbm5lY3Rvcik7XHJcbiAgY29uc3QgaXNHaXRodWJDb25uZWN0b3IgPSBydW50aW1lU3RhdHVzLmtpbmQgPT09ICduYXRpdmUnO1xyXG4gIGNvbnN0IGlzQ29tcG9zaW9Db25uZWN0b3IgPSBydW50aW1lU3RhdHVzLmtpbmQgPT09ICdjb21wb3Npbyc7XHJcbiAgY29uc3Qgc3VwcG9ydHNJbkFwcEluc3RhbGwgPSBydW50aW1lU3RhdHVzLmtpbmQgPT09ICdtY3AnO1xyXG5cclxuICByZXR1cm4gKFxyXG4gICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGgtZnVsbCBmbGV4LWNvbCBiZy1jbGF1ZGUtYmdcIj5cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJib3JkZXItYiBib3JkZXItY2xhdWRlLWJvcmRlciBweC04IHB5LTZcIj5cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZmxleC13cmFwIGl0ZW1zLXN0YXJ0IGp1c3RpZnktYmV0d2VlbiBnYXAtNFwiPlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IG1pbi13LTAgaXRlbXMtc3RhcnQgZ2FwLTRcIj5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGgtWzY4cHhdIHctWzY4cHhdIGZsZXgtc2hyaW5rLTAgaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyIHJvdW5kZWQtWzE4cHhdIGJvcmRlciBib3JkZXItY2xhdWRlLWJvcmRlciBiZy13aGl0ZSBzaGFkb3ctc20gZGFyazpiZy1bIzMwMzAyRV1cIj5cclxuICAgICAgICAgICAgICA8aW1nIHNyYz17Y29ubmVjdG9yLmxvZ299IGFsdD1cIlwiIGFyaWEtaGlkZGVuPVwidHJ1ZVwiIGNsYXNzTmFtZT1cImgtOSB3LTkgb2JqZWN0LWNvbnRhaW5cIiAvPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWluLXctMFwiPlxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBmbGV4LXdyYXAgaXRlbXMtY2VudGVyIGdhcC0zXCI+XHJcbiAgICAgICAgICAgICAgICA8aDIgY2xhc3NOYW1lPVwidHJ1bmNhdGUgdGV4dC1bMjRweF0gZm9udC1zZW1pYm9sZCB0cmFja2luZy1bLTAuMjRweF0gdGV4dC1jbGF1ZGUtdGV4dFwiPlxyXG4gICAgICAgICAgICAgICAgICB7Y29ubmVjdG9yLnRpdGxlfVxyXG4gICAgICAgICAgICAgICAgPC9oMj5cclxuICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT17YHJvdW5kZWQtZnVsbCBweC0zIHB5LTEgdGV4dC1bMTJweF0gZm9udC1tZWRpdW0gJHtzdGF0dXNUb25lQ2xhc3Nlc1tzdGF0dXMudG9uZV19YH0+XHJcbiAgICAgICAgICAgICAgICAgIHtzdGF0dXMubGFiZWx9XHJcbiAgICAgICAgICAgICAgICA8L3NwYW4+XHJcbiAgICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtMiBmbGV4IGZsZXgtd3JhcCBpdGVtcy1jZW50ZXIgZ2FwLTIgdGV4dC1bMTNweF0gdGV4dC1jbGF1ZGUtdGV4dFNlY29uZGFyeVwiPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4+e2Nvbm5lY3Rvci5wcm92aWRlcn08L3NwYW4+XHJcbiAgICAgICAgICAgICAgICA8c3BhbiBhcmlhLWhpZGRlbj1cInRydWVcIj7igKI8L3NwYW4+XHJcbiAgICAgICAgICAgICAgICA8c3Bhbj57Z2V0Q29ubmVjdG9ySW5zdGFsbE1ldGhvZExhYmVsKGNvbm5lY3Rvcil9PC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4gYXJpYS1oaWRkZW49XCJ0cnVlXCI+4oCiPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwiY2FwaXRhbGl6ZVwiPntjb25uZWN0b3IuY2F0ZWdvcnkucmVwbGFjZSgnLScsICcgJyl9PC9zcGFuPlxyXG4gICAgICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJtdC00IG1heC13LVs3MjBweF0gdGV4dC1bMTRweF0gbGVhZGluZy02IHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj5cclxuICAgICAgICAgICAgICAgIHtjb25uZWN0b3IuZGVzY3JpcHRpb259XHJcbiAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgIHshaXNHaXRodWJDb25uZWN0b3IgJiYgKFxyXG4gICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gb25PcGVuV2Vic2l0ZShjb25uZWN0b3Iud2Vic2l0ZSl9XHJcbiAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiaW5saW5lLWZsZXggaC0xMCBpdGVtcy1jZW50ZXIgZ2FwLTIgcm91bmRlZC1bMTBweF0gYm9yZGVyIGJvcmRlci1jbGF1ZGUtYm9yZGVyIHB4LTQgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gdGV4dC1jbGF1ZGUtdGV4dCB0cmFuc2l0aW9uLWNvbG9ycyBob3ZlcjpiZy1jbGF1ZGUtaG92ZXJcIlxyXG4gICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgPEV4dGVybmFsTGluayBzaXplPXsxNn0gLz5cclxuICAgICAgICAgICAgICBPcGVuIG9mZmljaWFsIHNpdGVcclxuICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICApfVxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleC0xIG92ZXJmbG93LXktYXV0byBweC04IHB5LTZcIj5cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ2FwLTUgeGw6Z3JpZC1jb2xzLVttaW5tYXgoMCwxLjJmcilfbWlubWF4KDAsMWZyKV1cIj5cclxuICAgICAgICAgIDxEZXRhaWxDYXJkIHRpdGxlPVwiQ29ubmVjdGlvbiBzdGF0dXNcIj5cclxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTRweF0gbGVhZGluZy02IHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj57c3RhdHVzLmRlc2NyaXB0aW9ufTwvcD5cclxuICAgICAgICAgICAge2lzR2l0aHViQ29ubmVjdG9yICYmIHJ1bnRpbWVTdGF0dXMuY29ubmVjdGVkICYmIGdpdGh1YlVzZXIgJiYgKFxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtNCBmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMyByb3VuZGVkLVsxNHB4XSBib3JkZXIgYm9yZGVyLWNsYXVkZS1ib3JkZXIgYmctY2xhdWRlLWhvdmVyLzYwIHAtMyBkYXJrOmJnLVsjMjYyNjI0XVwiPlxyXG4gICAgICAgICAgICAgICAgPGltZ1xyXG4gICAgICAgICAgICAgICAgICBzcmM9e2dpdGh1YlVzZXIuYXZhdGFyX3VybH1cclxuICAgICAgICAgICAgICAgICAgYWx0PXtnaXRodWJVc2VyLmxvZ2lufVxyXG4gICAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJoLTEwIHctMTAgcm91bmRlZC1mdWxsIGJvcmRlciBib3JkZXItY2xhdWRlLWJvcmRlciBvYmplY3QtY292ZXJcIlxyXG4gICAgICAgICAgICAgICAgLz5cclxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWluLXctMFwiPlxyXG4gICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInRydW5jYXRlIHRleHQtWzE0cHhdIGZvbnQtbWVkaXVtIHRleHQtY2xhdWRlLXRleHRcIj5cclxuICAgICAgICAgICAgICAgICAgICB7Z2l0aHViVXNlci5uYW1lIHx8IGdpdGh1YlVzZXIubG9naW59XHJcbiAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInRydW5jYXRlIHRleHQtWzEzcHhdIHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj5Ae2dpdGh1YlVzZXIubG9naW59PC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAge2lzQ29tcG9zaW9Db25uZWN0b3IgJiYgKFxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtNCByb3VuZGVkLVsxNHB4XSBib3JkZXIgYm9yZGVyLWNsYXVkZS1ib3JkZXIgYmctY2xhdWRlLWhvdmVyLzYwIHAtMyBkYXJrOmJnLVsjMjYyNjI0XVwiPlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJ0ZXh0LVsxM3B4XSBmb250LW1lZGl1bSB0ZXh0LWNsYXVkZS10ZXh0XCI+XHJcbiAgICAgICAgICAgICAgICAgIHtydW50aW1lU3RhdHVzLmNvbm5lY3RlZFxyXG4gICAgICAgICAgICAgICAgICAgID8gYENvbm5lY3RlZCB2aWEgJHtydW50aW1lU3RhdHVzLnNlcnZlck5hbWUgfHwgJ0NvbXBvc2lvJ31gXHJcbiAgICAgICAgICAgICAgICAgICAgOiBydW50aW1lU3RhdHVzLmluc3RhbGxlZFxyXG4gICAgICAgICAgICAgICAgICAgICAgPyBgQ29tcG9zaW8gc2VydmVyIGluc3RhbGxlZCBhcyAke3J1bnRpbWVTdGF0dXMuc2VydmVyTmFtZSB8fCAnY29tcG9zaW8nfWBcclxuICAgICAgICAgICAgICAgICAgICAgIDogJ1NoYXJlZCBDb21wb3NpbyBjb25uZWN0b3IgZmxvdyBhdmFpbGFibGUnfVxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm10LTEgdGV4dC1bMTNweF0gbGVhZGluZy01IHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj5cclxuICAgICAgICAgICAgICAgICAge21jcENvbmZpZ1BhdGhcclxuICAgICAgICAgICAgICAgICAgICA/IGBDbGF1ZGUgY29uZmlnOiAke21jcENvbmZpZ1BhdGh9YFxyXG4gICAgICAgICAgICAgICAgICAgIDogJ1RoaXMgY29ubmVjdG9yIGNhbiBzaGFyZSBhIHNpbmdsZSBDb21wb3Npby1tYW5hZ2VkIE1DUCBzZXJ2ZXIgd2l0aCB0aGUgcmVzdCBvZiB5b3VyIHN1cHBvcnRlZCBhcHAgY2F0YWxvZy4nfVxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgIHshaXNHaXRodWJDb25uZWN0b3IgJiYgc3VwcG9ydHNJbkFwcEluc3RhbGwgJiYgKFxyXG4gICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtNCByb3VuZGVkLVsxNHB4XSBib3JkZXIgYm9yZGVyLWNsYXVkZS1ib3JkZXIgYmctY2xhdWRlLWhvdmVyLzYwIHAtMyBkYXJrOmJnLVsjMjYyNjI0XVwiPlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJ0ZXh0LVsxM3B4XSBmb250LW1lZGl1bSB0ZXh0LWNsYXVkZS10ZXh0XCI+XHJcbiAgICAgICAgICAgICAgICAgIHtydW50aW1lU3RhdHVzLmluc3RhbGxlZCA/IGBJbnN0YWxsZWQgYXMgJHtydW50aW1lU3RhdHVzLnNlcnZlck5hbWV9YCA6ICdPbmUtY2xpY2sgTUNQIGluc3RhbGwgYXZhaWxhYmxlJ31cclxuICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC0xIHRleHQtWzEzcHhdIGxlYWRpbmctNSB0ZXh0LWNsYXVkZS10ZXh0U2Vjb25kYXJ5XCI+XHJcbiAgICAgICAgICAgICAgICAgIHttY3BDb25maWdQYXRoXHJcbiAgICAgICAgICAgICAgICAgICAgPyBgQ2xhdWRlIGNvbmZpZzogJHttY3BDb25maWdQYXRofWBcclxuICAgICAgICAgICAgICAgICAgICA6ICdJbnN0YWxsIHdyaXRlcyB0aGlzIGNvbm5lY3RvciBpbnRvIHlvdXIgQ2xhdWRlIE1DUCBjb25maWd1cmF0aW9uIHNvIHRoZSBjb25uZWN0aW9uIGZlZWxzIG5hdGl2ZSB0byB0aGUgYXBwLid9XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgIDwvRGV0YWlsQ2FyZD5cclxuXHJcbiAgICAgICAgICA8RGV0YWlsQ2FyZCB0aXRsZT1cIlJlY29tbWVuZGVkIG5leHQgc3RlcFwiPlxyXG4gICAgICAgICAgICA8b2wgY2xhc3NOYW1lPVwic3BhY2UteS0zXCI+XHJcbiAgICAgICAgICAgICAge3NldHVwU3RlcHMubWFwKChzdGVwLCBpbmRleCkgPT4gKFxyXG4gICAgICAgICAgICAgICAgPGxpIGtleT17c3RlcH0gY2xhc3NOYW1lPVwiZmxleCBnYXAtM1wiPlxyXG4gICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaC02IHctNiBmbGV4LXNocmluay0wIGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciByb3VuZGVkLWZ1bGwgYmctY2xhdWRlLWhvdmVyIHRleHQtWzEycHhdIGZvbnQtbWVkaXVtIHRleHQtY2xhdWRlLXRleHRcIj5cclxuICAgICAgICAgICAgICAgICAgICB7aW5kZXggKyAxfVxyXG4gICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTRweF0gbGVhZGluZy02IHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj57c3RlcH08L3A+XHJcbiAgICAgICAgICAgICAgICA8L2xpPlxyXG4gICAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICA8L29sPlxyXG4gICAgICAgICAgPC9EZXRhaWxDYXJkPlxyXG5cclxuICAgICAgICAgIDxEZXRhaWxDYXJkIHRpdGxlPVwiV2hhdCBDbGF1ZGUgY2FuIGRvIHdpdGggdGhpcyBhcHBcIj5cclxuICAgICAgICAgICAgPHVsIGNsYXNzTmFtZT1cInNwYWNlLXktM1wiPlxyXG4gICAgICAgICAgICAgIHtjYXBhYmlsaXRpZXMubWFwKGNhcGFiaWxpdHkgPT4gKFxyXG4gICAgICAgICAgICAgICAgPGxpIGtleT17Y2FwYWJpbGl0eX0gY2xhc3NOYW1lPVwiZmxleCBnYXAtM1wiPlxyXG4gICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm10LVs5cHhdIGgtMS41IHctMS41IGZsZXgtc2hyaW5rLTAgcm91bmRlZC1mdWxsIGJnLWNsYXVkZS10ZXh0U2Vjb25kYXJ5LzYwXCIgLz5cclxuICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTRweF0gbGVhZGluZy02IHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj57Y2FwYWJpbGl0eX08L3A+XHJcbiAgICAgICAgICAgICAgICA8L2xpPlxyXG4gICAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICA8L3VsPlxyXG4gICAgICAgICAgPC9EZXRhaWxDYXJkPlxyXG5cclxuICAgICAgICAgIDxEZXRhaWxDYXJkIHRpdGxlPVwiQXZhaWxhYmlsaXR5IGluIHRoaXMgYnVpbGRcIj5cclxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTRweF0gbGVhZGluZy02IHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnlcIj5cclxuICAgICAgICAgICAgICB7aXNHaXRodWJDb25uZWN0b3JcclxuICAgICAgICAgICAgICAgID8gJ0dpdEh1YiBpcyBmdWxseSB3aXJlZCB3aXRoIGEgbmF0aXZlIE9BdXRoIGZsb3cgaW4gdGhpcyBhcHAsIHNvIHRoaXMgcGFuZWwgY2FuIG1vdmUgZnJvbSBkaXNjb3ZlcnkgdG8gY29ubmVjdGlvbiB3aXRob3V0IGxlYXZpbmcgQ2xhdWRlIERlc2t0b3AuJ1xyXG4gICAgICAgICAgICAgICAgOiBpc0NvbXBvc2lvQ29ubmVjdG9yXHJcbiAgICAgICAgICAgICAgICAgID8gJ1RoaXMgY29ubmVjdG9yIGlzIG5vdyByb3V0ZWQgdGhyb3VnaCBDb21wb3NpbyBzbyB0aGUgYXBwIGNhbiByZXVzZSBhIHNoYXJlZCBtYW5hZ2VkLWF1dGggYW5kIE1DUCBiYWNrZW5kIGluc3RlYWQgb2YgYSBzZXBhcmF0ZSBvbmUtb2ZmIHNldHVwIGZsb3cgcGVyIHRvb2wuJ1xyXG4gICAgICAgICAgICAgICAgOiBzdXBwb3J0c0luQXBwSW5zdGFsbFxyXG4gICAgICAgICAgICAgICAgICA/ICdUaGlzIGNvbm5lY3RvciBub3cgc3VwcG9ydHMgYW4gaW4tYXBwIE1DUCBpbnN0YWxsIHBhdGguIFlvdSBjYW4gYWRkIG9yIHJlbW92ZSB0aGUgc2VydmVyIGZyb20gQ2xhdWRlIGNvbmZpZyBoZXJlLCB0aGVuIGNvbXBsZXRlIGFueSBwcm92aWRlci1zaWRlIE9BdXRoIGZyb20gdGhlIHJlc3VsdGluZyBNQ1AgZmxvdy4nXHJcbiAgICAgICAgICAgICAgICAgIDogJ1RoaXMgYnVpbGQgbm93IGtlZXBzIHRoZSBhcHAgY2F0YWxvZyBhbmQgc2V0dXAgY29udGV4dCBpbnNpZGUgQ2xhdWRlIGZpcnN0LiBFeHRlcm5hbCB3ZWJzaXRlcyBhcmUgc3RpbGwgYXZhaWxhYmxlIGFzIGEgZGVsaWJlcmF0ZSBuZXh0IHN0ZXAsIGJ1dCBjbGlja2luZyB0aGUgYXBwIGNhcmQgbm8gbG9uZ2VyIGVqZWN0cyB5b3UgZnJvbSB0aGUgY29ubmVjdG9yIGV4cGVyaWVuY2UuJ31cclxuICAgICAgICAgICAgPC9wPlxyXG5cclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC01IGZsZXggZmxleC13cmFwIGdhcC0zXCI+XHJcbiAgICAgICAgICAgICAge2lzR2l0aHViQ29ubmVjdG9yID8gKFxyXG4gICAgICAgICAgICAgICAgcnVudGltZVN0YXR1cy5jb25uZWN0ZWQgPyAoXHJcbiAgICAgICAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcclxuICAgICAgICAgICAgICAgICAgICBvbkNsaWNrPXtvbkdpdGh1YkRpc2Nvbm5lY3R9XHJcbiAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiaW5saW5lLWZsZXggaC0xMCBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXIgcm91bmRlZC1bMTBweF0gYm9yZGVyIGJvcmRlci1jbGF1ZGUtYm9yZGVyIHB4LTQgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gdGV4dC1jbGF1ZGUtdGV4dCB0cmFuc2l0aW9uLWNvbG9ycyBob3ZlcjpiZy1jbGF1ZGUtaG92ZXJcIlxyXG4gICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAgRGlzY29ubmVjdCBHaXRIdWJcclxuICAgICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgICApIDogKFxyXG4gICAgICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgICAgICAgb25DbGljaz17b25HaXRodWJDb25uZWN0fVxyXG4gICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cImlubGluZS1mbGV4IGgtMTAgaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyIHJvdW5kZWQtWzEwcHhdIGJnLWNsYXVkZS10ZXh0IHB4LTQgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gdGV4dC1jbGF1ZGUtYmcgdHJhbnNpdGlvbi1vcGFjaXR5IGhvdmVyOm9wYWNpdHktOTBcIlxyXG4gICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAgQ29ubmVjdCBHaXRIdWJcclxuICAgICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgICApXHJcbiAgICAgICAgICAgICAgKSA6IGlzQ29tcG9zaW9Db25uZWN0b3IgPyAoXHJcbiAgICAgICAgICAgICAgICA8PlxyXG4gICAgICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgICAgICAgZGlzYWJsZWQ9e21jcEJ1c3l9XHJcbiAgICAgICAgICAgICAgICAgICAgb25DbGljaz17b25Db25uZWN0Q29ubmVjdG9yfVxyXG4gICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cImlubGluZS1mbGV4IGgtMTAgaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyIHJvdW5kZWQtWzEwcHhdIGJnLWNsYXVkZS10ZXh0IHB4LTQgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gdGV4dC1jbGF1ZGUtYmcgdHJhbnNpdGlvbi1vcGFjaXR5IGhvdmVyOm9wYWNpdHktOTAgZGlzYWJsZWQ6Y3Vyc29yLW5vdC1hbGxvd2VkIGRpc2FibGVkOm9wYWNpdHktNjBcIlxyXG4gICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAge21jcEJ1c3lcclxuICAgICAgICAgICAgICAgICAgICAgID8gcnVudGltZVN0YXR1cy5jb25uZWN0ZWRcclxuICAgICAgICAgICAgICAgICAgICAgICAgPyAnUmVmcmVzaGluZy4uLidcclxuICAgICAgICAgICAgICAgICAgICAgICAgOiAnQ29ubmVjdGluZy4uLidcclxuICAgICAgICAgICAgICAgICAgICAgIDogcnVudGltZVN0YXR1cy5jb25uZWN0ZWRcclxuICAgICAgICAgICAgICAgICAgICAgICAgPyAnUmVjb25uZWN0IHdpdGggQ29tcG9zaW8nXHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDogJ0Nvbm5lY3Qgd2l0aCBDb21wb3Npbyd9XHJcbiAgICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgICAgICB7cnVudGltZVN0YXR1cy5pbnN0YWxsZWQgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICAgICAgICAgIHR5cGU9XCJidXR0b25cIlxyXG4gICAgICAgICAgICAgICAgICAgICAgZGlzYWJsZWQ9e21jcEJ1c3l9XHJcbiAgICAgICAgICAgICAgICAgICAgICBvbkNsaWNrPXtvblVuaW5zdGFsbENvbm5lY3Rvcn1cclxuICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cImlubGluZS1mbGV4IGgtMTAgaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyIHJvdW5kZWQtWzEwcHhdIGJvcmRlciBib3JkZXItY2xhdWRlLWJvcmRlciBweC00IHRleHQtWzE0cHhdIGZvbnQtbWVkaXVtIHRleHQtY2xhdWRlLXRleHQgdHJhbnNpdGlvbi1jb2xvcnMgaG92ZXI6YmctY2xhdWRlLWhvdmVyIGRpc2FibGVkOmN1cnNvci1ub3QtYWxsb3dlZCBkaXNhYmxlZDpvcGFjaXR5LTYwXCJcclxuICAgICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAgICB7bWNwQnVzeSA/ICdSZW1vdmluZy4uLicgOiAnUmVtb3ZlIENvbXBvc2lvIHNlcnZlcid9XHJcbiAgICAgICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgICA8Lz5cclxuICAgICAgICAgICAgICApIDogc3VwcG9ydHNJbkFwcEluc3RhbGwgPyAoXHJcbiAgICAgICAgICAgICAgICA8PlxyXG4gICAgICAgICAgICAgICAgICB7cnVudGltZVN0YXR1cy5pbnN0YWxsZWQgPyAoXHJcbiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgICAgICAgICBkaXNhYmxlZD17bWNwQnVzeX1cclxuICAgICAgICAgICAgICAgICAgICAgIG9uQ2xpY2s9e29uVW5pbnN0YWxsQ29ubmVjdG9yfVxyXG4gICAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiaW5saW5lLWZsZXggaC0xMCBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXIgcm91bmRlZC1bMTBweF0gYm9yZGVyIGJvcmRlci1jbGF1ZGUtYm9yZGVyIHB4LTQgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gdGV4dC1jbGF1ZGUtdGV4dCB0cmFuc2l0aW9uLWNvbG9ycyBob3ZlcjpiZy1jbGF1ZGUtaG92ZXIgZGlzYWJsZWQ6Y3Vyc29yLW5vdC1hbGxvd2VkIGRpc2FibGVkOm9wYWNpdHktNjBcIlxyXG4gICAgICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAgICAgIHttY3BCdXN5ID8gJ1JlbW92aW5nLi4uJyA6ICdSZW1vdmUgY29ubmVjdG9yJ31cclxuICAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgICAgICAgKSA6IChcclxuICAgICAgICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcclxuICAgICAgICAgICAgICAgICAgICAgIGRpc2FibGVkPXttY3BCdXN5fVxyXG4gICAgICAgICAgICAgICAgICAgICAgb25DbGljaz17b25JbnN0YWxsQ29ubmVjdG9yfVxyXG4gICAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiaW5saW5lLWZsZXggaC0xMCBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXIgcm91bmRlZC1bMTBweF0gYmctY2xhdWRlLXRleHQgcHgtNCB0ZXh0LVsxNHB4XSBmb250LW1lZGl1bSB0ZXh0LWNsYXVkZS1iZyB0cmFuc2l0aW9uLW9wYWNpdHkgaG92ZXI6b3BhY2l0eS05MCBkaXNhYmxlZDpjdXJzb3Itbm90LWFsbG93ZWQgZGlzYWJsZWQ6b3BhY2l0eS02MFwiXHJcbiAgICAgICAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgICAgICAge21jcEJ1c3kgPyAnSW5zdGFsbGluZy4uLicgOiAnSW5zdGFsbCBjb25uZWN0b3InfVxyXG4gICAgICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gb25PcGVuV2Vic2l0ZShjb25uZWN0b3Iud2Vic2l0ZSl9XHJcbiAgICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiaW5saW5lLWZsZXggaC0xMCBpdGVtcy1jZW50ZXIgZ2FwLTIgcm91bmRlZC1bMTBweF0gYm9yZGVyIGJvcmRlci1jbGF1ZGUtYm9yZGVyIHB4LTQgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gdGV4dC1jbGF1ZGUtdGV4dCB0cmFuc2l0aW9uLWNvbG9ycyBob3ZlcjpiZy1jbGF1ZGUtaG92ZXJcIlxyXG4gICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAgPEV4dGVybmFsTGluayBzaXplPXsxNn0gLz5cclxuICAgICAgICAgICAgICAgICAgICBPcGVuIGRvY3NcclxuICAgICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgICA8Lz5cclxuICAgICAgICAgICAgICApIDogKFxyXG4gICAgICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcclxuICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gb25PcGVuV2Vic2l0ZShjb25uZWN0b3Iud2Vic2l0ZSl9XHJcbiAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cImlubGluZS1mbGV4IGgtMTAgaXRlbXMtY2VudGVyIGdhcC0yIHJvdW5kZWQtWzEwcHhdIGJnLWNsYXVkZS10ZXh0IHB4LTQgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gdGV4dC1jbGF1ZGUtYmcgdHJhbnNpdGlvbi1vcGFjaXR5IGhvdmVyOm9wYWNpdHktOTBcIlxyXG4gICAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgICA8RXh0ZXJuYWxMaW5rIHNpemU9ezE2fSAvPlxyXG4gICAgICAgICAgICAgICAgICBPcGVuIHNldHVwIGd1aWRlXHJcbiAgICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgIDwvRGV0YWlsQ2FyZD5cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L2Rpdj5cclxuICApO1xyXG59XHJcbiJdLCJmaWxlIjoiRDovd29yay9weS9jbGF1ZGUvY2xhdWRlLWRlc2t0b3Avc3JjL2NvbXBvbmVudHMvY3VzdG9taXplL0Nvbm5lY3RvckRldGFpbHNQYW5lbC50c3gifQ==

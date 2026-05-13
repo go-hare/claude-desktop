@@ -431,10 +431,10 @@ export async function getProjects(): Promise<Project[]> {
   return res.json();
 }
 
-export async function createProject(name: string, description?: string): Promise<Project> {
+export async function createProject(name: string, description?: string, workspacePath?: string): Promise<Project> {
   const res = await request('/projects', {
     method: 'POST',
-    body: JSON.stringify({ name, description: description || '' }),
+    body: JSON.stringify({ name, description: description || '', workspace_path: workspacePath || null }),
   });
   return res.json();
 }

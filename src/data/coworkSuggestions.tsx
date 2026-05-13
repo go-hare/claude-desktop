@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, WandSparkles } from 'lucide-react';
+import { CalendarDays, Folder, TableProperties } from 'lucide-react';
 
 export type CoworkSuggestionItem = {
   id: string;
@@ -10,53 +10,43 @@ export type CoworkSuggestionItem = {
 
 export const COWORK_SUGGESTIONS: CoworkSuggestionItem[] = [
   {
-    id: 'downloads',
-    icon: <Folder size={24} strokeWidth={1.7} />,
-    title: 'Clean up my Downloads folder',
-    prompt: `Help me organize my Downloads folder.
+    id: 'week',
+    icon: <CalendarDays size={24} strokeWidth={1.55} />,
+    title: '优化我的一周',
+    prompt: `帮我优化这一周的安排。
 
-First, scan and show me a summary:
-- Total files and total size
-- Files older than 30 days
-- Largest files taking up space
+先帮我梳理：
+- 已有任务和日程
+- 最重要的 3 件事
+- 可能冲突或过载的时间段
 
-Before organizing, ask me:
-- What categories or folder structure would be most useful
-- Whether I want to delete or archive old files
-- If there are specific file types I want to prioritize (documents, images, installers, etc.)
-
-Then focus only on files older than 30 days first. Show me a proposed plan for these old files:
-- Categories to create
-- Files to delete (installers, duplicates, temp files)
-- Files to keep with where they should go
-
-After I approve, organize the first 15 old files as a preview. If there are more files, check in before continuing.`,
+然后给我一个可执行的一周计划。先展示方案，等我确认后再继续。`,
   },
   {
-    id: 'photos',
+    id: 'screenshots',
     icon: <Folder size={24} strokeWidth={1.7} />,
-    title: 'Organize photos by event/date',
-    prompt: `Help me organize photos on my Desktop or Downloads folder.
+    title: '整理我的截图',
+    prompt: `帮我整理截图文件。
 
-First, scan the folder and show me a summary:
-- Total photos
-- Date range (oldest to newest)
-- Rough size breakdown
+先扫描截图所在文件夹并汇总：
+- 截图数量
+- 时间范围
+- 可能的主题分类
 
-Before organizing, ask me how I want them grouped and show me a proposed plan with examples.`,
+再给出整理方案，例如按项目、日期或用途分组。先让我确认方案。`,
   },
   {
-    id: 'inbox',
-    icon: <WandSparkles size={22} strokeWidth={1.7} />,
-    title: 'Organize my inbox',
-    prompt: `Help me organize and clean up my email inbox.
+    id: 'insights',
+    icon: <TableProperties size={24} strokeWidth={1.55} />,
+    title: '在文件中查找见解',
+    prompt: `帮我从文件中查找有用见解。
 
-First, scan my inbox and show me a summary:
-- Total unread emails
-- Emails older than 30 days
-- The main senders or types of emails
+先询问我要分析哪个文件或文件夹，然后总结：
+- 关键主题
+- 异常或值得注意的模式
+- 可以采取的下一步
 
-Before organizing, ask me what folders, senders, and categories I want to prioritize.`,
+在执行前先说明你会查看哪些文件。`,
   },
 ];
 

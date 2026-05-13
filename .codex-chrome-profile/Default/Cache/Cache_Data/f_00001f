@@ -1,0 +1,200 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/ScheduledPage.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=12cb7fed"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import emptyStateIcon from "/src/assets/figma-exports/scheduled-page/empty-state-icon.svg?import";
+import filterIcon from "/src/assets/figma-exports/scheduled-page/filter-icon.svg?import";
+import infoIcon from "/src/assets/figma-exports/scheduled-page/info-icon.svg?import";
+import keepAwakeIcon from "/src/assets/figma-exports/scheduled-page/keep-awake-icon.svg?import";
+import keepAwakeToggleIcon from "/src/assets/figma-exports/scheduled-page/keep-awake-toggle.svg?import";
+import searchIcon from "/src/assets/figma-exports/scheduled-page/search-icon.svg?import";
+const ScheduledPage = ({ onNewTask }) => {
+  const handleSearch = () => {
+    window.dispatchEvent(new CustomEvent("openSidebarSearch"));
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "scheduled-page flex-1 h-full overflow-y-auto", children: /* @__PURE__ */ jsxDEV("div", { className: "scheduled-shell", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "scheduled-header", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "scheduled-heading", children: [
+        /* @__PURE__ */ jsxDEV("h1", { className: "scheduled-title", children: "Scheduled tasks" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 23,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "scheduled-subtitle", children: "Run tasks on a schedule or whenever you need them. Type /schedule in any existing task to set one up." }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 24,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+        lineNumber: 22,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "scheduled-toolbar", "aria-label": "Scheduled task controls", children: [
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            type: "button",
+            className: "scheduled-icon-button",
+            "aria-label": "Filter scheduled tasks",
+            children: /* @__PURE__ */ jsxDEV("img", { src: filterIcon, alt: "", width: 19, height: 13, "aria-hidden": "true" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+              lineNumber: 36,
+              columnNumber: 15
+            }, this)
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+            lineNumber: 31,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            type: "button",
+            className: "scheduled-icon-button",
+            "aria-label": "Search scheduled tasks",
+            onClick: handleSearch,
+            children: /* @__PURE__ */ jsxDEV("img", { src: searchIcon, alt: "", width: 23, height: 23, "aria-hidden": "true" }, void 0, false, {
+              fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+              lineNumber: 44,
+              columnNumber: 15
+            }, this)
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+            lineNumber: 38,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("button", { type: "button", className: "scheduled-new-task-button", onClick: onNewTask, children: "New task" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 46,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+        lineNumber: 30,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+      lineNumber: 21,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "scheduled-notice-card", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "scheduled-notice-copy", children: [
+        /* @__PURE__ */ jsxDEV("img", { src: infoIcon, alt: "", width: 22, height: 21, "aria-hidden": "true" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 54,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("span", { children: "Scheduled tasks only run while your computer is awake." }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 55,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+        lineNumber: 53,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "scheduled-notice-actions", children: [
+        /* @__PURE__ */ jsxDEV("img", { src: keepAwakeIcon, alt: "", width: 23, height: 23, "aria-hidden": "true" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 59,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("span", { children: "Keep awake" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 60,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("img", { src: keepAwakeToggleIcon, alt: "", width: 41, height: 25, "aria-hidden": "true" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 61,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+        lineNumber: 58,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+      lineNumber: 52,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "scheduled-empty-state", children: [
+      /* @__PURE__ */ jsxDEV(
+        "img",
+        {
+          src: emptyStateIcon,
+          alt: "",
+          width: 102,
+          height: 117,
+          className: "scheduled-empty-icon",
+          "aria-hidden": "true"
+        },
+        void 0,
+        false,
+        {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+          lineNumber: 66,
+          columnNumber: 11
+        },
+        this
+      ),
+      /* @__PURE__ */ jsxDEV("p", { className: "scheduled-empty-copy", children: "No scheduled tasks yet." }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+        lineNumber: 74,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+      lineNumber: 65,
+      columnNumber: 9
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+    lineNumber: 20,
+    columnNumber: 7
+  }, this) }, void 0, false, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx",
+    lineNumber: 19,
+    columnNumber: 5
+  }, this);
+};
+_c = ScheduledPage;
+export default ScheduledPage;
+var _c;
+$RefreshReg$(_c, "ScheduledPage");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/work/py/claude/claude-desktop/src/components/ScheduledPage.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QVdBO0FBQUEsSUFFQSx1QkFBQyxTQUFJLFdBQVUseUJBQ2I7QUFBQTtBQUFBLFFBQUM7QUFBQTtBQUFBLFVBQ0MsS0FBS0o7QUFBQUEsVUFDTCxLQUFJO0FBQUEsVUFDSixPQUFPO0FBQUEsVUFDUCxRQUFRO0FBQUEsVUFDUixXQUFVO0FBQUEsVUFDVixlQUFZO0FBQUE7QUFBQSxRQU5kO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxNQU1vQjtBQUFBLE1BRXBCLHVCQUFDLE9BQUUsV0FBVSx3QkFBdUIsdUNBQXBDO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFBMkQ7QUFBQSxTQVQ3RDtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBVUE7QUFBQSxPQXZERjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBd0RBLEtBekRGO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0EwREE7QUFFSjtBQUFFWSxLQWxFSU47QUFvRU4sZUFBZUE7QUFBYyxJQUFBTTtBQUFBLGFBQUFBLElBQUEiLCJuYW1lcyI6WyJlbXB0eVN0YXRlSWNvbiIsImZpbHRlckljb24iLCJpbmZvSWNvbiIsImtlZXBBd2FrZUljb24iLCJrZWVwQXdha2VUb2dnbGVJY29uIiwic2VhcmNoSWNvbiIsIlNjaGVkdWxlZFBhZ2UiLCJvbk5ld1Rhc2siLCJoYW5kbGVTZWFyY2giLCJ3aW5kb3ciLCJkaXNwYXRjaEV2ZW50IiwiQ3VzdG9tRXZlbnQiLCJfYyJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJTY2hlZHVsZWRQYWdlLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xyXG5pbXBvcnQgZW1wdHlTdGF0ZUljb24gZnJvbSAnLi4vYXNzZXRzL2ZpZ21hLWV4cG9ydHMvc2NoZWR1bGVkLXBhZ2UvZW1wdHktc3RhdGUtaWNvbi5zdmcnO1xyXG5pbXBvcnQgZmlsdGVySWNvbiBmcm9tICcuLi9hc3NldHMvZmlnbWEtZXhwb3J0cy9zY2hlZHVsZWQtcGFnZS9maWx0ZXItaWNvbi5zdmcnO1xyXG5pbXBvcnQgaW5mb0ljb24gZnJvbSAnLi4vYXNzZXRzL2ZpZ21hLWV4cG9ydHMvc2NoZWR1bGVkLXBhZ2UvaW5mby1pY29uLnN2Zyc7XHJcbmltcG9ydCBrZWVwQXdha2VJY29uIGZyb20gJy4uL2Fzc2V0cy9maWdtYS1leHBvcnRzL3NjaGVkdWxlZC1wYWdlL2tlZXAtYXdha2UtaWNvbi5zdmcnO1xyXG5pbXBvcnQga2VlcEF3YWtlVG9nZ2xlSWNvbiBmcm9tICcuLi9hc3NldHMvZmlnbWEtZXhwb3J0cy9zY2hlZHVsZWQtcGFnZS9rZWVwLWF3YWtlLXRvZ2dsZS5zdmcnO1xyXG5pbXBvcnQgc2VhcmNoSWNvbiBmcm9tICcuLi9hc3NldHMvZmlnbWEtZXhwb3J0cy9zY2hlZHVsZWQtcGFnZS9zZWFyY2gtaWNvbi5zdmcnO1xyXG5cclxuaW50ZXJmYWNlIFNjaGVkdWxlZFBhZ2VQcm9wcyB7XHJcbiAgb25OZXdUYXNrOiAoKSA9PiB2b2lkO1xyXG59XHJcblxyXG5jb25zdCBTY2hlZHVsZWRQYWdlOiBSZWFjdC5GQzxTY2hlZHVsZWRQYWdlUHJvcHM+ID0gKHsgb25OZXdUYXNrIH0pID0+IHtcclxuICBjb25zdCBoYW5kbGVTZWFyY2ggPSAoKSA9PiB7XHJcbiAgICB3aW5kb3cuZGlzcGF0Y2hFdmVudChuZXcgQ3VzdG9tRXZlbnQoJ29wZW5TaWRlYmFyU2VhcmNoJykpO1xyXG4gIH07XHJcblxyXG4gIHJldHVybiAoXHJcbiAgICA8ZGl2IGNsYXNzTmFtZT1cInNjaGVkdWxlZC1wYWdlIGZsZXgtMSBoLWZ1bGwgb3ZlcmZsb3cteS1hdXRvXCI+XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwic2NoZWR1bGVkLXNoZWxsXCI+XHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJzY2hlZHVsZWQtaGVhZGVyXCI+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInNjaGVkdWxlZC1oZWFkaW5nXCI+XHJcbiAgICAgICAgICAgIDxoMSBjbGFzc05hbWU9XCJzY2hlZHVsZWQtdGl0bGVcIj5TY2hlZHVsZWQgdGFza3M8L2gxPlxyXG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJzY2hlZHVsZWQtc3VidGl0bGVcIj5cclxuICAgICAgICAgICAgICBSdW4gdGFza3Mgb24gYSBzY2hlZHVsZSBvciB3aGVuZXZlciB5b3UgbmVlZCB0aGVtLiBUeXBlIC9zY2hlZHVsZSBpbiBhbnkgZXhpc3RpbmdcclxuICAgICAgICAgICAgICB0YXNrIHRvIHNldCBvbmUgdXAuXHJcbiAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwic2NoZWR1bGVkLXRvb2xiYXJcIiBhcmlhLWxhYmVsPVwiU2NoZWR1bGVkIHRhc2sgY29udHJvbHNcIj5cclxuICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgIHR5cGU9XCJidXR0b25cIlxyXG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cInNjaGVkdWxlZC1pY29uLWJ1dHRvblwiXHJcbiAgICAgICAgICAgICAgYXJpYS1sYWJlbD1cIkZpbHRlciBzY2hlZHVsZWQgdGFza3NcIlxyXG4gICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgPGltZyBzcmM9e2ZpbHRlckljb259IGFsdD1cIlwiIHdpZHRoPXsxOX0gaGVpZ2h0PXsxM30gYXJpYS1oaWRkZW49XCJ0cnVlXCIgLz5cclxuICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJzY2hlZHVsZWQtaWNvbi1idXR0b25cIlxyXG4gICAgICAgICAgICAgIGFyaWEtbGFiZWw9XCJTZWFyY2ggc2NoZWR1bGVkIHRhc2tzXCJcclxuICAgICAgICAgICAgICBvbkNsaWNrPXtoYW5kbGVTZWFyY2h9XHJcbiAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICA8aW1nIHNyYz17c2VhcmNoSWNvbn0gYWx0PVwiXCIgd2lkdGg9ezIzfSBoZWlnaHQ9ezIzfSBhcmlhLWhpZGRlbj1cInRydWVcIiAvPlxyXG4gICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPVwiYnV0dG9uXCIgY2xhc3NOYW1lPVwic2NoZWR1bGVkLW5ldy10YXNrLWJ1dHRvblwiIG9uQ2xpY2s9e29uTmV3VGFza30+XHJcbiAgICAgICAgICAgICAgTmV3IHRhc2tcclxuICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJzY2hlZHVsZWQtbm90aWNlLWNhcmRcIj5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwic2NoZWR1bGVkLW5vdGljZS1jb3B5XCI+XHJcbiAgICAgICAgICAgIDxpbWcgc3JjPXtpbmZvSWNvbn0gYWx0PVwiXCIgd2lkdGg9ezIyfSBoZWlnaHQ9ezIxfSBhcmlhLWhpZGRlbj1cInRydWVcIiAvPlxyXG4gICAgICAgICAgICA8c3Bhbj5TY2hlZHVsZWQgdGFza3Mgb25seSBydW4gd2hpbGUgeW91ciBjb21wdXRlciBpcyBhd2FrZS48L3NwYW4+XHJcbiAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInNjaGVkdWxlZC1ub3RpY2UtYWN0aW9uc1wiPlxyXG4gICAgICAgICAgICA8aW1nIHNyYz17a2VlcEF3YWtlSWNvbn0gYWx0PVwiXCIgd2lkdGg9ezIzfSBoZWlnaHQ9ezIzfSBhcmlhLWhpZGRlbj1cInRydWVcIiAvPlxyXG4gICAgICAgICAgICA8c3Bhbj5LZWVwIGF3YWtlPC9zcGFuPlxyXG4gICAgICAgICAgICA8aW1nIHNyYz17a2VlcEF3YWtlVG9nZ2xlSWNvbn0gYWx0PVwiXCIgd2lkdGg9ezQxfSBoZWlnaHQ9ezI1fSBhcmlhLWhpZGRlbj1cInRydWVcIiAvPlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwic2NoZWR1bGVkLWVtcHR5LXN0YXRlXCI+XHJcbiAgICAgICAgICA8aW1nXHJcbiAgICAgICAgICAgIHNyYz17ZW1wdHlTdGF0ZUljb259XHJcbiAgICAgICAgICAgIGFsdD1cIlwiXHJcbiAgICAgICAgICAgIHdpZHRoPXsxMDJ9XHJcbiAgICAgICAgICAgIGhlaWdodD17MTE3fVxyXG4gICAgICAgICAgICBjbGFzc05hbWU9XCJzY2hlZHVsZWQtZW1wdHktaWNvblwiXHJcbiAgICAgICAgICAgIGFyaWEtaGlkZGVuPVwidHJ1ZVwiXHJcbiAgICAgICAgICAvPlxyXG4gICAgICAgICAgPHAgY2xhc3NOYW1lPVwic2NoZWR1bGVkLWVtcHR5LWNvcHlcIj5ObyBzY2hlZHVsZWQgdGFza3MgeWV0LjwvcD5cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L2Rpdj5cclxuICApO1xyXG59O1xyXG5cclxuZXhwb3J0IGRlZmF1bHQgU2NoZWR1bGVkUGFnZTtcclxuIl0sImZpbGUiOiJEOi93b3JrL3B5L2NsYXVkZS9jbGF1ZGUtZGVza3RvcC9zcmMvY29tcG9uZW50cy9TY2hlZHVsZWRQYWdlLnRzeCJ9

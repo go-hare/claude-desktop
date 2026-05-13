@@ -6,6 +6,7 @@ import coworkScheduledIcon from '../assets/sidebar-custom/cowork-scheduled-clock
 import sidebarModeCoworkIcon from '../assets/figma-exports/sidebar-icons/cowork-icon.svg';
 import sidebarModeCodeIcon from '../assets/figma-exports/sidebar-icons/code-icon.svg';
 import claudeImg from '../assets/icons/claude.png';
+import { COWORK_NAV, COWORK_TOP_MODES } from '../data/coworkSpec';
 import PillNav from './PillNav';
 
 type UpdateStatus = {
@@ -29,6 +30,7 @@ interface CoworkExactSidebarProps {
   onNewTask: () => void;
   onOpenChat: (id: string) => void;
   onOpenCustomize: () => void;
+  onOpenCode: () => void;
   onOpenProjects: () => void;
   onOpenScheduled: () => void;
   onToggleUserMenu: () => void;
@@ -348,6 +350,7 @@ export default function CoworkExactSidebar({
   onNewTask,
   onOpenChat,
   onOpenCustomize,
+  onOpenCode,
   onOpenProjects,
   onOpenScheduled,
   onToggleUserMenu,
@@ -362,38 +365,38 @@ export default function CoworkExactSidebar({
   const topModeItems = [
     {
       key: 'cowork',
-      label: '协作',
+      label: COWORK_TOP_MODES[0].label,
       icon: sidebarModeCoworkIcon,
       iconWidth: 19,
       iconHeight: 18,
-      labelMaxWidth: 44,
+      labelMaxWidth: 58,
       iconOpacity: 0.58,
       activeIconOpacity: 0.58,
     },
     {
       key: 'code',
-      label: '代码',
+      label: COWORK_TOP_MODES[1].label,
       icon: sidebarModeCodeIcon,
       iconWidth: 18,
       iconHeight: 18,
-      labelMaxWidth: 44,
+      labelMaxWidth: 40,
       iconOpacity: 1,
-      disabled: true,
+      onSelect: onOpenCode,
     },
   ] as const;
 
   return (
     <div
-      className="flex h-full min-h-[666px] w-full flex-col overflow-hidden bg-[#fbfaf7]"
+      className="flex h-full min-h-[666px] w-full flex-col overflow-hidden bg-[#fbfbfa] p-1"
       style={{ fontFamily: '"Anthropic Sans", "Figtree", sans-serif' }}
     >
-      <div className="flex min-h-0 flex-1 flex-col border-r border-[#ece7df] bg-[#fcfbf8]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[8px] border border-[#ece8e0] bg-[#fcfbf8]">
         <div className="mb-2 mt-[52px] px-[9px]">
           <PillNav
             activeKey="cowork"
             indicatorColor="#ffffff"
             items={[...topModeItems]}
-            onItemSelect={(item) => item.onSelect?.()}
+            onItemSelect={(item) => item.onSelect?.(item)}
             textColor="#5f5b56"
             activeTextColor="#373734"
           />
@@ -402,28 +405,28 @@ export default function CoworkExactSidebar({
         <div className="px-[9px] pt-[2px]">
           <nav className="space-y-px">
             <FigmaSidebarAction
-              active={locationPathname === '/cowork'}
+              active={locationPathname === '/task/new' || locationPathname === '/cowork'}
               icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-80" src={coworkNewTaskIcon} />}
-              label="新任务"
+              label={COWORK_NAV.newTask}
               labelStyle={sidebarItemLabelStyle}
               onClick={onNewTask}
             />
             <FigmaSidebarAction
-              active={locationPathname === '/cowork/projects'}
+              active={locationPathname === '/projects' || locationPathname === '/cowork/projects'}
               icon={<span className="block h-4 w-4" aria-hidden="true" />}
-              label="项目"
+              label={COWORK_NAV.projects}
               onClick={onOpenProjects}
             />
             <FigmaSidebarAction
               active={locationPathname === '/cowork/scheduled' || locationPathname === '/scheduled'}
               icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-75" src={coworkScheduledIcon} />}
-              label="定时任务"
+              label={COWORK_NAV.scheduled}
               onClick={onOpenScheduled}
             />
             <FigmaSidebarAction
               active={locationPathname === '/cowork/customize'}
               icon={<img alt="" className="max-h-5 max-w-5 object-contain opacity-80" src={coworkCustomizeIcon} />}
-              label="自定义"
+              label={COWORK_NAV.customize}
               onClick={onOpenCustomize}
             />
           </nav>
@@ -431,12 +434,12 @@ export default function CoworkExactSidebar({
 
         <div className="px-[9px] pt-[18px]">
           <div className="mb-2 px-2" style={sectionLabelStyle}>
-            已固定
+            {COWORK_NAV.pinned}
           </div>
           <FigmaSidebarAction
             disabled
             icon={<PinIcon className="h-[14px] w-[14px] opacity-80" />}
-            label="拖动以固定"
+            label={COWORK_NAV.dragToPin}
             labelStyle={subtleSidebarLabelStyle}
           />
         </div>
@@ -444,7 +447,7 @@ export default function CoworkExactSidebar({
         <div className="min-h-0 flex-1 px-[9px] pt-[18px]">
           <div className="flex h-full min-h-0 flex-col">
             <div className="mb-2 px-2" style={sectionLabelStyle}>
-              最近
+              {COWORK_NAV.recents}
             </div>
             <div className="sidebar-scroll flex-1 overflow-y-auto pb-3 pr-1">
               {recentChats.length > 0 ? (
@@ -493,7 +496,7 @@ export default function CoworkExactSidebar({
                 </div>
               ) : (
                 <div className="rounded-[10px] border border-dashed border-[#ece8e0] bg-white/55 px-3 py-3 text-[13px] leading-[18px] tracking-[-0.08px] text-[#9f988f]">
-                  最近任务会显示在这里。
+                  {COWORK_NAV.emptyRecents}
                 </div>
               )}
             </div>
@@ -524,7 +527,7 @@ export default function CoworkExactSidebar({
           </div>
         ) : null}
 
-        <div className="border-t border-[#ece7df] px-[12px] py-[10px]">
+        <div className="mt-auto px-[12px] py-[10px]">
           <button
             className="flex w-full items-center gap-2 rounded-[8px] px-2 py-2 transition-colors hover:bg-[#f5f3ef]"
             onClick={onToggleUserMenu}
@@ -537,7 +540,7 @@ export default function CoworkExactSidebar({
               src={claudeImg}
             />
             <span className="min-w-0 flex-1 truncate text-left text-[15px] font-medium leading-tight tracking-[-0.08px] text-[#2f2d2a]">
-              Cowork 3P · Gateway
+              Cowork 3P | Gateway
             </span>
             <BottomActionIcon className="h-[13px] w-[13px] flex-shrink-0 opacity-80" />
           </button>

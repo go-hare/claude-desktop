@@ -41,6 +41,8 @@ import infoMenuIcon from '../assets/profile-menu/info.svg';
 import logoutMenuIcon from '../assets/profile-menu/logout.svg';
 
 import CoworkExactSidebar from './CoworkExactSidebar';
+import CodeExactSidebar from './CodeExactSidebar';
+import { COWORK_NAV } from '../data/coworkSpec';
 import PillNav from './PillNav';
 import SearchModal from './SearchModal';
 
@@ -64,6 +66,18 @@ interface RenameModalProps {
 }
 
 type SidebarTopMode = 'chat' | 'cowork' | 'code';
+const SIDEBAR_MODE_STORAGE_KEY = 'sidebar-selected-mode';
+
+function getInitialSidebarTopMode(): SidebarTopMode {
+  if (typeof window === 'undefined') return 'chat';
+  const stored = window.localStorage.getItem(SIDEBAR_MODE_STORAGE_KEY);
+  return stored === 'chat' || stored === 'cowork' || stored === 'code' ? stored : 'chat';
+}
+
+function normalizeModePath(path: string) {
+  if (path.startsWith('#')) return path.slice(1);
+  return path;
+}
 
 const RenameModal = ({ isOpen, onClose, onSave, initialTitle }: RenameModalProps) => {
   const [title, setTitle] = useState(initialTitle);
@@ -150,6 +164,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
   const [showSearch, setShowSearch] = useState(false);
   const [isRecentsCollapsed, setIsRecentsCollapsed] = useState(false);
   const [isNewChatAnimating, setIsNewChatAnimating] = useState(false);
+  const [selectedTopMode, setSelectedTopMode] = useState<SidebarTopMode>(getInitialSidebarTopMode);
   const [streamingIds, setStreamingIds] = useState<Set<string>>(new Set());
   const [updateStatus, setUpdateStatus] = useState<{ type: string; version?: string; percent?: number } | null>(null);
 
@@ -196,8 +211,27 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     }
   };
 
-  const isCoworkSection = location.pathname.startsWith('/cowork') || location.pathname === '/scheduled';
-  const currentTopMode: SidebarTopMode = isCoworkSection ? 'cowork' : 'chat';
+  const isTaskRoute = location.pathname === '/task' || location.pathname.startsWith('/task/');
+  const normalizedCodePath = normalizeModePath(codeJumpUrl).replace(/\/$/, '');
+  const isCodeSection =
+    location.pathname === normalizedCodePath ||
+    location.pathname === `${normalizedCodePath}/` ||
+    location.pathname.startsWith(`${normalizedCodePath}/`);
+  const isCoworkSharedSurface = location.pathname === '/projects' && selectedTopMode === 'cowork';
+  const isCoworkSection = !isCodeSection && (location.pathname.startsWith('/cowork') || isTaskRoute || location.pathname === '/scheduled' || isCoworkSharedSurface);
+  const currentTopMode: SidebarTopMode = isCodeSection ? 'code' : isCoworkSection ? 'cowork' : 'chat';
+
+  useEffect(() => {
+    const nextMode: SidebarTopMode = isCodeSection
+      ? 'code'
+      : location.pathname.startsWith('/cowork') || isTaskRoute || location.pathname === '/scheduled'
+        ? 'cowork'
+        : location.pathname === '/projects'
+          ? selectedTopMode
+          : 'chat';
+    setSelectedTopMode(nextMode);
+    window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, nextMode);
+  }, [isCodeSection, isTaskRoute, location.pathname, selectedTopMode]);
   const sidebarTopModes: Array<{
     key: SidebarTopMode;
     label: string;
@@ -218,6 +252,8 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
       iconHeight: 20,
       labelMaxWidth: 34,
       onClick: () => {
+        setSelectedTopMode('chat');
+        window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, 'chat');
         if (location.pathname !== '/') navigate('/');
       },
     },
@@ -231,7 +267,9 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
       activeIconOpacity: 0.58,
       labelMaxWidth: 58,
       onClick: () => {
-        if (!isCoworkSection) navigate('/cowork');
+        setSelectedTopMode('cowork');
+        window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, 'cowork');
+        if (!isCoworkSection) navigate('/task/new');
       },
     },
     {
@@ -241,7 +279,11 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
       iconWidth: 18,
       iconHeight: 18,
       labelMaxWidth: 40,
-      disabled: true,
+      onClick: () => {
+        setSelectedTopMode('code');
+        window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, 'code');
+        navigate(normalizedCodePath);
+      },
     },
   ];
 
@@ -249,7 +291,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     setIsNewChatAnimating(true);
     setTimeout(() => setIsNewChatAnimating(false), 300);
     if (isCoworkSection) {
-      navigate('/cowork');
+      navigate('/task/new');
       return;
     }
     if (onNewChatClick) onNewChatClick();
@@ -276,7 +318,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
       return;
     }
     if (label === 'Code') {
-      // Disabled temporarily
+      navigate(normalizedCodePath);
       return;
     }
   };
@@ -500,8 +542,14 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     setShowUserMenu(!showUserMenu);
   };
   const isCoworkExactLayout = isCoworkSection && !isCollapsed;
+  const isCodeExactLayout = isCodeSection && !isCollapsed;
   const standardSidebarWidth = `${tunerConfig?.sidebarWidth || 280}px`;
-  const sidebarWidth = isCollapsed ? '46px' : isCoworkExactLayout ? standardSidebarWidth : standardSidebarWidth;
+  const codeSidebarWidth = '302px';
+  const sidebarWidth = isCollapsed
+    ? '46px'
+    : isCodeExactLayout
+      ? codeSidebarWidth
+      : standardSidebarWidth;
 
   const profileMenuSections = [
     [
@@ -595,8 +643,8 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
         `}
         style={{
           width: sidebarWidth,
-          backgroundColor: isCoworkExactLayout ? '#f9f9f9' : undefined,
-          borderColor: isCoworkExactLayout ? '#e9e5de' : undefined,
+          backgroundColor: isCoworkExactLayout || isCodeExactLayout ? '#f9f9f9' : undefined,
+          borderColor: isCoworkExactLayout || isCodeExactLayout ? '#e9e5de' : undefined,
         }}
       >
         {isCoworkExactLayout ? (
@@ -612,13 +660,35 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
               onCloseOverlays?.();
               navigate(`/chat/${id}`);
             }}
+            onOpenCode={() => navigate(normalizedCodePath)}
             onOpenCustomize={() => navigate('/cowork/customize')}
-            onOpenProjects={() => navigate('/cowork/projects')}
+            onOpenProjects={() => navigate('/projects')}
             onOpenScheduled={() => navigate('/cowork/scheduled')}
             onToggleUserMenu={toggleUserMenu}
             streamingIds={streamingIds}
             updateStatus={updateStatus}
             user={userUser}
+            userButtonRef={userBtnRef}
+          />
+        ) : isCodeExactLayout ? (
+          <CodeExactSidebar
+            chats={chats}
+            locationPathname={location.pathname}
+            onNewSession={() => {
+              sessionStorage.removeItem('prefill_input');
+              navigate(normalizedCodePath);
+              window.dispatchEvent(new CustomEvent('epitaxy:reset-draft'));
+            }}
+            onOpenChat={(id) => {
+              onCloseOverlays?.();
+              navigate(`/chat/${id}`);
+            }}
+            onOpenCowork={() => navigate('/task/new')}
+            onOpenCustomize={() => navigate(`${normalizedCodePath}/customize`)}
+            onOpenScheduled={() => navigate(`${normalizedCodePath}/scheduled`)}
+            onOpenProjects={() => navigate('/projects')}
+            onOpenArtifacts={() => navigate('/artifacts')}
+            onToggleUserMenu={toggleUserMenu}
             userButtonRef={userBtnRef}
           />
         ) : (
@@ -685,84 +755,88 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
               className={`leading-none transition-opacity duration-200 text-left ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 block'}`}
               style={{ fontSize: '14px', fontWeight: 400 }}
             >
-              {isCoworkSection ? 'New task' : 'New chat'}
+              {isCoworkSection ? COWORK_NAV.newTask : 'New chat'}
             </span>
           </button>
         </div>
 
-        {/* Search - Fixed */}
-        <div
-          className="flex-shrink-0"
-          style={{
-            marginTop: '2px',
-            paddingLeft: '9px',
-            paddingRight: '9px',
-            marginBottom: '2px'
-          }}
-        >
-          <button
-            onClick={() => setShowSearch(true)}
-            className="w-full flex items-center justify-start text-claude-text hover:bg-claude-hover rounded-lg transition-colors group overflow-hidden whitespace-nowrap"
-            style={{
-              paddingTop: '2px',
-              paddingBottom: '2px',
-              paddingLeft: '0px',
-              gap: '8px'
-            }}
-          >
-            <div className={`text-claude-text flex-shrink-0 flex items-center justify-center`} style={{ width: '27px', height: '27px' }}>
-              <img
-                src={searchIconImg}
-                alt="Search"
-                style={{ width: '16px', height: '16px' }}
-                className="object-contain dark:invert transition-[filter] duration-200"
-              />
-            </div>
-            <span
-              className={`leading-none transition-opacity duration-200 text-left ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 block'}`}
-              style={{ fontSize: '14px', fontWeight: 400 }}
+        {!isCoworkSection && (
+          <>
+            {/* Search - Fixed */}
+            <div
+              className="flex-shrink-0"
+              style={{
+                marginTop: '2px',
+                paddingLeft: '9px',
+                paddingRight: '9px',
+                marginBottom: '2px'
+              }}
             >
-              Search
-            </span>
-          </button>
-        </div>
+              <button
+                onClick={() => setShowSearch(true)}
+                className="w-full flex items-center justify-start text-claude-text hover:bg-claude-hover rounded-lg transition-colors group overflow-hidden whitespace-nowrap"
+                style={{
+                  paddingTop: '2px',
+                  paddingBottom: '2px',
+                  paddingLeft: '0px',
+                  gap: '8px'
+                }}
+              >
+                <div className={`text-claude-text flex-shrink-0 flex items-center justify-center`} style={{ width: '27px', height: '27px' }}>
+                  <img
+                    src={searchIconImg}
+                    alt="Search"
+                    style={{ width: '16px', height: '16px' }}
+                    className="object-contain dark:invert transition-[filter] duration-200"
+                  />
+                </div>
+                <span
+                  className={`leading-none transition-opacity duration-200 text-left ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 block'}`}
+                  style={{ fontSize: '14px', fontWeight: 400 }}
+                >
+                  Search
+                </span>
+              </button>
+            </div>
 
-        {/* Customize - Fixed */}
-        <div
-          className="flex-shrink-0"
-          style={{
-            marginTop: '2px',
-            paddingLeft: '9px',
-            paddingRight: '9px',
-            marginBottom: '16px'
-          }}
-        >
-          <button
-            onClick={() => navigate('/customize')}
-            className={`w-full flex items-center justify-start text-claude-text hover:bg-claude-hover rounded-lg transition-colors group overflow-hidden whitespace-nowrap ${location.pathname === '/customize' ? 'bg-claude-hover' : ''}`}
-            style={{
-              paddingTop: '2px',
-              paddingBottom: '2px',
-              paddingLeft: '0px',
-              gap: '8px'
-            }}
-          >
-            <div className={`text-claude-text flex-shrink-0 flex items-center justify-center`} style={{ width: '27px', height: '27px' }}>
-              <img
-                src={customizeIconImg}
-                alt="Customize"
-                style={{ width: '24px', height: '24px' }}
-                className="object-contain dark:invert transition-all duration-200 group-hover:brightness-90 group-hover:scale-110 group-hover:-rotate-3 group-active:rotate-12 group-active:scale-90"
-              />
-            </div>
-            <span
-              className={`leading-none transition-opacity duration-200 text-left ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 block'}`}
-              style={{ fontSize: '14px', fontWeight: 400 }}
+            {/* Customize - Fixed */}
+            <div
+              className="flex-shrink-0"
+              style={{
+                marginTop: '2px',
+                paddingLeft: '9px',
+                paddingRight: '9px',
+                marginBottom: '16px'
+              }}
             >
-              Customize
-            </span>
-          </button>
-        </div>
+              <button
+                onClick={() => navigate('/customize')}
+                className={`w-full flex items-center justify-start text-claude-text hover:bg-claude-hover rounded-lg transition-colors group overflow-hidden whitespace-nowrap ${location.pathname === '/customize' ? 'bg-claude-hover' : ''}`}
+                style={{
+                  paddingTop: '2px',
+                  paddingBottom: '2px',
+                  paddingLeft: '0px',
+                  gap: '8px'
+                }}
+              >
+                <div className={`text-claude-text flex-shrink-0 flex items-center justify-center`} style={{ width: '27px', height: '27px' }}>
+                  <img
+                    src={customizeIconImg}
+                    alt="Customize"
+                    style={{ width: '24px', height: '24px' }}
+                    className="object-contain dark:invert transition-all duration-200 group-hover:brightness-90 group-hover:scale-110 group-hover:-rotate-3 group-active:rotate-12 group-active:scale-90"
+                  />
+                </div>
+                <span
+                  className={`leading-none transition-opacity duration-200 text-left ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 block'}`}
+                  style={{ fontSize: '14px', fontWeight: 400 }}
+                >
+                  Customize
+                </span>
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Scrollable Area containing Nav and Recents */}
         <div
@@ -779,9 +853,9 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
           <nav className="space-y-px mb-6">
             {(isCoworkSection
               ? [
-                  { label: 'Projects', icon: <img src={figmaProjectsIcon} alt="" width={18} height={17} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/projects'), active: false },
-                  { label: 'Scheduled', icon: <img src={figmaScheduledIcon} alt="" width={18} height={18} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/scheduled'), active: location.pathname === '/scheduled' },
-                  { label: 'Customize', icon: <img src={figmaCustomizeIcon} alt="" width={18} height={16} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/customize'), active: location.pathname === '/customize' },
+                  { label: COWORK_NAV.projects, icon: <img src={figmaProjectsIcon} alt="" width={18} height={17} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/projects'), active: location.pathname === '/projects' },
+                  { label: COWORK_NAV.scheduled, icon: <img src={figmaScheduledIcon} alt="" width={18} height={18} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/cowork/scheduled'), active: location.pathname === '/cowork/scheduled' || location.pathname === '/scheduled' },
+                  { label: COWORK_NAV.customize, icon: <img src={figmaCustomizeIcon} alt="" width={18} height={16} className="dark:invert transition-[filter] duration-200" />, onClick: () => navigate('/cowork/customize'), active: location.pathname === '/cowork/customize' },
                   { label: 'Dispatch', icon: <img src={figmaDispatchIcon} alt="" width={12} height={18} className="dark:invert transition-[filter] duration-200" />, onClick: undefined, active: false },
                 ]
               : NAV_ITEMS.map((item) => ({
@@ -829,7 +903,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
                 className="flex items-center gap-2 px-3 pb-2 select-none"
                 style={{ paddingLeft: `${tunerConfig?.recentsPl || 12}px`, paddingRight: '12px' }}
               >
-                <span className="text-[13px] font-medium text-claude-textSecondary">Pinned</span>
+                <span className="text-[13px] font-medium text-claude-textSecondary">{COWORK_NAV.pinned}</span>
               </div>
               <button
                 type="button"
@@ -838,7 +912,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
                 style={{ paddingLeft: `${tunerConfig?.recentsPl || 12}px` }}
               >
                 <Pin size={14} strokeWidth={1.6} />
-                <span>Drag to pin</span>
+                <span>{COWORK_NAV.dragToPin}</span>
               </button>
             </div>
           )}
@@ -852,7 +926,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
               paddingRight: '12px'
             }}
           >
-            <span className="text-[13px] font-medium text-claude-textSecondary">Recents</span>
+            <span className="text-[13px] font-medium text-claude-textSecondary">{isCoworkSection ? COWORK_NAV.recents : 'Recents'}</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();

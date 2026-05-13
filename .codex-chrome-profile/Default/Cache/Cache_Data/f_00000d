@@ -1,0 +1,191 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/GitBashRequiredModal.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=12cb7fed"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport1_react from "/node_modules/.vite/deps/react.js?v=12cb7fed"; const useState = __vite__cjsImport1_react["useState"];
+import { getSystemStatus } from "/src/api.ts";
+const GIT_DOWNLOAD_URL = "https://git-scm.com/downloads/win";
+const GitBashRequiredModal = ({ onResolved }) => {
+  _s();
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState(null);
+  const openDownload = () => {
+    const api = window.electronAPI;
+    if (api?.openExternal) {
+      api.openExternal(GIT_DOWNLOAD_URL);
+    } else {
+      window.open(GIT_DOWNLOAD_URL, "_blank");
+    }
+  };
+  const recheck = async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      const status = await getSystemStatus();
+      if (status.gitBash.found) {
+        onResolved();
+      } else {
+        setError("仍未检测到 git-bash。请确认安装完成，或重启应用后再试。");
+      }
+    } catch (err) {
+      setError(err?.message || "检测失败");
+    } finally {
+      setChecking(false);
+    }
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm", children: /* @__PURE__ */ jsxDEV("div", { className: "max-w-md w-full mx-4 rounded-2xl bg-claude-bg border border-claude-border shadow-2xl p-7", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-start gap-3 mb-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center", children: /* @__PURE__ */ jsxDEV("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", className: "text-amber-600 dark:text-amber-400", children: [
+        /* @__PURE__ */ jsxDEV("path", { d: "M12 9v4" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+          lineNumber: 46,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV("path", { d: "M12 17h.01" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+          lineNumber: 47,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV("path", { d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+          lineNumber: 48,
+          columnNumber: 15
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+        lineNumber: 45,
+        columnNumber: 13
+      }, this) }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+        lineNumber: 44,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex-1", children: [
+        /* @__PURE__ */ jsxDEV("h2", { className: "text-[17px] font-semibold text-claude-text", children: "需要安装 Git for Windows" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+          lineNumber: 52,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-[13px] text-claude-textSecondary mt-1", children: "Claude Desktop 在 Windows 上需要 git-bash 才能运行内置工具。" }, void 0, false, {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+          lineNumber: 53,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+        lineNumber: 51,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+      lineNumber: 43,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "rounded-lg bg-claude-hover/50 p-3.5 mb-4", children: /* @__PURE__ */ jsxDEV("p", { className: "text-[12.5px] text-claude-text leading-relaxed", children: [
+      "点击下方按钮下载并安装 ",
+      /* @__PURE__ */ jsxDEV("span", { className: "font-medium", children: "Git for Windows" }, void 0, false, {
+        fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+        lineNumber: 59,
+        columnNumber: 25
+      }, this),
+      '。安装时使用默认选项即可，安装完成后回到此处点击"重新检测"。'
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+      lineNumber: 58,
+      columnNumber: 11
+    }, this) }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+      lineNumber: 57,
+      columnNumber: 9
+    }, this),
+    error && /* @__PURE__ */ jsxDEV("div", { className: "rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4", children: /* @__PURE__ */ jsxDEV("p", { className: "text-[12.5px] text-red-700 dark:text-red-300", children: error }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+      lineNumber: 65,
+      columnNumber: 13
+    }, this) }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+      lineNumber: 64,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex flex-col gap-2", children: [
+      /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          onClick: openDownload,
+          className: "w-full px-4 py-2.5 rounded-lg bg-claude-text text-claude-bg text-[14px] font-medium hover:opacity-90 transition-opacity",
+          children: "下载 Git for Windows"
+        },
+        void 0,
+        false,
+        {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+          lineNumber: 70,
+          columnNumber: 11
+        },
+        this
+      ),
+      /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          onClick: recheck,
+          disabled: checking,
+          className: "w-full px-4 py-2.5 rounded-lg border border-claude-border text-claude-text text-[14px] font-medium hover:bg-claude-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+          children: checking ? "检测中..." : "我已安装，重新检测"
+        },
+        void 0,
+        false,
+        {
+          fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+          lineNumber: 76,
+          columnNumber: 11
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+      lineNumber: 69,
+      columnNumber: 9
+    }, this),
+    /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] text-claude-textSecondary text-center mt-4", children: "已安装但未生效？请尝试关闭并重新打开 Claude Desktop。" }, void 0, false, {
+      fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+      lineNumber: 85,
+      columnNumber: 9
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+    lineNumber: 42,
+    columnNumber: 7
+  }, this) }, void 0, false, {
+    fileName: "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx",
+    lineNumber: 41,
+    columnNumber: 5
+  }, this);
+};
+_s(GitBashRequiredModal, "dtm1RAIyt8Sb6dFzNreYwIyTE2M=");
+_c = GitBashRequiredModal;
+export default GitBashRequiredModal;
+var _c;
+$RefreshReg$(_c, "GitBashRequiredModal");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) {
+  return RefreshRuntime.register(type, "D:/work/py/claude/claude-desktop/src/components/GitBashRequiredModal.tsx " + id);
+}
+function $RefreshSig$() {
+  return RefreshRuntime.createSignatureFunctionForTransform();
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUEsTUFLQTtBQUFBLE1BQ0E7QUFBQSxRQUFDO0FBQUE7QUFBQSxVQUNDLFNBQVNNO0FBQUFBLFVBQ1QsVUFBVVY7QUFBQUEsVUFDVixXQUFVO0FBQUEsVUFFVEEscUJBQVcsV0FBVztBQUFBO0FBQUEsUUFMekI7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLE1BTUE7QUFBQSxTQWJGO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0FjQTtBQUFBLElBRUEsdUJBQUMsT0FBRSxXQUFVLDBEQUF5RCxrREFBdEU7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQUVBO0FBQUEsT0E3Q0Y7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQThDQSxLQS9DRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBZ0RBO0FBRUo7QUFBRUQsR0FqRklGLHNCQUFxQztBQUFBLEtBQXJDQTtBQW1GTixlQUFlQTtBQUFxQixJQUFBbUI7QUFBQSxhQUFBQSxJQUFBIiwibmFtZXMiOlsidXNlU3RhdGUiLCJnZXRTeXN0ZW1TdGF0dXMiLCJHSVRfRE9XTkxPQURfVVJMIiwiR2l0QmFzaFJlcXVpcmVkTW9kYWwiLCJvblJlc29sdmVkIiwiX3MiLCJjaGVja2luZyIsInNldENoZWNraW5nIiwiZXJyb3IiLCJzZXRFcnJvciIsIm9wZW5Eb3dubG9hZCIsImFwaSIsIndpbmRvdyIsImVsZWN0cm9uQVBJIiwib3BlbkV4dGVybmFsIiwib3BlbiIsInJlY2hlY2siLCJzdGF0dXMiLCJnaXRCYXNoIiwiZm91bmQiLCJlcnIiLCJtZXNzYWdlIiwiX2MiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiR2l0QmFzaFJlcXVpcmVkTW9kYWwudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBSZWFjdCwgeyB1c2VTdGF0ZSB9IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHsgZ2V0U3lzdGVtU3RhdHVzIH0gZnJvbSAnLi4vYXBpJztcclxuXHJcbmludGVyZmFjZSBQcm9wcyB7XHJcbiAgb25SZXNvbHZlZDogKCkgPT4gdm9pZDtcclxufVxyXG5cclxuY29uc3QgR0lUX0RPV05MT0FEX1VSTCA9ICdodHRwczovL2dpdC1zY20uY29tL2Rvd25sb2Fkcy93aW4nO1xyXG5cclxuY29uc3QgR2l0QmFzaFJlcXVpcmVkTW9kYWw6IFJlYWN0LkZDPFByb3BzPiA9ICh7IG9uUmVzb2x2ZWQgfSkgPT4ge1xyXG4gIGNvbnN0IFtjaGVja2luZywgc2V0Q2hlY2tpbmddID0gdXNlU3RhdGUoZmFsc2UpO1xyXG4gIGNvbnN0IFtlcnJvciwgc2V0RXJyb3JdID0gdXNlU3RhdGU8c3RyaW5nIHwgbnVsbD4obnVsbCk7XHJcblxyXG4gIGNvbnN0IG9wZW5Eb3dubG9hZCA9ICgpID0+IHtcclxuICAgIGNvbnN0IGFwaSA9ICh3aW5kb3cgYXMgYW55KS5lbGVjdHJvbkFQSTtcclxuICAgIGlmIChhcGk/Lm9wZW5FeHRlcm5hbCkge1xyXG4gICAgICBhcGkub3BlbkV4dGVybmFsKEdJVF9ET1dOTE9BRF9VUkwpO1xyXG4gICAgfSBlbHNlIHtcclxuICAgICAgd2luZG93Lm9wZW4oR0lUX0RPV05MT0FEX1VSTCwgJ19ibGFuaycpO1xyXG4gICAgfVxyXG4gIH07XHJcblxyXG4gIGNvbnN0IHJlY2hlY2sgPSBhc3luYyAoKSA9PiB7XHJcbiAgICBzZXRDaGVja2luZyh0cnVlKTtcclxuICAgIHNldEVycm9yKG51bGwpO1xyXG4gICAgdHJ5IHtcclxuICAgICAgY29uc3Qgc3RhdHVzID0gYXdhaXQgZ2V0U3lzdGVtU3RhdHVzKCk7XHJcbiAgICAgIGlmIChzdGF0dXMuZ2l0QmFzaC5mb3VuZCkge1xyXG4gICAgICAgIG9uUmVzb2x2ZWQoKTtcclxuICAgICAgfSBlbHNlIHtcclxuICAgICAgICBzZXRFcnJvcign5LuN5pyq5qOA5rWL5YiwIGdpdC1iYXNo44CC6K+356Gu6K6k5a6J6KOF5a6M5oiQ77yM5oiW6YeN5ZCv5bqU55So5ZCO5YaN6K+V44CCJyk7XHJcbiAgICAgIH1cclxuICAgIH0gY2F0Y2ggKGVycjogYW55KSB7XHJcbiAgICAgIHNldEVycm9yKGVycj8ubWVzc2FnZSB8fCAn5qOA5rWL5aSx6LSlJyk7XHJcbiAgICB9IGZpbmFsbHkge1xyXG4gICAgICBzZXRDaGVja2luZyhmYWxzZSk7XHJcbiAgICB9XHJcbiAgfTtcclxuXHJcbiAgcmV0dXJuIChcclxuICAgIDxkaXYgY2xhc3NOYW1lPVwiZml4ZWQgaW5zZXQtMCB6LVs5OTk5XSBmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciBiZy1ibGFjay82MCBiYWNrZHJvcC1ibHVyLXNtXCI+XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwibWF4LXctbWQgdy1mdWxsIG14LTQgcm91bmRlZC0yeGwgYmctY2xhdWRlLWJnIGJvcmRlciBib3JkZXItY2xhdWRlLWJvcmRlciBzaGFkb3ctMnhsIHAtN1wiPlxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1zdGFydCBnYXAtMyBtYi00XCI+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXgtc2hyaW5rLTAgdy0xMCBoLTEwIHJvdW5kZWQtZnVsbCBiZy1hbWJlci0xMDAgZGFyazpiZy1hbWJlci05MDAvMzAgZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXJcIj5cclxuICAgICAgICAgICAgPHN2ZyB3aWR0aD1cIjIwXCIgaGVpZ2h0PVwiMjBcIiB2aWV3Qm94PVwiMCAwIDI0IDI0XCIgZmlsbD1cIm5vbmVcIiBzdHJva2U9XCJjdXJyZW50Q29sb3JcIiBzdHJva2VXaWR0aD1cIjJcIiBzdHJva2VMaW5lY2FwPVwicm91bmRcIiBzdHJva2VMaW5lam9pbj1cInJvdW5kXCIgY2xhc3NOYW1lPVwidGV4dC1hbWJlci02MDAgZGFyazp0ZXh0LWFtYmVyLTQwMFwiPlxyXG4gICAgICAgICAgICAgIDxwYXRoIGQ9XCJNMTIgOXY0XCIgLz5cclxuICAgICAgICAgICAgICA8cGF0aCBkPVwiTTEyIDE3aC4wMVwiIC8+XHJcbiAgICAgICAgICAgICAgPHBhdGggZD1cIk0xMC4yOSAzLjg2IDEuODIgMThhMiAyIDAgMCAwIDEuNzEgM2gxNi45NGEyIDIgMCAwIDAgMS43MS0zTDEzLjcxIDMuODZhMiAyIDAgMCAwLTMuNDIgMFpcIiAvPlxyXG4gICAgICAgICAgICA8L3N2Zz5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LTFcIj5cclxuICAgICAgICAgICAgPGgyIGNsYXNzTmFtZT1cInRleHQtWzE3cHhdIGZvbnQtc2VtaWJvbGQgdGV4dC1jbGF1ZGUtdGV4dFwiPumcgOimgeWuieijhSBHaXQgZm9yIFdpbmRvd3M8L2gyPlxyXG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LVsxM3B4XSB0ZXh0LWNsYXVkZS10ZXh0U2Vjb25kYXJ5IG10LTFcIj5DbGF1ZGUgRGVza3RvcCDlnKggV2luZG93cyDkuIrpnIDopoEgZ2l0LWJhc2gg5omN6IO96L+Q6KGM5YaF572u5bel5YW344CCPC9wPlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwicm91bmRlZC1sZyBiZy1jbGF1ZGUtaG92ZXIvNTAgcC0zLjUgbWItNFwiPlxyXG4gICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTIuNXB4XSB0ZXh0LWNsYXVkZS10ZXh0IGxlYWRpbmctcmVsYXhlZFwiPlxyXG4gICAgICAgICAgICDngrnlh7vkuIvmlrnmjInpkq7kuIvovb3lubblronoo4UgPHNwYW4gY2xhc3NOYW1lPVwiZm9udC1tZWRpdW1cIj5HaXQgZm9yIFdpbmRvd3M8L3NwYW4+44CC5a6J6KOF5pe25L2/55So6buY6K6k6YCJ6aG55Y2z5Y+v77yM5a6J6KOF5a6M5oiQ5ZCO5Zue5Yiw5q2k5aSE54K55Ye7XCLph43mlrDmo4DmtYtcIuOAglxyXG4gICAgICAgICAgPC9wPlxyXG4gICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICB7ZXJyb3IgJiYgKFxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJyb3VuZGVkLWxnIGJnLXJlZC01MCBkYXJrOmJnLXJlZC05MDAvMjAgYm9yZGVyIGJvcmRlci1yZWQtMjAwIGRhcms6Ym9yZGVyLXJlZC04MDAgcC0zIG1iLTRcIj5cclxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTIuNXB4XSB0ZXh0LXJlZC03MDAgZGFyazp0ZXh0LXJlZC0zMDBcIj57ZXJyb3J9PC9wPlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgKX1cclxuXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGZsZXgtY29sIGdhcC0yXCI+XHJcbiAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgIG9uQ2xpY2s9e29wZW5Eb3dubG9hZH1cclxuICAgICAgICAgICAgY2xhc3NOYW1lPVwidy1mdWxsIHB4LTQgcHktMi41IHJvdW5kZWQtbGcgYmctY2xhdWRlLXRleHQgdGV4dC1jbGF1ZGUtYmcgdGV4dC1bMTRweF0gZm9udC1tZWRpdW0gaG92ZXI6b3BhY2l0eS05MCB0cmFuc2l0aW9uLW9wYWNpdHlcIlxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICDkuIvovb0gR2l0IGZvciBXaW5kb3dzXHJcbiAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgb25DbGljaz17cmVjaGVja31cclxuICAgICAgICAgICAgZGlzYWJsZWQ9e2NoZWNraW5nfVxyXG4gICAgICAgICAgICBjbGFzc05hbWU9XCJ3LWZ1bGwgcHgtNCBweS0yLjUgcm91bmRlZC1sZyBib3JkZXIgYm9yZGVyLWNsYXVkZS1ib3JkZXIgdGV4dC1jbGF1ZGUtdGV4dCB0ZXh0LVsxNHB4XSBmb250LW1lZGl1bSBob3ZlcjpiZy1jbGF1ZGUtaG92ZXIgdHJhbnNpdGlvbi1jb2xvcnMgZGlzYWJsZWQ6b3BhY2l0eS01MCBkaXNhYmxlZDpjdXJzb3Itbm90LWFsbG93ZWRcIlxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICB7Y2hlY2tpbmcgPyAn5qOA5rWL5LitLi4uJyA6ICfmiJHlt7Llronoo4XvvIzph43mlrDmo4DmtYsnfVxyXG4gICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtWzExcHhdIHRleHQtY2xhdWRlLXRleHRTZWNvbmRhcnkgdGV4dC1jZW50ZXIgbXQtNFwiPlxyXG4gICAgICAgICAg5bey5a6J6KOF5L2G5pyq55Sf5pWI77yf6K+35bCd6K+V5YWz6Zet5bm26YeN5paw5omT5byAIENsYXVkZSBEZXNrdG9w44CCXHJcbiAgICAgICAgPC9wPlxyXG4gICAgICA8L2Rpdj5cclxuICAgIDwvZGl2PlxyXG4gICk7XHJcbn07XHJcblxyXG5leHBvcnQgZGVmYXVsdCBHaXRCYXNoUmVxdWlyZWRNb2RhbDtcclxuIl0sImZpbGUiOiJEOi93b3JrL3B5L2NsYXVkZS9jbGF1ZGUtZGVza3RvcC9zcmMvY29tcG9uZW50cy9HaXRCYXNoUmVxdWlyZWRNb2RhbC50c3gifQ==

@@ -740,19 +740,19 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
           }}
             className="flex items-center gap-2 text-claude-text font-medium hover:text-claude-text/80 transition-colors">
             <ArrowLeft size={20} />
-            <span className="text-lg font-semibold">Customize</span>
+            <span className="text-lg font-semibold">自定义</span>
           </button>
         </div>
         <nav className="flex-1 px-2 space-y-1">
           <button onClick={() => setTab('skills')}
             className={`w-full flex items-center gap-3 px-3 py-2 text-[15px] font-medium rounded-lg transition-colors ${tab === 'skills' ? 'bg-claude-hover text-claude-text' : 'text-claude-text hover:bg-claude-hover'}`}>
             <img src={skillsImg} alt="" className="w-[22px] h-[22px] dark:invert" />
-            Skills
+            技能
           </button>
           <button onClick={() => setTab('connectors')}
             className={`w-full flex items-center gap-3 px-3 py-2 text-[15px] font-medium rounded-lg transition-colors ${tab === 'connectors' ? 'bg-claude-hover text-claude-text' : 'text-claude-text hover:bg-claude-hover'}`}>
             <img src={connectorsImg} alt="" className="w-[22px] h-[22px] dark:invert" />
-            Connectors
+            连接器
           </button>
         </nav>
       </div>
@@ -762,7 +762,7 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
         <div className="w-[300px] border-r border-claude-border flex flex-col flex-shrink-0 bg-claude-bg">
           {/* Header */}
           <div className="h-14 px-4 flex items-center justify-between border-b border-claude-border">
-            <span className="font-semibold text-claude-text">Skills</span>
+            <span className="font-semibold text-claude-text">技能</span>
             <div className="flex items-center gap-2 relative">
               <button
                 onClick={() => setShowSearchInput(!showSearchInput)}
@@ -783,15 +783,15 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
                     <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-[#202020] rounded-[16px] shadow-[0_4px_24px_rgba(0,0,0,0.15)] border border-claude-border py-2 z-50">
                       <button className="w-full flex items-center gap-3.5 px-4 py-3 text-[14.5px] font-medium text-claude-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left" onClick={() => { setShowPlusMenu(false); onCreateWithClaude?.(); }}>
                         <MessageSquare size={18} className="text-claude-textSecondary" />
-                        Create with Claude
+                        用 Claude 创建
                       </button>
                       <button className="w-full flex items-center gap-3.5 px-4 py-3 text-[14.5px] font-medium text-claude-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left" onClick={() => { setShowPlusMenu(false); startCreate(); }}>
                         <ClipboardList size={18} className="text-claude-textSecondary" />
-                        Write skill instructions
+                        编写技能说明
                       </button>
                       <button className="w-full flex items-center gap-3.5 px-4 py-3 text-[14.5px] font-medium text-claude-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left" onClick={() => { setShowPlusMenu(false); setShowUploadModal(true); }}>
                         <Upload size={18} className="text-claude-textSecondary" />
-                        Upload a skill
+                        上传技能
                       </button>
                     </div>
                   </>
@@ -807,7 +807,7 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
                 autoFocus
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Filter skills..."
+                placeholder="筛选技能..."
                 className="w-full px-2 py-1.5 bg-claude-input rounded-md text-sm outline-none border border-transparent focus:border-blue-500"
               />
             </div>
@@ -823,7 +823,7 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
                   className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-claude-textSecondary hover:text-claude-text uppercase tracking-wider"
                 >
                   <ChevronDown size={14} className={`transition-transform ${expandedSections.has('examples') ? '' : '-rotate-90'}`} />
-                  Examples
+                  示例
                 </button>
 
                 {expandedSections.has('examples') && (
@@ -856,7 +856,7 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
                   className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-claude-textSecondary hover:text-claude-text uppercase tracking-wider"
                 >
                   <ChevronDown size={14} className={`transition-transform ${expandedSections.has('myskills') ? '' : '-rotate-90'}`} />
-                  My Skills
+                  我的技能
                 </button>
 
                 {expandedSections.has('myskills') && (
@@ -887,7 +887,7 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
 
             {!filteredExamples.length && !filteredMy.length && (
               <div className="p-4 text-center text-sm text-claude-textSecondary">
-                No skills found
+                没有找到技能
               </div>
             )}
           </div>
@@ -907,13 +907,13 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
           <div className="flex h-full flex-col items-center overflow-y-auto bg-claude-bg">
             <div className="mx-auto flex w-full max-w-[560px] flex-col items-center px-6 pb-24 pt-[14vh] lg:pt-[220px]">
               <div className="mb-4 flex h-[96px] w-[96px] items-center justify-center">
-                <img src={customizeMainImg} alt="Customize" className="w-[96px] h-auto dark:invert opacity-90" />
+                <img src={customizeMainImg} alt="自定义" className="w-[96px] h-auto dark:invert opacity-90" />
               </div>
 
               <div className="mb-10 text-center">
-                <h2 className="font-serif text-[29px] font-medium leading-[1.15] text-claude-text">Customize Claude</h2>
+                <h2 className="font-serif text-[29px] font-medium leading-[1.15] text-claude-text">自定义 Claude</h2>
                 <p className="mt-2 text-[14px] leading-5 text-claude-textSecondary">
-                  Skills, connectors, and plugins shape how Claude works with you.
+                  通过技能、连接器和插件，定义 Claude 与你协作的方式。
                 </p>
               </div>
 
@@ -924,12 +924,12 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-claude-hover">
-                      <img src={connectorsImg} className="h-5 w-5 dark:invert opacity-80" alt="Connectors" />
+                      <img src={connectorsImg} className="h-5 w-5 dark:invert opacity-80" alt="连接器" />
                     </div>
                     <div>
-                      <div className="text-[15px] font-medium text-claude-text">Connect your apps</div>
+                      <div className="text-[15px] font-medium text-claude-text">连接你的应用</div>
                       <div className="mt-0.5 text-[13.5px] leading-5 text-claude-textSecondary">
-                        Let Claude read and write to the tools you already use.
+                        让 Claude 读取并操作你已经在使用的工具。
                       </div>
                     </div>
                   </div>
@@ -944,12 +944,12 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-claude-hover">
-                      <img src={createSkillsImg} className="h-5 w-5 dark:invert opacity-80" alt="Skills" />
+                      <img src={createSkillsImg} className="h-5 w-5 dark:invert opacity-80" alt="技能" />
                     </div>
                     <div>
-                      <div className="text-[15px] font-medium text-claude-text">Create new skills</div>
+                      <div className="text-[15px] font-medium text-claude-text">创建新技能</div>
                       <div className="mt-0.5 text-[13.5px] leading-5 text-claude-textSecondary">
-                        Teach Claude your processes, team norms, and expertise.
+                        把你的流程、团队规范和专业知识教给 Claude。
                       </div>
                     </div>
                   </div>
@@ -979,40 +979,40 @@ const CustomizePage = ({ onCreateWithClaude }: { onCreateWithClaude?: () => void
         ) : creating ? (
           // Create Form
           <div className="max-w-3xl mx-auto w-full p-8 space-y-6 overflow-y-auto">
-            <h2 className="text-2xl font-semibold text-claude-text">Create new skill</h2>
+            <h2 className="text-2xl font-semibold text-claude-text">创建新技能</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-claude-textSecondary mb-1.5">Name</label>
+                <label className="block text-sm font-medium text-claude-textSecondary mb-1.5">名称</label>
                 <input
                   value={editName} onChange={e => setEditName(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-claude-border bg-transparent text-claude-text outline-none focus:border-blue-500 transition-colors"
-                  placeholder="e.g. code-reviewer"
+                  placeholder="例如：code-reviewer"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-claude-textSecondary mb-1.5">Description</label>
+                <label className="block text-sm font-medium text-claude-textSecondary mb-1.5">描述</label>
                 <input
                   value={editDesc} onChange={e => setEditDesc(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-claude-border bg-transparent text-claude-text outline-none focus:border-blue-500 transition-colors"
-                  placeholder="Brief description of what this skill does"
+                  placeholder="简要描述这个技能的用途"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-claude-textSecondary mb-1.5">Content</label>
+                <label className="block text-sm font-medium text-claude-textSecondary mb-1.5">内容</label>
                 <textarea
                   value={editContent} onChange={e => setEditContent(e.target.value)} rows={15}
                   className="w-full px-3 py-2 rounded-lg border border-claude-border bg-transparent text-claude-text font-mono text-sm outline-none focus:border-blue-500 transition-colors resize-y"
-                  placeholder="# Skill Title\n\nInstructions for Claude..."
+                  placeholder="# Skill Title\n\n在这里写给 Claude 的说明..."
                 />
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={handleCreate} disabled={saving || !editName.trim()}
                   className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {saving ? 'Creating...' : 'Create Skill'}
+                  {saving ? '创建中...' : '创建技能'}
                 </button>
                 <button onClick={() => setCreating(false)}
                   className="px-4 py-2 rounded-lg border border-claude-border text-claude-text hover:bg-claude-hover transition-colors">
-                  Cancel
+                  取消
                 </button>
               </div>
             </div>

@@ -13,7 +13,7 @@ const WORK_OPTIONS = [
   '法律', '医疗健康', '其他',
 ];
 
-type Tab = 'general' | 'account' | 'usage';
+type Tab = 'general' | 'models' | 'account' | 'usage';
 
 const SettingsPage = ({ onClose }: SettingsPageProps) => {
   const [tab, setTab] = useState<Tab>('general');
@@ -198,7 +198,16 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
 
   // Font selector options
   return (
-    <div className="flex-1 flex h-full overflow-hidden bg-claude-bg text-claude-text">
+    <div className="relative flex-1 flex h-full overflow-hidden bg-claude-bg text-claude-text">
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close settings"
+        className="absolute right-8 top-6 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-claude-border bg-claude-bg text-claude-textSecondary transition-colors hover:bg-claude-hover hover:text-claude-text"
+      >
+        <X size={18} />
+      </button>
+
       {/* Left Sidebar Navigation */}
       <div className="w-[200px] flex-shrink-0 pt-16 pl-8 flex flex-col gap-1">
         <h2
@@ -218,7 +227,7 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
         >
           General
         </button>
-        {localStorage.getItem('user_mode') === 'selfhosted' && (
+        {isSelfHosted && (
           <button
             onClick={() => setTab('models')}
             className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${tab === 'models' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'
@@ -227,7 +236,7 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
             Models
           </button>
         )}
-        {localStorage.getItem('user_mode') !== 'selfhosted' && (
+        {!isSelfHosted && (
           <button
             onClick={() => setTab('account')}
             className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${tab === 'account' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'
@@ -236,7 +245,7 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
             Account
           </button>
         )}
-        {localStorage.getItem('user_mode') !== 'selfhosted' && (
+        {!isSelfHosted && (
           <button
             onClick={() => setTab('usage')}
             className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${tab === 'usage' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'

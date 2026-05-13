@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 async function loadModule() {
-  return import('./toolThinkingFallback.js');
+  return import('./toolThinkingFallback.ts');
 }
 
 test('buildToolFallbackThinking summarizes visible tool calls into thought-chain text', async () => {

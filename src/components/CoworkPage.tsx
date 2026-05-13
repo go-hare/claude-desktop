@@ -9,10 +9,11 @@ import {
   Folder,
   PanelRight,
   Plus,
+  Shuffle,
   Square,
-  TriangleAlert,
 } from 'lucide-react';
 import starSparkleImg from '../assets/figma-exports/cowork-icons/star-sparkle.png';
+import { COWORK_NAV } from '../data/coworkSpec';
 import { COWORK_SUGGESTIONS } from '../data/coworkSuggestions';
 
 const DEFAULT_TASK_PROMPT = COWORK_SUGGESTIONS[0].prompt;
@@ -60,7 +61,7 @@ const CoworkPage: React.FC = () => {
       <div className="cowork-run-page flex-1 h-full overflow-hidden">
         <header className="cowork-run-header">
           <button type="button" className="cowork-run-title">
-            新任务
+            {COWORK_NAV.newTask}
             <ChevronDown size={18} strokeWidth={1.8} />
           </button>
           <button type="button" className="cowork-run-panel-toggle" aria-label="Toggle task panel">
@@ -136,7 +137,7 @@ const CoworkPage: React.FC = () => {
               </button>
               <div className="cowork-run-composer-right">
                 <button type="button" className="cowork-run-model">
-                  Legacy Model
+                  gpt-5.2
                   <ChevronDown size={16} strokeWidth={1.6} />
                 </button>
                 <button type="button" className="cowork-run-stop" aria-label="Stop task">
@@ -168,10 +169,10 @@ const CoworkPage: React.FC = () => {
               width={28}
               height={28}
             />
-            <h1 className="cowork-task-title">来把待办清掉吧</h1>
+            <h1 className="cowork-task-title">先把清单上的一件事做完</h1>
           </div>
           <button type="button" className="cowork-task-subtitle">
-            了解如何安全使用协作.
+            了解如何安全使用 Cowork。
           </button>
         </section>
 
@@ -182,7 +183,7 @@ const CoworkPage: React.FC = () => {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="今天我可以帮你做什么?"
+              placeholder="今天我能为你提供什么帮助吗?"
               rows={1}
               className="cowork-task-textarea"
             />
@@ -211,35 +212,20 @@ const CoworkPage: React.FC = () => {
           <div className="cowork-task-composer-footer">
             <div className="cowork-task-project-pill">
               <Folder size={20} strokeWidth={1.8} />
-              <span>在项目中工作</span>
+              <span>项目工作区</span>
             </div>
             <button type="button" className="cowork-task-model-pill">
-              Legacy Model
+              gpt-5.2
+              <ChevronDown size={14} strokeWidth={1.7} />
             </button>
-          </div>
-        </section>
-
-        <section className="cowork-task-running">
-          <div className="cowork-task-running-header">
-            <span>进行中</span>
-            <button type="button" className="cowork-task-clear">
-              清除进行中
-            </button>
-          </div>
-
-          <div className="cowork-task-current">
-            <div className="cowork-task-current-meta">
-              <TriangleAlert size={16} strokeWidth={1.9} color="#c98017" />
-              <div className="cowork-task-current-copy">
-                <div className="cowork-task-current-title">Local task</div>
-                <div className="cowork-task-current-time">22小时前</div>
-              </div>
-            </div>
           </div>
         </section>
 
         <section className="cowork-task-suggestions">
-          <div className="cowork-task-suggestions-label">Tidy up and get organized</div>
+          <div className="cowork-task-suggestions-label">
+            <Shuffle size={14} strokeWidth={1.6} />
+            <span>选择一个任务，任何任务</span>
+          </div>
           <div className="cowork-task-suggestion-list">
             {COWORK_SUGGESTIONS.map((item) => (
               <button
