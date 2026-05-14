@@ -17,6 +17,7 @@ try {
 } catch (_) {}
 
 const { initServer, enableNodeModeForChildProcesses } = require('./bridge-server.cjs');
+const { getGlobalConfigFilePath } = require('./connector-mcp-config.cjs');
 
 // Fix Chinese garbled text in Windows console by switching to UTF-8 code page
 if (process.platform === 'win32') {
@@ -260,6 +261,16 @@ ipcMain.handle('install-update', () => {
     }
 });
 ipcMain.handle('open-external', (_, url) => { const { shell } = require('electron'); shell.openExternal(url); });
+ipcMain.handle('reveal-config', () => {
+    const configPath = getGlobalConfigFilePath();
+    const parentDir = path.dirname(configPath);
+    fs.mkdirSync(parentDir, { recursive: true });
+    if (!fs.existsSync(configPath)) {
+        fs.writeFileSync(configPath, JSON.stringify({ mcpServers: {} }, null, 2) + '\n', 'utf8');
+    }
+    shell.showItemInFolder(configPath);
+    return { success: true, path: configPath };
+});
 ipcMain.handle('resize-window', (_, width, height) => {
     if (mainWindow) {
         mainWindow.setSize(width, height);

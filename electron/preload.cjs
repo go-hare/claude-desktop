@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // File explorer: open folder containing a file, or open a folder directly
     showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
     openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
+    revealConfig: () => ipcRenderer.invoke('reveal-config'),
 
     // Window resize
     resizeWindow: (width, height) => ipcRenderer.invoke('resize-window', width, height),
