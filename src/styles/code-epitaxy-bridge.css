@@ -1,0 +1,48 @@
+.epitaxy-root .epitaxy-code-page {
+  background: var(--surface-primary);
+  color: var(--text-assistant-primary);
+  font-family: var(--family-ui);
+}
+
+.epitaxy-root .epitaxy-code-clawd {
+  image-rendering: pixelated;
+}
+
+.epitaxy-root .epitaxy-code-clawd canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.epitaxy-root .epitaxy-code-textarea {
+  min-height: var(--h8);
+  max-height: 218px;
+  width: 100%;
+  resize: none;
+  overflow-y: auto;
+  border: 0;
+  background: transparent;
+  color: var(--t9);
+  font-family: var(--family-ui);
+  font-size: var(--text-heading);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-heading);
+  outline: none;
+  padding: 13px var(--p3) 13px var(--p7);
+}
+
+.epitaxy-root .epitaxy-code-textarea::placeholder {
+  color: var(--t5);
+}
+
+.epitaxy-root .epitaxy-code-session pre {
+  background: var(--t1);
+  border-radius: var(--r6);
+  overflow-x: auto;
+  padding: var(--p7);
+}
+
+.epitaxy-root .epitaxy-code-session code {
+  font-family: var(--family-monospace);
+  font-size: var(--text-code);
+}

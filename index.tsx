@@ -1,4 +1,7 @@
 import './src/index.css';
+import './src/styles/official-epitaxy-fonts.css';
+import './src/styles/official-epitaxy.css';
+import './src/styles/code-epitaxy-bridge.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './src/App';

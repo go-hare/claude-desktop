@@ -27,6 +27,7 @@ import ProjectsPage from './components/ProjectsPage';
 import CoworkPage from './components/CoworkPage';
 import ScheduledPage from './components/ScheduledPage';
 import CodePage from './components/CodePage';
+import CodeSessionPage from './components/CodeSessionPage';
 
 const Tooltip = ({ children, text, shortcut }: { children: React.ReactNode; text: string; shortcut?: string }) => {
   const [show, setShow] = useState(false);
@@ -731,6 +732,8 @@ const Layout = () => {
                 }} />
               ) : location.pathname === '/code' || location.pathname === '/code/' ? (
                 <CodePage />
+              ) : location.pathname.startsWith('/code/') ? (
+                <CodeSessionPage onConversationUpdated={refreshSidebar} />
               ) : (
                 <MainContent
                   onNewChat={refreshSidebar}
@@ -847,6 +850,7 @@ const App = () => {
         <Route path="/cowork/scheduled" element={<Layout />} />
         <Route path="/scheduled" element={<Layout />} />
         <Route path="/code" element={<Layout />} />
+        <Route path="/code/:id" element={<Layout />} />
         <Route path="/code/scheduled" element={<Layout />} />
         <Route path="/code/customize" element={<Layout />} />
         <Route path="/chat/:id" element={<Navigate to="/task/new" replace />} />

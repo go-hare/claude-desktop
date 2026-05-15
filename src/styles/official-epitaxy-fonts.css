@@ -1,0 +1,93 @@
+@font-face {
+  font-family: "Anthropic Sans";
+  src: url("/assets/v1/cc27851ad-CFxw3nG7.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 300 800;
+}
+
+@font-face {
+  font-family: "Anthropic Sans";
+  src: url("/assets/v1/c9d3a3a49-BI1hrwN4.woff2") format("woff2");
+  font-display: swap;
+  font-style: italic;
+  font-weight: 300 800;
+}
+
+@font-face {
+  font-family: "Anthropic Serif";
+  src: url("/assets/v1/c66fc489e-C-BHYa_K.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 300 800;
+}
+
+@font-face {
+  font-family: "Anthropic Serif";
+  src: url("/assets/v1/cc410af59-DH94ugQz.woff2") format("woff2");
+  font-display: swap;
+  font-style: italic;
+  font-weight: 300 800;
+}
+
+@font-face {
+  font-family: "Anthropic Mono";
+  src: url("/assets/v1/c5dbe0935-B88FVziN.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Anthropic Mono";
+  src: url("/assets/v1/c2f08283e-DHGc3er-.woff2") format("woff2");
+  font-display: swap;
+  font-style: italic;
+  font-weight: 400;
+}
+
+:root {
+  --_brand-clay: 14.8 63.1% 59.6%;
+  --_gray-0: 0 0% 100%;
+  --_gray-10: 60 14% 99%;
+  --_gray-20: 60 14% 97%;
+  --_gray-30: 60 10% 96%;
+  --_gray-40: 60 11% 95%;
+  --_gray-50: 45 12% 93%;
+  --_gray-60: 48 12% 92%;
+  --_gray-70: 50 12% 91%;
+  --_gray-80: 50 11% 89%;
+  --_gray-90: 51 11% 88%;
+  --_gray-100: 53 12% 87%;
+  --_gray-150: 55 11% 80%;
+  --_gray-200: 55 9% 74%;
+  --_gray-250: 55 7% 68%;
+  --_gray-300: 55 6% 63%;
+  --_gray-350: 48 5% 57%;
+  --_gray-400: 45 3% 52%;
+  --_gray-450: 43 3% 47%;
+  --_gray-500: 40 3% 42%;
+  --_gray-550: 48 3% 36%;
+  --_gray-600: 45 3% 31%;
+  --_gray-650: 40 2% 26%;
+  --_gray-700: 60 3% 21%;
+  --_gray-750: 60 2% 17%;
+  --_gray-800: 60 2% 12%;
+  --_gray-810: 60 2% 12%;
+  --_gray-820: 60 2% 11%;
+  --_gray-830: 60 2% 10%;
+  --_gray-840: 60 2% 9%;
+  --_gray-850: 0 0% 8%;
+  --_gray-860: 0 0% 7%;
+  --_gray-870: 0 0% 7%;
+  --_gray-880: 0 0% 6%;
+  --_gray-890: 0 0% 5%;
+  --_gray-900: 0 0% 4%;
+  --font-anthropic-sans: "Anthropic Sans", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-anthropic-serif: "Anthropic Serif", Georgia, "Times New Roman", "PingFang SC", "Microsoft YaHei", serif;
+  --font-anthropic-mono: "Anthropic Mono", ui-monospace, monospace;
+  --font-ui: var(--font-anthropic-sans);
+  --font-mono: var(--font-anthropic-mono);
+  --font-ui-serif: var(--font-anthropic-serif);
+  --font-claude-response: var(--font-anthropic-serif);
+}

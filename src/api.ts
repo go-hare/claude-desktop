@@ -504,13 +504,16 @@ export async function getArtifactContent(filePath: string) {
   return res.json();
 }
 
-export async function createConversation(title?: string, model?: string, extras?: { research_mode?: boolean }) {
+export async function createConversation(title?: string, model?: string, extras?: { research_mode?: boolean; code_cwd?: string | null }) {
   const body: any = { model };
   if (title !== undefined) {
     body.title = title;
   }
   if (extras?.research_mode !== undefined) {
     body.research_mode = extras.research_mode;
+  }
+  if (extras?.code_cwd !== undefined) {
+    body.code_cwd = extras.code_cwd;
   }
   const res = await request('/conversations', {
     method: 'POST',
@@ -1608,5 +1611,10 @@ export async function getCodeQuota() {
 
 export async function getCodePlans() {
   const res = await request('/code/plans');
+  return res.json();
+}
+
+export async function getCodeStats(range: 'all' | '30d' | '7d' = 'all') {
+  const res = await request(`/code/stats?range=${encodeURIComponent(range)}`);
   return res.json();
 }

@@ -39,6 +39,18 @@ const {
     getResolvedComposioApiKey,
 } = require('./connector-composio-config.cjs');
 
+function resolveDirectoryIfExists(value) {
+    if (!value || typeof value !== 'string') return null;
+    const resolved = path.resolve(value);
+    try {
+        return fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()
+            ? resolved
+            : null;
+    } catch (_) {
+        return null;
+    }
+}
+
 // Heuristic: when research_mode is enabled, decide whether THIS message
 // should actually trigger the research pipeline. Greetings, very short
 // questions, and slash commands do not. Real research questions do.
@@ -1625,6 +1637,7 @@ function initServer(mainWindow) {
         const id = uuidv4();
         const { title = 'New Conversation', model = 'claude-sonnet-4-6', project_id, research_mode = false } = req.body;
         const workspacePath = path.join(workspacesDir, id);
+        const codeCwd = resolveDirectoryIfExists(req.body && req.body.code_cwd);
 
         if (!fs.existsSync(workspacePath)) {
             fs.mkdirSync(workspacePath, { recursive: true });
@@ -1643,15 +1656,17 @@ function initServer(mainWindow) {
             }
         }
 
+        const now = new Date().toISOString();
         const newConv = {
-            id, title, model, workspace_path: workspacePath, created_at: new Date().toISOString(),
+            id, title, model, workspace_path: workspacePath, created_at: now, updated_at: now,
             research_mode: !!research_mode,
+            ...(codeCwd ? { code_cwd: codeCwd } : {}),
             ...(project_id ? { project_id } : {}),
         };
         db.conversations.push(newConv);
         saveDb();
 
-        res.json({ id, title, model, workspace_path: workspacePath, research_mode: !!research_mode });
+        res.json({ id, title, model, workspace_path: workspacePath, code_cwd: codeCwd, research_mode: !!research_mode, created_at: now, updated_at: now });
     });
 
     server.get('/api/conversations/:id', (req, res) => {
@@ -1736,6 +1751,12 @@ function initServer(mainWindow) {
         }
         if ('research_mode' in req.body) {
             conv.research_mode = !!req.body.research_mode;
+        }
+        if ('code_cwd' in req.body) {
+            const codeCwd = resolveDirectoryIfExists(req.body.code_cwd);
+            if (req.body.code_cwd && !codeCwd) return res.status(400).json({ error: 'code_cwd does not exist or is not a directory' });
+            if (codeCwd) conv.code_cwd = codeCwd;
+            else delete conv.code_cwd;
         }
 
         saveDb();
@@ -2000,7 +2021,7 @@ function initServer(mainWindow) {
             console.log('[Compact] Spawning engine /compact, session=' + conv.claude_session_id + ' model=' + modelId);
 
             const child = spawn(bunExePath, cliArgs, {
-                cwd: conv.workspace_path, env: envVars,
+                cwd: conv.code_cwd || conv.workspace_path, env: envVars,
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
             child.stdin.end();
@@ -2181,6 +2202,17 @@ function initServer(mainWindow) {
                 path: gitBashPath || null,
             },
         });
+    });
+    server.get('/api/code/stats', async (req, res) => {
+        try {
+            const range = String(req.query.range || 'all').trim();
+            const normalizedRange = (range === '7d' || range === '30d') ? range : 'all';
+            const stats = await runCodeStats(normalizedRange);
+            res.json(stats);
+        } catch (error) {
+            console.error('[CodeStats] Failed:', error.message);
+            res.status(500).json({ error: error.message || 'Failed to load code stats' });
+        }
     });
     server.get('/api/providers', (req, res) => {
         res.json(providers);
@@ -3550,6 +3582,46 @@ You have the following skills available. When a user's request matches a skill's
     console.log('[Engine] Env:', engineEnv, 'exists:', fs.existsSync(engineEnv));
     console.log('[Engine] Preload:', hasEnginePreload ? enginePreload : 'none');
     console.log('[Engine] Bun:', bunExePath, 'exists:', fs.existsSync(bunExePath));
+    const statsHelperPath = path.join(engineDir, 'stats-helper.ts');
+
+    function runCodeStats(range = 'all') {
+        return new Promise((resolve, reject) => {
+            if (!fs.existsSync(statsHelperPath)) {
+                reject(new Error('stats-helper.ts not found'));
+                return;
+            }
+            const cliArgs = [];
+            if (fs.existsSync(engineEnv)) cliArgs.push('--env-file=' + engineEnv);
+            cliArgs.push(statsHelperPath, range);
+            const child = spawn(bunExePath, cliArgs, {
+                cwd: engineDir,
+                env: Object.assign({}, process.env),
+                stdio: ['ignore', 'pipe', 'pipe'],
+            });
+            let stdout = '';
+            let stderr = '';
+            child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+            child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+            child.on('error', reject);
+            child.on('close', (code) => {
+                if (code !== 0) {
+                    reject(new Error(stderr.trim() || stdout.trim() || `stats helper exited with ${code}`));
+                    return;
+                }
+                try {
+                    const line = stdout.trim().split(/\r?\n/).filter(Boolean).pop();
+                    const parsed = JSON.parse(line || '{}');
+                    if (!parsed.ok) {
+                        reject(new Error(parsed.error || 'stats helper returned failure'));
+                        return;
+                    }
+                    resolve(parsed.stats);
+                } catch (error) {
+                    reject(new Error(`Failed to parse stats helper output: ${error.message}`));
+                }
+            });
+        });
+    }
 
     // Detect git-bash on Windows (Claude Code SDK requires it).
     // Returns a path to bash.exe, or null if not found.
@@ -4076,7 +4148,8 @@ You have the following skills available. When a user's request matches a skill's
         } else { if (apiKey) envVars.ANTHROPIC_API_KEY = apiKey; envVars.ANTHROPIC_BASE_URL = normalizeBaseUrl(baseUrl || engineEnvVars.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'); }
         console.log('[EnginePool] Spawning persistent engine, conv=' + convId + ' model=' + modelId + ' thinking=' + thinkingEnabled + ' session=' + (conv.claude_session_id || 'new'));
         const { spawn } = require('child_process');
-        const child = spawn(bunExePath, cliArgs, { cwd: conv.workspace_path, env: envVars, stdio: ['pipe', 'pipe', 'pipe'] });
+        const engineCwd = conv.code_cwd || conv.workspace_path;
+        const child = spawn(bunExePath, cliArgs, { cwd: engineCwd, env: envVars, stdio: ['pipe', 'pipe', 'pipe'] });
         let resolveReady;
         const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
         const engine = { child, convId, modelId, thinkingEnabled, apiKey, baseUrl, apiFormat, lastUsed: Date.now(), sessionId: conv.claude_session_id, state: 'idle', buf: '', turn: null, needsRestart: false, ready: false, readyPromise, resolveReady };
@@ -4325,6 +4398,7 @@ You have the following skills available. When a user's request matches a skill's
                 engineUuidSynced: true,
                 attachments: attachments && attachments.length > 0 ? attachments.map(a => ({ fileId: a.fileId, fileName: a.fileName, fileType: a.fileType, mimeType: a.mimeType, size: a.size, source: a.source, gh_repo: a.ghRepo, gh_ref: a.ghRef })) : undefined
             });
+            conv.updated_at = new Date().toISOString();
             saveDb();
 
             // 鈹€鈹€ 2.5. Research mode routing 鈹€鈹€

@@ -728,6 +728,7 @@ interface MainContentProps {
   onOpenArtifacts?: () => void;
   onTitleChange?: (title: string) => void;
   onChatModeChange?: (isChat: boolean) => void;
+  routeBase?: '/chat' | '/code';
 }
 
 // 草稿存储：在切换对话、打开设置页面时保留输入内容和附件
@@ -1354,7 +1355,7 @@ const MessageList = React.memo<MessageListProps>(({
   );
 });
 
-const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtifactsUpdate, onOpenArtifacts, onTitleChange, onChatModeChange }: MainContentProps) => {
+const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtifactsUpdate, onOpenArtifacts, onTitleChange, onChatModeChange, routeBase = '/chat' }: MainContentProps) => {
   const { id } = useParams(); // Get conversation ID from URL
   const location = useLocation();
   const [localId, setLocalId] = useState<string | null>(null);
@@ -2695,7 +2696,7 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
 
         // Use React Router navigate so useParams stays in sync with the URL
         // isCreatingRef prevents the activeId effect from reloading during streaming
-        navigate(`/chat/${conversationId}`, { replace: true });
+        navigate(`${routeBase}/${conversationId}`, { replace: true });
         if (newConv.model) {
           setCurrentModelString(newConv.model);
         }
@@ -3694,7 +3695,7 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
       const text = inputTextRef.current || '';
       const height = textareaHeightRef.current || inputBarBaseHeight;
       draftsStore.set(convId, { text, files: [githubCard], height });
-      navigate(`/chat/${convId}`, { replace: true });
+      navigate(`${routeBase}/${convId}`, { replace: true });
     } else {
       setPendingFiles(prev => [...prev, githubCard]);
     }
