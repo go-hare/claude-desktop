@@ -48,3 +48,6 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Reverse-engineering scratch (unpacked official app.asar — never commit)
+.tmp/
