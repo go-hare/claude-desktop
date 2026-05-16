@@ -1,15 +1,18 @@
 import type { CSSProperties, ReactNode, RefObject } from 'react';
-import { ChevronDown, Clock3, Plus, SlidersVertical } from 'lucide-react';
+import { ChevronDown, Circle, Clock3, Plus, SlidersVertical } from 'lucide-react';
 import claudeImg from '../assets/icons/claude.png';
 import sidebarModeCoworkIcon from '../assets/figma-exports/sidebar-icons/cowork-icon.svg';
 import sidebarModeCodeIcon from '../assets/figma-exports/sidebar-icons/code-icon.svg';
 import figmaCustomizeIcon from '../assets/figma-exports/sidebar-icons/customize-icon.svg';
+import { COWORK_TOP_MODES } from '../data/coworkSpec';
+import PillNav from './PillNav';
 
 type ChatItem = {
   id: string;
   title?: string;
   updated_at?: string;
   created_at?: string;
+  code_cwd?: string | null;
 };
 
 interface CodeExactSidebarProps {
@@ -78,10 +81,29 @@ function SidebarRow({
   );
 }
 
+function formatCompactTime(value?: string) {
+  if (!value) return '';
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return '';
+
+  const diffMs = Math.max(0, Date.now() - timestamp);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < hour) {
+    const minutes = Math.max(1, Math.round(diffMs / minute));
+    return minutes <= 1 ? 'now' : `${minutes}m`;
+  }
+  if (diffMs < day) return `${Math.round(diffMs / hour)}h`;
+  return `${Math.round(diffMs / day)}d`;
+}
+
 export default function CodeExactSidebar({
-  chats: _chats,
+  chats,
   locationPathname,
   onNewSession,
+  onOpenChat,
   onOpenCowork,
   onOpenCustomize,
   onOpenScheduled,
@@ -89,6 +111,29 @@ export default function CodeExactSidebar({
   userButtonRef,
 }: CodeExactSidebarProps) {
   const isCodeRoot = locationPathname === '/code' || locationPathname === '/code/';
+  const recentCodeChats = chats.slice(0, 18);
+  const topModeItems = [
+    {
+      key: 'cowork',
+      label: COWORK_TOP_MODES[0].label,
+      icon: sidebarModeCoworkIcon,
+      iconWidth: 19,
+      iconHeight: 18,
+      labelMaxWidth: 58,
+      iconOpacity: 0.58,
+      activeIconOpacity: 0.58,
+      onSelect: onOpenCowork,
+    },
+    {
+      key: 'code',
+      label: COWORK_TOP_MODES[1].label,
+      icon: sidebarModeCodeIcon,
+      iconWidth: 18,
+      iconHeight: 18,
+      labelMaxWidth: 40,
+      iconOpacity: 1,
+    },
+  ] as const;
 
   return (
     <div
@@ -97,20 +142,15 @@ export default function CodeExactSidebar({
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[8px] border border-[#ece8e0] bg-[#fcfbf8]">
         <div className="mb-2 mt-[52px] px-[9px]">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-label="切换到 Cowork"
-              onClick={onOpenCowork}
-              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#7c756d] transition-colors hover:bg-[#f5f3ef]"
-            >
-              <img alt="" src={sidebarModeCoworkIcon} className="h-[15px] w-[15px] opacity-[0.58]" />
-            </button>
-            <div className="inline-flex h-8 items-center gap-2 rounded-[10px] bg-[#f1efea] px-3 text-[#2f2d2a]">
-              <img alt="" src={sidebarModeCodeIcon} className="h-[15px] w-[15px]" />
-              <span style={itemLabelStyle}>Code</span>
-            </div>
-          </div>
+          <PillNav
+            activeKey="code"
+            className="sidebar-mode-switch"
+            indicatorColor="#ffffff"
+            items={[...topModeItems]}
+            onItemSelect={(item) => item.onSelect?.(item)}
+            textColor="#5f5b56"
+            activeTextColor="#373734"
+          />
         </div>
 
         <div className="px-[9px] pt-[2px]">
@@ -141,11 +181,56 @@ export default function CodeExactSidebar({
         </div>
 
         <div className="min-h-0 flex-1 px-[9px] pt-[18px]">
-          <div className="mb-2 px-2" style={sectionLabelStyle}>
-            最近使用
-          </div>
-          <div className="sidebar-scroll h-full overflow-y-auto pb-3 pr-1">
-            <div className="h-8" />
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="mb-2 px-2" style={sectionLabelStyle}>
+              最近使用
+            </div>
+            <div className="sidebar-scroll flex-1 overflow-y-auto pb-3 pr-1">
+              {recentCodeChats.length > 0 ? (
+                <div className="space-y-px">
+                  {recentCodeChats.map((chat) => {
+                    const isActive = locationPathname === `/code/${chat.id}`;
+                    const meta = formatCompactTime(chat.updated_at || chat.created_at);
+
+                    return (
+                      <button
+                        className={`flex min-h-8 w-full items-center gap-3 rounded-[6px] px-2 py-[6px] text-left transition-colors ${
+                          isActive ? 'bg-claude-hover' : 'hover:bg-claude-hover'
+                        }`}
+                        key={chat.id}
+                        onClick={() => onOpenChat(chat.id)}
+                        type="button"
+                      >
+                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-[#9d968d]">
+                          <Circle size={7} strokeWidth={2} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={`block truncate ${
+                              isActive ? 'text-claude-text' : 'text-claude-textSecondary'
+                            }`}
+                            style={{
+                              fontFamily: '"Anthropic Sans", "Figtree", sans-serif',
+                              fontSize: '13px',
+                              fontWeight: 400,
+                              letterSpacing: '-0.08px',
+                              lineHeight: '18px',
+                            }}
+                          >
+                            {chat.title || 'General coding session'}
+                          </span>
+                        </span>
+                        {meta ? (
+                          <span className="shrink-0 text-[12px] leading-[16px] tracking-[-0.05px] text-[#9d968d]">
+                            {meta}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 

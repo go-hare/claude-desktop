@@ -1,50 +1,16 @@
 const API_BASE = 'http://127.0.0.1:30080/api';
 const GATEWAY_BASE = 'https://api-cn.jiazhuang.cloud';
 const CHENGDU_API = 'https://clawparrot.com/api';
-const isElectronApp = typeof window !== 'undefined' && !!(window as any).electronAPI?.isElectron;
+
+export function isLocalBridgeApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  if ((window as any).electronAPI?.isElectron) return true;
+  return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+}
 
 // 获取存储的 token
 function getToken() {
   return localStorage.getItem('auth_token');
-}
-
-// Resolve effective user_mode for a given conversation. If the user has explicitly
-// opted to use a cross-mode model in this conversation (via the cross-mode warning
-// modal in MainContent), the per-conv override takes precedence over the global
-// user_mode. This is what makes "keep using clawparrot opus while in selfhosted
-// mode" work — only that one conv switches its endpoint, the rest stay in the
-// global mode.
-function getUserModeForConversation(conversationId?: string): string {
-  if (conversationId) {
-    try {
-      const raw = localStorage.getItem('cross_mode_overrides');
-      if (raw) {
-        const map = JSON.parse(raw);
-        if (map[conversationId]) return map[conversationId];
-      }
-    } catch {}
-  }
-  return localStorage.getItem('user_mode') || 'clawparrot';
-}
-
-// Resolve env_token / env_base_url to send to bridge. clawparrot mode must ignore
-// CUSTOM_API_KEY/CUSTOM_BASE_URL — those exist only because an old version of the
-// app let clawparrot users paste their own relay API key; the UI was removed but
-// the localStorage values stick around, and if we fall back to them the user
-// silently keeps hitting their old personal relay instead of the clawparrot
-// gateway. selfhosted mode still prefers CUSTOM_* since self-deploy users legitimately
-// need to bring their own key.
-function resolveEnvCreds(mode: string): { env_token?: string; env_base_url?: string } {
-  if (mode === 'clawparrot') {
-    return {
-      env_token: localStorage.getItem('ANTHROPIC_API_KEY') || undefined,
-      env_base_url: localStorage.getItem('ANTHROPIC_BASE_URL') || undefined,
-    };
-  }
-  return {
-    env_token: localStorage.getItem('CUSTOM_API_KEY') || localStorage.getItem('ANTHROPIC_API_KEY') || undefined,
-    env_base_url: localStorage.getItem('CUSTOM_BASE_URL') || localStorage.getItem('ANTHROPIC_BASE_URL') || undefined,
-  };
 }
 
 // 通用请求方法
@@ -57,7 +23,12 @@ async function request(path: string, options: RequestInit = {}) {
   if (token) {
     (headers as any)['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  } catch (error: any) {
+    throw new Error(`本机 Claude Code bridge 未连接：${error?.message || 'Failed to fetch'}`);
+  }
   if (res.status === 401) {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
@@ -76,7 +47,12 @@ export async function getSystemStatus(): Promise<{
   platform: string;
   gitBash: { required: boolean; found: boolean; path: string | null };
 }> {
-  const res = await fetch(`${API_BASE}/system-status`);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/system-status`);
+  } catch (error: any) {
+    throw new Error(`本机 Claude Code bridge 未连接：${error?.message || 'Failed to fetch'}`);
+  }
   if (!res.ok) throw new Error('Failed to get system status');
   return res.json();
 }
@@ -208,7 +184,7 @@ async function chengduRequest(path: string, options?: RequestInit) {
 }
 
 export async function getUserProfile() {
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     try {
       const data = await chengduRequest('/user/profile');
       // Update local cache
@@ -228,7 +204,7 @@ export async function getUserProfile() {
 }
 
 export async function updateUserProfile(data: Record<string, any>) {
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${CHENGDU_API}/user/profile`, {
       method: 'PATCH',
@@ -252,14 +228,14 @@ export async function getUserUsage() {
   let usage: any = null;
 
   // Get plan info from Chengdu backend (requires auth_token from session-based login)
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     try {
       usage = await chengduRequest('/user/usage');
     } catch (_) {}
   }
 
   // In Electron mode, overlay gateway usage (the real usage data) onto Chengdu's plan info
-  if (isElectronApp) {
+  if (isLocalBridgeApp()) {
     try {
       const gwUsage = await getGatewayUsage();
       if (gwUsage) {
@@ -307,7 +283,7 @@ export async function markAnnouncementRead(id: number) {
 }
 
 export async function getUserModels() {
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     try { return await chengduRequest('/user/models'); } catch (_) {}
   }
   try {
@@ -351,7 +327,7 @@ export async function deleteAccount(password: string) {
 
 // 套餐与支付
 export async function getPlans() {
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     try { return await chengduRequest('/payment/plans'); } catch (_) {}
   }
   const res = await request('/payment/plans');
@@ -359,7 +335,7 @@ export async function getPlans() {
 }
 
 export async function createPaymentOrder(planId: number, paymentMethod: string) {
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${CHENGDU_API}/payment/create`, {
       method: 'POST',
@@ -376,7 +352,7 @@ export async function createPaymentOrder(planId: number, paymentMethod: string) 
 }
 
 export async function getPaymentStatus(orderId: string) {
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     try { return await chengduRequest(`/payment/status/${orderId}`); } catch (_) {}
   }
   const res = await request(`/payment/status/${orderId}`);
@@ -385,7 +361,7 @@ export async function getPaymentStatus(orderId: string) {
 
 // 兑换码
 export async function redeemCode(code: string) {
-  if (isElectronApp && localStorage.getItem('auth_token')) {
+  if (isLocalBridgeApp() && localStorage.getItem('auth_token')) {
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${CHENGDU_API}/redemption/redeem`, {
       method: 'POST',
@@ -504,7 +480,7 @@ export async function getArtifactContent(filePath: string) {
   return res.json();
 }
 
-export async function createConversation(title?: string, model?: string, extras?: { research_mode?: boolean; code_cwd?: string | null }) {
+export async function createConversation(title?: string, model?: string, extras?: { research_mode?: boolean; code_cwd?: string | null; code_effort?: string | null }) {
   const body: any = { model };
   if (title !== undefined) {
     body.title = title;
@@ -514,6 +490,9 @@ export async function createConversation(title?: string, model?: string, extras?
   }
   if (extras?.code_cwd !== undefined) {
     body.code_cwd = extras.code_cwd;
+  }
+  if (extras?.code_effort !== undefined) {
+    body.code_effort = extras.code_effort;
   }
   const res = await request('/conversations', {
     method: 'POST',
@@ -654,7 +633,6 @@ export async function compactConversation(
     method: 'POST',
     body: JSON.stringify({
       instruction,
-      ...resolveEnvCreds(getUserModeForConversation(id)),
     }),
   });
   return res.json();
@@ -676,7 +654,6 @@ export async function answerUserQuestion(
 
 // Pre-warm engine for a conversation (spawn in background before user sends first message)
 export function warmEngine(conversationId: string): void {
-  const userMode = getUserModeForConversation(conversationId);
   let userProfile: any;
   try {
     const p = JSON.parse(localStorage.getItem('user_profile') || localStorage.getItem('user') || '{}');
@@ -687,8 +664,6 @@ export function warmEngine(conversationId: string): void {
   request(`/conversations/${conversationId}/warm`, {
     method: 'POST',
     body: JSON.stringify({
-      ...resolveEnvCreds(userMode),
-      user_mode: userMode,
       user_profile: userProfile,
     }),
   }).catch(() => {}); // ignore errors
@@ -736,6 +711,47 @@ export async function deleteProvider(id: string): Promise<void> {
 }
 export async function getProviderModels(): Promise<Array<{ id: string; name: string; providerId: string; providerName: string }>> {
   const res = await fetch(`${API_BASE}/providers/models`);
+  return res.json();
+}
+
+export type ThirdPartyInferenceProvider = 'gateway' | 'bedrock' | 'vertex' | 'foundry';
+export type GatewayAuthScheme = 'bearer' | 'x-api-key' | 'auto' | 'sso';
+
+export interface ThirdPartyInferenceConfig {
+  inferenceProvider: ThirdPartyInferenceProvider;
+  inferenceGatewayBaseUrl: string;
+  inferenceGatewayApiKey: string;
+  inferenceGatewayAuthScheme: GatewayAuthScheme;
+  inferenceGatewayHeaders?: Record<string, string>;
+  inferenceGatewayHeadersText?: string;
+}
+
+export interface ThirdPartyInferenceConfigResponse {
+  appliedId: string;
+  configPath: string;
+  metaPath: string;
+  config: ThirdPartyInferenceConfig;
+}
+
+export async function getThirdPartyInferenceConfig(): Promise<ThirdPartyInferenceConfigResponse> {
+  const res = await fetch(`${API_BASE}/third-party-inference/config`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to load third-party inference config');
+  }
+  return res.json();
+}
+
+export async function saveThirdPartyInferenceConfig(config: Partial<ThirdPartyInferenceConfig>): Promise<ThirdPartyInferenceConfigResponse> {
+  const res = await fetch(`${API_BASE}/third-party-inference/config`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to save third-party inference config');
+  }
   return res.json();
 }
 
@@ -1198,8 +1214,6 @@ export async function sendMessage(
         conversation_id: conversationId,
         message,
         attachments: attachments || undefined,
-        ...resolveEnvCreds(getUserModeForConversation(conversationId)),
-        user_mode: getUserModeForConversation(conversationId),
         user_profile: (() => {
           try {
             const p = JSON.parse(localStorage.getItem('user_profile') || localStorage.getItem('user') || '{}');

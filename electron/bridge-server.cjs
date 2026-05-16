@@ -10,6 +10,7 @@ const { TOOL_DEFINITIONS, executeTool } = require('./tools.cjs');
 const { runResearchPipeline } = require('./research-orchestrator.cjs');
 const { resolveRequestedModelForMode } = require('./chat-config.cjs');
 const { buildSelfHostedSystemPrompt } = require('./system-prompt-utils.cjs');
+const { resolveRuntimePaths } = require('./runtime-paths.cjs');
 const {
     getInstallProfile,
     getGlobalConfigFilePath,
@@ -65,9 +66,28 @@ function shouldRunResearch(message) {
     return true;
 }
 
-// No longer needed 鈥?SDK removed, using direct API calls
+const CODE_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'max']);
+
+function normalizeCodeEffort(value) {
+    const effort = String(value || '').trim().toLowerCase();
+    return CODE_EFFORT_LEVELS.has(effort) ? effort : null;
+}
+
+function normalizeApiKeyForConfig(apiKey) {
+    return String(apiKey || '').slice(-20);
+}
+
+function maskSecret(value) {
+    if (!value) return '<empty>';
+    const text = String(value);
+    if (text.length <= 8) return '<present>';
+    return text.slice(0, 4) + '…' + text.slice(-4);
+}
+
+// Startup compatibility hook retained for Electron main.
+// Chat execution itself runs through the local Claude Code engine subprocess.
 function enableNodeModeForChildProcesses() {
-    console.log('[Engine] Direct API mode 鈥?no SDK subprocess needed');
+    console.log('[Engine] Child process mode enabled for local Claude Code engine');
 }
 
 // Load custom system prompt (only affects this Electron app, not external CLI usage)
@@ -90,7 +110,22 @@ try {
 
 function initServer(mainWindow) {
     const server = express();
+    const runtimePaths = resolveRuntimePaths();
     const userDataPath = app.getPath('userData');
+    const claudeConfigDir = runtimePaths.claudeConfigDir;
+    const claudeCodeDir = runtimePaths.claudeCodeDir;
+    fs.mkdirSync(userDataPath, { recursive: true });
+    fs.mkdirSync(claudeConfigDir, { recursive: true });
+    fs.mkdirSync(claudeCodeDir, { recursive: true });
+    process.env.CLAUDE_CONFIG_DIR = claudeConfigDir;
+    process.env.CLAUDE_DESKTOP_DATA_DIR = userDataPath;
+    process.env.CLAUDE_3P_DATA_DIR = runtimePaths.codeSupportDir;
+    process.env.CLAUDE_CODE_RUNTIME_DIR = claudeCodeDir;
+    process.env.CLAUDE_DESKTOP_WORKSPACES_DIR = runtimePaths.workspacesDir;
+    console.log('[Runtime] bridge userData:', userDataPath);
+    console.log('[Runtime] bridge Claude-3p data:', runtimePaths.codeSupportDir);
+    console.log('[Runtime] bridge CLAUDE_CONFIG_DIR:', claudeConfigDir);
+    console.log('[Runtime] bridge claude-code data:', claudeCodeDir);
 
     // ── Origin 白名单 (安全关键) ──────────────────────────────
     // bridge-server 监听 127.0.0.1:30080 — 默认情况下任何用户访问的恶意网页都能
@@ -103,6 +138,7 @@ function initServer(mainWindow) {
         if (origin === 'null') return true; // file:// in Chromium
         if (origin.startsWith('file://')) return true;
         if (origin === 'http://localhost:3000' || origin === 'http://127.0.0.1:3000') return true; // vite dev
+        if (!app.isPackaged && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return true; // local dev clients
         return false;
     };
     server.use((req, res, next) => {
@@ -146,6 +182,187 @@ function initServer(mainWindow) {
         fs.mkdirSync(parentDir, { recursive: true });
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
         return configPath;
+    }
+
+    const thirdPartyConfigLibraryDir = path.join(runtimePaths.codeSupportDir, 'configLibrary');
+    const thirdPartyConfigMetaPath = path.join(thirdPartyConfigLibraryDir, '_meta.json');
+    const thirdPartyInferenceKeys = new Set([
+        'inferenceProvider',
+        'inferenceGatewayBaseUrl',
+        'inferenceGatewayApiKey',
+        'inferenceGatewayAuthScheme',
+        'inferenceGatewayHeaders',
+        'inferenceModels',
+        'inferenceCredentialHelper',
+        'inferenceCredentialHelperTtlSec',
+        'inferenceVertexProjectId',
+        'inferenceVertexRegion',
+        'inferenceVertexCredentialsFile',
+        'inferenceVertexOAuthClientId',
+        'inferenceVertexOAuthClientSecret',
+        'inferenceVertexOAuthScopes',
+        'inferenceVertexBaseUrl',
+        'inferenceBedrockRegion',
+        'inferenceBedrockBearerToken',
+        'inferenceBedrockBaseUrl',
+        'inferenceBedrockProfile',
+        'inferenceBedrockAwsDir',
+        'inferenceBedrockSsoStartUrl',
+        'inferenceBedrockSsoRegion',
+        'inferenceBedrockSsoAccountId',
+        'inferenceBedrockSsoRoleName',
+        'inferenceBedrockServiceTier',
+        'inferenceFoundryResource',
+        'inferenceFoundryApiKey',
+        'inferenceFoundryBaseUrl',
+    ]);
+
+    function ensureHttpsUrl(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        return /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw.replace(/\/+$/, '') : `https://${raw.replace(/^\/+|\/+$/g, '')}`;
+    }
+
+    function normalizeGatewayAuthScheme(value, baseUrl) {
+        const raw = String(value || 'bearer').trim().toLowerCase();
+        let scheme = ['bearer', 'x-api-key', 'auto', 'sso'].includes(raw) ? raw : 'bearer';
+        if (scheme === 'auto') scheme = 'bearer';
+        try {
+            const host = new URL(ensureHttpsUrl(baseUrl)).hostname;
+            if (/(^|\.)anthropic\.com$/i.test(host)) scheme = 'x-api-key';
+        } catch (_) {}
+        return scheme === 'sso' ? 'bearer' : scheme;
+    }
+
+    function normalizeHeaderMap(value) {
+        if (!value) return {};
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            return Object.fromEntries(Object.entries(value)
+                .map(([key, val]) => [String(key).trim(), String(val ?? '').trim()])
+                .filter(([key, val]) => key && val));
+        }
+        const headers = {};
+        for (const line of String(value).split(/\r?\n/)) {
+            const idx = line.indexOf(':');
+            if (idx <= 0) continue;
+            const key = line.slice(0, idx).trim();
+            const val = line.slice(idx + 1).trim();
+            if (key && val) headers[key] = val;
+        }
+        return headers;
+    }
+
+    function headersToText(value) {
+        const headers = normalizeHeaderMap(value);
+        return Object.entries(headers).map(([key, val]) => `${key}: ${val}`).join('\n');
+    }
+
+    function makeDefaultThirdPartyConfig() {
+        return {
+            inferenceProvider: 'gateway',
+            inferenceGatewayBaseUrl: '',
+            inferenceGatewayApiKey: '',
+            inferenceGatewayAuthScheme: 'bearer',
+            inferenceGatewayHeaders: {},
+        };
+    }
+
+    function readThirdPartyMeta() {
+        try {
+            return readJsonConfig(thirdPartyConfigMetaPath);
+        } catch (error) {
+            console.warn('[ThirdPartyInference] Failed to read config meta:', error.message);
+            return {};
+        }
+    }
+
+    function resolveThirdPartyConfigEntry() {
+        fs.mkdirSync(thirdPartyConfigLibraryDir, { recursive: true });
+        let meta = readThirdPartyMeta();
+        let appliedId = typeof meta.appliedId === 'string' && meta.appliedId ? meta.appliedId : null;
+        if (!appliedId) {
+            appliedId = uuidv4();
+            meta = {
+                ...meta,
+                appliedId,
+                entries: Array.isArray(meta.entries) && meta.entries.length > 0
+                    ? meta.entries
+                    : [{ id: appliedId, name: 'Default' }],
+            };
+            fs.writeFileSync(thirdPartyConfigMetaPath, JSON.stringify(meta, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+        }
+        if (!Array.isArray(meta.entries) || !meta.entries.some(entry => entry && entry.id === appliedId)) {
+            meta.entries = [{ id: appliedId, name: 'Default' }, ...(Array.isArray(meta.entries) ? meta.entries : [])];
+            fs.writeFileSync(thirdPartyConfigMetaPath, JSON.stringify(meta, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+        }
+        return {
+            id: appliedId,
+            path: path.join(thirdPartyConfigLibraryDir, `${appliedId}.json`),
+            metaPath: thirdPartyConfigMetaPath,
+        };
+    }
+
+    function normalizeThirdPartyInferenceConfig(config) {
+        const defaults = makeDefaultThirdPartyConfig();
+        const provider = String(config?.inferenceProvider || defaults.inferenceProvider).trim().toLowerCase();
+        const next = { ...defaults, ...(config || {}) };
+        next.inferenceProvider = ['gateway', 'bedrock', 'vertex', 'foundry'].includes(provider) ? provider : 'gateway';
+        next.inferenceGatewayBaseUrl = ensureHttpsUrl(next.inferenceGatewayBaseUrl);
+        next.inferenceGatewayApiKey = String(next.inferenceGatewayApiKey || '');
+        next.inferenceGatewayAuthScheme = normalizeGatewayAuthScheme(next.inferenceGatewayAuthScheme, next.inferenceGatewayBaseUrl);
+        next.inferenceGatewayHeaders = normalizeHeaderMap(next.inferenceGatewayHeaders);
+        return next;
+    }
+
+    function readThirdPartyInferenceConfig() {
+        const entry = resolveThirdPartyConfigEntry();
+        let config = {};
+        try {
+            config = readJsonConfig(entry.path);
+        } catch (error) {
+            console.warn('[ThirdPartyInference] Failed to read applied config:', error.message);
+        }
+        return {
+            configPath: entry.path,
+            metaPath: entry.metaPath,
+            appliedId: entry.id,
+            config: normalizeThirdPartyInferenceConfig(config),
+        };
+    }
+
+    function writeThirdPartyInferenceConfig(patch) {
+        const entry = resolveThirdPartyConfigEntry();
+        let current = {};
+        try {
+            current = readJsonConfig(entry.path);
+        } catch (error) {
+            console.warn('[ThirdPartyInference] Starting from empty config after read failure:', error.message);
+        }
+        const merged = { ...current };
+        for (const [key, value] of Object.entries(patch || {})) {
+            if (thirdPartyInferenceKeys.has(key)) merged[key] = value;
+        }
+        const normalized = normalizeThirdPartyInferenceConfig(merged);
+        for (const key of thirdPartyInferenceKeys) {
+            if (Object.prototype.hasOwnProperty.call(normalized, key)) merged[key] = normalized[key];
+        }
+        fs.mkdirSync(path.dirname(entry.path), { recursive: true });
+        fs.writeFileSync(entry.path, JSON.stringify(merged, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+        return {
+            configPath: entry.path,
+            metaPath: entry.metaPath,
+            appliedId: entry.id,
+            config: normalizeThirdPartyInferenceConfig(merged),
+        };
+    }
+
+    function publicThirdPartyInferencePayload(payload, includeSecrets = true) {
+        const config = { ...payload.config };
+        config.inferenceGatewayHeadersText = headersToText(config.inferenceGatewayHeaders);
+        if (!includeSecrets && config.inferenceGatewayApiKey) {
+            config.inferenceGatewayApiKey = maskSecret(config.inferenceGatewayApiKey);
+        }
+        return { ...payload, config };
     }
 
     const composioConfigPath = path.join(userDataPath, 'connector-composio.json');
@@ -367,9 +584,12 @@ function initServer(mainWindow) {
 
     // Setup paths
     const dbPath = path.join(userDataPath, 'claude-desktop.json');
+    const claudeGlobalConfigPath = getGlobalConfigFilePath({
+        env: { ...process.env, CLAUDE_CONFIG_DIR: claudeConfigDir },
+    });
 
-    // Workspace: use user-chosen path, or default to ~/Documents/Claude Desktop
-    const defaultWorkspacesDir = path.join(app.getPath('documents'), 'Claude Desktop');
+    // Workspace: use user-chosen path, or default to this app's isolated data tree.
+    const defaultWorkspacesDir = runtimePaths.workspacesDir;
     // Read saved preference (set by onboarding or settings)
     let workspacesDir;
     try {
@@ -401,6 +621,83 @@ function initServer(mainWindow) {
         } catch (e) { }
     }
     const saveDb = () => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+
+    function approveEngineApiKey(apiKey) {
+        if (!apiKey) return;
+        const normalizedKey = normalizeApiKeyForConfig(apiKey);
+        if (!normalizedKey) return;
+        let current = {};
+        try {
+            if (fs.existsSync(claudeGlobalConfigPath)) {
+                current = JSON.parse(fs.readFileSync(claudeGlobalConfigPath, 'utf8'));
+            }
+        } catch (error) {
+            console.warn('[Runtime] Failed to read Claude Code config for key approval:', error.message);
+            current = {};
+        }
+        const existing = current.customApiKeyResponses || {};
+        const approved = Array.isArray(existing.approved) ? existing.approved : [];
+        if (approved.includes(normalizedKey)) return;
+        const rejected = Array.isArray(existing.rejected) ? existing.rejected.filter(k => k !== normalizedKey) : [];
+        const next = {
+            ...current,
+            customApiKeyResponses: {
+                ...existing,
+                approved: [...approved, normalizedKey],
+                rejected,
+            },
+        };
+        fs.mkdirSync(path.dirname(claudeGlobalConfigPath), { recursive: true });
+        fs.writeFileSync(claudeGlobalConfigPath, JSON.stringify(next, null, 2), { encoding: 'utf8', mode: 0o600 });
+        console.log('[Runtime] Approved ANTHROPIC_API_KEY for Claude Code config:', maskSecret(apiKey), '| config=', claudeGlobalConfigPath);
+    }
+
+    function isDefaultConversationTitle(title) {
+        return !title || title === 'New Conversation' || title === 'New Chat';
+    }
+
+    function deriveFallbackConversationTitle(message) {
+        return String(message || '').replace(/\s+/g, ' ').trim().slice(0, 50);
+    }
+
+    function extractStoredMessageText(content) {
+        if (content == null) return '';
+        if (typeof content !== 'string') {
+            if (Array.isArray(content)) return content.map(part => {
+                if (typeof part === 'string') return part;
+                return typeof part?.text === 'string' ? part.text : '';
+            }).join(' ');
+            return String(content);
+        }
+        try {
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed)) {
+                return parsed.map(part => {
+                    if (typeof part === 'string') return part;
+                    return typeof part?.text === 'string' ? part.text : '';
+                }).join(' ');
+            }
+            if (typeof parsed === 'string') return parsed;
+        } catch (_) {}
+        return content;
+    }
+
+    function updateDefaultConversationTitleFromMessage(conv, message) {
+        if (!conv || !isDefaultConversationTitle(conv.title)) return false;
+        const nextTitle = deriveFallbackConversationTitle(message);
+        if (!nextTitle) return false;
+        conv.title = nextTitle;
+        return true;
+    }
+
+    function repairDefaultConversationTitleFromMessages(conv) {
+        if (!conv || !isDefaultConversationTitle(conv.title)) return false;
+        const firstUserMessage = db.messages
+            .filter(m => m.conversation_id === conv.id && m.role === 'user')
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0];
+        if (!firstUserMessage) return false;
+        return updateDefaultConversationTitleFromMessage(conv, extractStoredMessageText(firstUserMessage.content));
+    }
 
     // ===== Provider Management =====
     const providersPath = path.join(userDataPath, 'providers.json');
@@ -1267,7 +1564,7 @@ function initServer(mainWindow) {
         if (!token) { console.log('[Title] Skipped: no API token'); return; }
         try {
             const bConv = db.conversations.find(c => c.id === conversationId);
-            if (!bConv || (bConv.title !== 'New Conversation' && bConv.title !== 'New Chat')) return;
+            if (!bConv || !isDefaultConversationTitle(bConv.title)) return;
 
             // Strip -thinking suffix 鈥?raw API doesn't accept it
             let modelId = (activeModel || 'claude-sonnet-4-6').replace(/-thinking$/, '');
@@ -1621,6 +1918,11 @@ function initServer(mainWindow) {
             // Return all conversations including project ones
             list = db.conversations;
         }
+        let repairedTitles = false;
+        for (const conv of list) {
+            if (repairDefaultConversationTitleFromMessages(conv)) repairedTitles = true;
+        }
+        if (repairedTitles) saveDb();
         // Enrich with project name for sidebar display
         list = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
             .map(c => {
@@ -1638,6 +1940,10 @@ function initServer(mainWindow) {
         const { title = 'New Conversation', model = 'claude-sonnet-4-6', project_id, research_mode = false } = req.body;
         const workspacePath = path.join(workspacesDir, id);
         const codeCwd = resolveDirectoryIfExists(req.body && req.body.code_cwd);
+        const codeEffort = normalizeCodeEffort(req.body && req.body.code_effort);
+        if (req.body && 'code_effort' in req.body && req.body.code_effort != null && req.body.code_effort !== '' && !codeEffort) {
+            return res.status(400).json({ error: 'Invalid code_effort. Expected one of: low, medium, high, max' });
+        }
 
         if (!fs.existsSync(workspacePath)) {
             fs.mkdirSync(workspacePath, { recursive: true });
@@ -1657,21 +1963,24 @@ function initServer(mainWindow) {
         }
 
         const now = new Date().toISOString();
+        const isCodeConversation = !!codeCwd;
         const newConv = {
             id, title, model, workspace_path: workspacePath, created_at: now, updated_at: now,
-            research_mode: !!research_mode,
+            research_mode: isCodeConversation ? false : !!research_mode,
             ...(codeCwd ? { code_cwd: codeCwd } : {}),
+            ...(codeCwd ? { code_effort: codeEffort || 'medium' } : {}),
             ...(project_id ? { project_id } : {}),
         };
         db.conversations.push(newConv);
         saveDb();
 
-        res.json({ id, title, model, workspace_path: workspacePath, code_cwd: codeCwd, research_mode: !!research_mode, created_at: now, updated_at: now });
+        res.json({ id, title, model, workspace_path: workspacePath, code_cwd: codeCwd, code_effort: newConv.code_effort, research_mode: newConv.research_mode, created_at: now, updated_at: now });
     });
 
     server.get('/api/conversations/:id', (req, res) => {
         const conv = db.conversations.find(c => c.id === req.params.id);
         if (!conv) return res.status(404).json({ error: 'Not found' });
+        if (repairDefaultConversationTitleFromMessages(conv)) saveDb();
 
         const messages = db.messages.filter(m => m.conversation_id === req.params.id)
             .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -1757,6 +2066,20 @@ function initServer(mainWindow) {
             if (req.body.code_cwd && !codeCwd) return res.status(400).json({ error: 'code_cwd does not exist or is not a directory' });
             if (codeCwd) conv.code_cwd = codeCwd;
             else delete conv.code_cwd;
+        }
+        if ('code_effort' in req.body) {
+            const codeEffort = normalizeCodeEffort(req.body.code_effort);
+            if (req.body.code_effort != null && req.body.code_effort !== '' && !codeEffort) {
+                return res.status(400).json({ error: 'Invalid code_effort. Expected one of: low, medium, high, max' });
+            }
+            if (codeEffort) conv.code_effort = codeEffort;
+            else delete conv.code_effort;
+        }
+        if (conv.code_cwd) {
+            conv.research_mode = false;
+            conv.code_effort = normalizeCodeEffort(conv.code_effort) || 'medium';
+        } else {
+            delete conv.code_effort;
         }
 
         saveDb();
@@ -1991,12 +2314,20 @@ function initServer(mainWindow) {
             return res.status(400).json({ error: 'No engine session to compact (conversation has no history in engine)' });
         }
 
-        const env_token = req.body.env_token;
-        const env_base_url = req.body.env_base_url;
         const instruction = req.body.instruction || '';
-        const apiKey = env_token || engineEnvVars.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-        const baseUrl = engineEnvVars.ANTHROPIC_BASE_URL || env_base_url || process.env.ANTHROPIC_BASE_URL;
         const modelId = (conv.model || 'claude-sonnet-4-6').replace(/-thinking$/, '');
+        const codeEffort = conv.code_cwd ? (normalizeCodeEffort(conv.code_effort) || 'medium') : null;
+        const thirdParty = readThirdPartyInferenceConfig().config;
+        if (thirdParty.inferenceProvider !== 'gateway') {
+            return res.status(400).json({ error: `暂不支持 ${thirdParty.inferenceProvider}：请在 Connection 中选择 Gateway。` });
+        }
+        const apiKey = thirdParty.inferenceGatewayApiKey;
+        const baseUrl = thirdParty.inferenceGatewayBaseUrl;
+        const authScheme = thirdParty.inferenceGatewayAuthScheme || 'bearer';
+        const customHeaders = normalizeHeaderMap(thirdParty.inferenceGatewayHeaders);
+        if (!apiKey || !baseUrl) {
+            return res.status(401).json({ error: '尚未配置 third-party inference：请在设置的 Connection 页面填写 Gateway base URL 和 Gateway API key。' });
+        }
 
         // Count messages before compaction for reporting
         const messagesBeforeCompact = db.messages.filter(m => m.conversation_id === req.params.id).length;
@@ -2013,12 +2344,30 @@ function initServer(mainWindow) {
                 '--model', modelId,
                 '--resume', conv.claude_session_id,
             ]);
+            if (codeEffort) {
+                cliArgs.push('--thinking', 'adaptive', '--effort', codeEffort);
+            }
 
             const envVars = Object.assign({}, process.env);
-            if (apiKey) envVars.ANTHROPIC_API_KEY = apiKey;
-            envVars.ANTHROPIC_BASE_URL = baseUrl || engineEnvVars.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+            envVars.CLAUDE_CONFIG_DIR = claudeConfigDir;
+            envVars.CLAUDE_DESKTOP_DATA_DIR = userDataPath;
+            envVars.CLAUDE_3P_DATA_DIR = runtimePaths.codeSupportDir;
+            envVars.CLAUDE_CODE_RUNTIME_DIR = claudeCodeDir;
+            envVars.CLAUDE_CODE_ENTRYPOINT = 'claude-desktop';
+            if (authScheme === 'bearer') {
+                envVars.ANTHROPIC_AUTH_TOKEN = apiKey;
+                delete envVars.ANTHROPIC_API_KEY;
+            } else {
+                approveEngineApiKey(apiKey);
+                envVars.ANTHROPIC_API_KEY = apiKey;
+                delete envVars.ANTHROPIC_AUTH_TOKEN;
+            }
+            if (Object.keys(customHeaders).length > 0) {
+                envVars.ANTHROPIC_CUSTOM_HEADERS = headersToText(customHeaders);
+            }
+            envVars.ANTHROPIC_BASE_URL = normalizeBaseUrl(baseUrl || 'https://api.anthropic.com');
 
-            console.log('[Compact] Spawning engine /compact, session=' + conv.claude_session_id + ' model=' + modelId);
+            console.log('[Compact] Spawning engine /compact, session=' + conv.claude_session_id + ' model=' + modelId + ' configDir=' + claudeConfigDir + ' scheme=' + authScheme + ' key=' + maskSecret(apiKey) + ' baseUrl=' + envVars.ANTHROPIC_BASE_URL);
 
             const child = spawn(bunExePath, cliArgs, {
                 cwd: conv.code_cwd || conv.workspace_path, env: envVars,
@@ -2164,6 +2513,62 @@ function initServer(mainWindow) {
         res.json({ active: !!(stream && !stream.done), eventCount: stream ? stream.events.length : 0 });
     });
 
+    // Generation status — lightweight snapshot used by session views after reloads
+    // or when reconnecting to a stream is not possible.
+    server.get('/api/conversations/:id/generation-status', (req, res) => {
+        const convId = req.params.id;
+        const engine = enginePool.get(convId);
+        const turn = engine && engine.turn;
+        const stream = activeStreams.get(convId);
+
+        if (engine && engine.state === 'processing' && turn) {
+            return res.json({
+                active: true,
+                status: 'generating',
+                text: turn.assistantText || '',
+                thinking: turn.thinkingText || '',
+                toolCalls: Array.from(turn.toolCalls.values()),
+                updated_at: new Date(turn.lastActivityAt || Date.now()).toISOString(),
+            });
+        }
+
+        if (stream && !stream.done) {
+            return res.json({
+                active: true,
+                status: 'generating',
+                text: '',
+                thinking: '',
+                toolCalls: [],
+                updated_at: new Date().toISOString(),
+            });
+        }
+
+        res.json({ active: false, status: 'idle' });
+    });
+
+    // Stop the active generation and persist any partial assistant output.
+    server.post('/api/conversations/:id/stop-generation', (req, res) => {
+        const convId = req.params.id;
+        const conv = db.conversations.find(c => c.id === convId);
+        if (!conv) return res.status(404).json({ error: 'Not found' });
+
+        const engine = enginePool.get(convId);
+        const stream = activeStreams.get(convId);
+        let stopped = false;
+
+        if (engine && engine.state === 'processing' && engine.turn) {
+            try { engine.turn.sendSSE({ type: 'status', message: 'Stopping generation...' }); } catch (_) {}
+            finishTurn(engine, convId, conv);
+            killEngine(convId, 'stop_generation_requested');
+            stopped = true;
+        } else if (stream && !stream.done) {
+            endStream(convId);
+            stopped = true;
+        }
+
+        res.json({ ok: true, stopped });
+    });
+
     // Reconnect to an active stream 鈥?sends all buffered events then continues live
     server.get('/api/conversations/:id/reconnect', (req, res) => {
         const stream = activeStreams.get(req.params.id);
@@ -2212,6 +2617,31 @@ function initServer(mainWindow) {
         } catch (error) {
             console.error('[CodeStats] Failed:', error.message);
             res.status(500).json({ error: error.message || 'Failed to load code stats' });
+        }
+    });
+    server.get('/api/third-party-inference/config', (req, res) => {
+        try {
+            res.json(publicThirdPartyInferencePayload(readThirdPartyInferenceConfig(), true));
+        } catch (error) {
+            console.error('[ThirdPartyInference] GET failed:', error);
+            res.status(500).json({ error: error.message || 'Failed to load third-party inference config' });
+        }
+    });
+    server.patch('/api/third-party-inference/config', (req, res) => {
+        try {
+            const next = writeThirdPartyInferenceConfig(req.body || {});
+            for (const [id, eng] of enginePool) {
+                if (eng.state === 'processing') {
+                    eng.needsRestart = true;
+                    console.log('[EnginePool] Deferring engine restart for active conversation', id, '(third-party inference config updated)');
+                } else {
+                    killEngine(id, 'third_party_inference_config_updated');
+                }
+            }
+            res.json(publicThirdPartyInferencePayload(next, true));
+        } catch (error) {
+            console.error('[ThirdPartyInference] PATCH failed:', error);
+            res.status(400).json({ error: error.message || 'Failed to save third-party inference config' });
         }
     });
     server.get('/api/providers', (req, res) => {
@@ -2762,18 +3192,18 @@ function initServer(mainWindow) {
     });
 
     // ===== Skills =====
-    // Paths 鈥?userSkillsDir matches engine's skill loading path (~/.claude/skills/)
+    // Paths: userSkillsDir matches this app's isolated Claude Code config dir.
     const bundledSkillsDir = path.join(__dirname, 'skills');
     const homeDir = os.homedir();
     const localSkillsDir = path.join(homeDir, '.agents', 'skills');
-    const userSkillsDir = path.join(homeDir, '.claude', 'skills');
+    const userSkillsDir = path.join(claudeConfigDir, 'skills');
     const skillPrefsPath = path.join(userDataPath, 'skill-preferences.json');
 
     if (!fs.existsSync(userSkillsDir)) {
         fs.mkdirSync(userSkillsDir, { recursive: true });
     }
 
-    // Sync bundled skills to ~/.claude/skills/ so the engine can find them
+    // Sync bundled skills to this app's Claude config dir so the engine can find them.
     // Only copies skills that don't already exist (won't overwrite user modifications)
     if (fs.existsSync(bundledSkillsDir)) {
         try {
@@ -2793,7 +3223,7 @@ function initServer(mainWindow) {
                         }
                     };
                     copyDirSync(path.join(bundledSkillsDir, entry.name), target);
-                    console.log('[Skills] Synced bundled skill to ~/.claude/skills/:', entry.name);
+                    console.log('[Skills] Synced bundled skill to app Claude config:', entry.name);
                 }
             }
         } catch (e) { console.error('[Skills] Sync error:', e.message); }
@@ -2883,7 +3313,7 @@ function initServer(mainWindow) {
         return skills;
     }
 
-    // Load user-created skills from ~/.claude/skills/ (standard SKILL.md format)
+    // Load user-created skills from this app's Claude config dir (standard SKILL.md format).
     function loadUserSkills() {
         return scanSkillsDir(userSkillsDir, 'user').map(s => ({ ...s, is_example: false }));
     }
@@ -2945,7 +3375,7 @@ function initServer(mainWindow) {
             return res.json({ ...example, enabled: prefs[id] !== undefined ? prefs[id] : true, files, dir_path: skillDir });
         }
 
-        // Check user skills (~/.claude/skills/)
+        // Check user skills from this app's isolated Claude config dir.
         const userSkills = loadUserSkills();
         const userSkill = userSkills.find(s => s.id === id);
         if (userSkill) {
@@ -2995,7 +3425,7 @@ function initServer(mainWindow) {
         const ext = path.extname(req.file.originalname).toLowerCase();
         try {
             if (ext === '.zip') {
-                // Extract zip to a temp dir, then move to ~/.claude/skills/
+                // Extract zip to a temp dir, then move to this app's Claude config dir.
                 const extractZip = require('extract-zip');
                 const tmpDir = path.join(os.tmpdir(), 'skill-import-' + Date.now());
                 fs.mkdirSync(tmpDir, { recursive: true });
@@ -3068,7 +3498,7 @@ function initServer(mainWindow) {
         }
     });
 
-    // POST /api/skills 鈥?create user skill as ~/.claude/skills/skill-name/SKILL.md
+    // POST /api/skills: create user skill in this app's Claude config dir.
     server.post('/api/skills', (req, res) => {
         const { name, description, content } = req.body;
         if (!name) return res.status(400).json({ error: 'Name is required' });
@@ -3802,6 +4232,7 @@ You have the following skills available. When a user's request matches a skill's
             convId: eng.convId,
             state: eng.state,
             modelId: eng.modelId,
+            effort: eng.effort || null,
             needsRestart: !!eng.needsRestart,
             ready: !!eng.ready,
             pid: eng.child && eng.child.pid,
@@ -3841,8 +4272,8 @@ You have the following skills available. When a user's request matches a skill's
     }
     function isEngineAlive(eng) { return eng && eng.child && !eng.child.killed && eng.child.exitCode === null; }
 
-    function buildChatSystemPrompt(conv, user_mode, user_profile) {
-        let sysPrompt = (user_mode === 'selfhosted' ? customSystemPromptClean : customSystemPromptFull) || '';
+    function buildChatSystemPrompt(conv, user_profile) {
+        let sysPrompt = customSystemPromptClean || '';
         if (user_profile) {
             const parts = [];
             if (user_profile.work_function) parts.push('Occupation: ' + user_profile.work_function);
@@ -3881,37 +4312,36 @@ You have the following skills available. When a user's request matches a skill's
         }
         return sysPrompt;
     }
-    function resolveChatConfig(conv, user_mode, env_token, env_base_url) {
+    function resolveChatConfig(conv) {
         const rawModel = conv.model || 'claude-sonnet-4-6';
-        const thinkingEnabled = /-thinking$/.test(rawModel);
+        const codeEffort = conv.code_cwd ? (normalizeCodeEffort(conv.code_effort) || 'medium') : null;
+        const thinkingEnabled = codeEffort ? true : /-thinking$/.test(rawModel);
         const requestedModelId = rawModel.replace(/-thinking$/, '');
-        const effectiveUserMode = user_mode === 'selfhosted' ? 'selfhosted' : 'clawparrot';
-        const initialProvider = effectiveUserMode === 'selfhosted' ? resolveProvider(requestedModelId) : null;
-        const routed = resolveRequestedModelForMode({
-            modelId: requestedModelId,
-            userMode: effectiveUserMode,
-            hasProvider: !!initialProvider,
-        });
-        let modelId = routed.modelId;
-        if (routed.fallbackApplied) {
-            console.warn('[Chat] Non-Claude model', requestedModelId, 'detected under clawparrot mode — falling back to', modelId);
+        let modelId = requestedModelId;
+        const thirdParty = readThirdPartyInferenceConfig().config;
+        if (thirdParty.inferenceProvider !== 'gateway') {
+            throw new Error(`暂不支持 ${thirdParty.inferenceProvider}：请在 Connection 中选择 Gateway。`);
         }
-        if (routed.error) {
-            throw new Error(routed.error);
+        const apiKey = thirdParty.inferenceGatewayApiKey;
+        const baseUrl = thirdParty.inferenceGatewayBaseUrl;
+        if (!apiKey || !baseUrl) {
+            throw new Error('尚未配置 third-party inference：请在设置的 Connection 页面填写 Gateway base URL 和 Gateway API key。');
         }
-        const provider = effectiveUserMode === 'selfhosted' ? resolveProvider(modelId) : null;
-        let apiKey, baseUrl, apiFormat = 'anthropic';
-        let supportsWebSearch = false;
-        let webSearchStrategy = null;
-        if (provider) {
-            apiKey = provider.apiKey; baseUrl = provider.baseUrl; apiFormat = provider.format || 'anthropic';
-            // Web search is gated by the stored probe result — no implicit support based on format.
-            supportsWebSearch = provider.supportsWebSearch === true;
-            webSearchStrategy = provider.webSearchStrategy || null;
-            console.log('[Chat] Provider:', provider.name, '| format:', apiFormat, '| model:', modelId, '| webSearch:', supportsWebSearch, '| strategy:', webSearchStrategy);
-        }
-        else { const validToken = (env_token && env_token !== 'self-hosted') ? env_token : ''; apiKey = validToken || engineEnvVars.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY; baseUrl = validToken ? (env_base_url || engineEnvVars.ANTHROPIC_BASE_URL || process.env.ANTHROPIC_BASE_URL) : (engineEnvVars.ANTHROPIC_BASE_URL || env_base_url || process.env.ANTHROPIC_BASE_URL); supportsWebSearch = true; }
-        return { modelId, thinkingEnabled, provider, apiKey, baseUrl, apiFormat, supportsWebSearch, webSearchStrategy };
+        const apiFormat = 'anthropic';
+        const supportsWebSearch = true;
+        const webSearchStrategy = null;
+        const authSource = 'third-party-inference';
+        const authScheme = thirdParty.inferenceGatewayAuthScheme || 'bearer';
+        const customHeaders = thirdParty.inferenceGatewayHeaders || null;
+        console.log('[Chat] Resolved config',
+            '| conv=', conv.id,
+            '| code=', !!conv.code_cwd,
+            '| model=', modelId,
+            '| auth=', authSource,
+            '| scheme=', authScheme,
+            '| key=', maskSecret(apiKey),
+            '| baseUrl=', baseUrl || '<default>');
+        return { modelId, thinkingEnabled, effort: codeEffort, provider: null, apiKey, baseUrl, apiFormat, supportsWebSearch, webSearchStrategy, authSource, authScheme, customHeaders };
     }
 
     function handleTurnEvent(engine, convId, conv, evt) {
@@ -4108,11 +4538,15 @@ You have the following skills available. When a user's request matches a skill's
     }
 
     function spawnPersistentEngine(convId, conv, config) {
-        const { modelId, thinkingEnabled = false, apiKey, baseUrl, apiFormat, sysPrompt } = config;
+        const { modelId, thinkingEnabled = false, effort = null, apiKey, baseUrl, apiFormat, sysPrompt } = config;
         evictOldestEngine();
-        const claudeDir = path.join(os.homedir(), '.claude');
-        const cliArgs = createEngineCliArgs(['--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--permission-mode', 'bypassPermissions', '--permission-prompt-tool', 'stdio', '--add-dir', claudeDir, '--model', modelId]);
-        cliArgs.push('--thinking', config.thinkingEnabled ? 'enabled' : 'disabled');
+        const claudeDir = claudeConfigDir;
+        const cliArgs = createEngineCliArgs(['--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--permission-mode', 'bypassPermissions', '--permission-prompt-tool', 'stdio', '--setting-sources', 'user,project,local', '--settings', '{}', '--add-dir', claudeDir, '--model', modelId]);
+        if (effort) {
+            cliArgs.push('--thinking', 'adaptive', '--effort', effort);
+        } else {
+            cliArgs.push('--thinking', config.thinkingEnabled ? 'enabled' : 'disabled');
+        }
         if (conv.claude_session_id) {
             cliArgs.push('--resume', conv.claude_session_id);
             // If a delete/edit/regenerate queued a rewind point, slice the resumed
@@ -4132,6 +4566,11 @@ You have the following skills available. When a user's request matches a skill's
         }
         if (sysPrompt) cliArgs.push('--append-system-prompt', sysPrompt);
         const envVars = Object.assign({}, process.env);
+        envVars.CLAUDE_CONFIG_DIR = claudeConfigDir;
+        envVars.CLAUDE_DESKTOP_DATA_DIR = userDataPath;
+        envVars.CLAUDE_3P_DATA_DIR = runtimePaths.codeSupportDir;
+        envVars.CLAUDE_CODE_RUNTIME_DIR = claudeCodeDir;
+        envVars.CLAUDE_CODE_ENTRYPOINT = 'claude-desktop';
         if (gitBashPath && !envVars.CLAUDE_CODE_GIT_BASH_PATH) {
             envVars.CLAUDE_CODE_GIT_BASH_PATH = gitBashPath;
         }
@@ -4144,15 +4583,32 @@ You have the following skills available. When a user's request matches a skill's
             proxyTarget = { apiKey, baseUrl, model: modelId, format: 'openai', conversationId: convId, supportsWebSearch: config.supportsWebSearch === true, webSearchStrategy: config.webSearchStrategy || null };
             envVars.ANTHROPIC_API_KEY = 'proxy-key'; envVars.ANTHROPIC_BASE_URL = 'http://127.0.0.1:' + proxyPort + '/v1';
             try { const warmUrl = new URL(normalizeBaseUrl(baseUrl)); require('dns').resolve4(warmUrl.hostname, () => {}); fetch(warmUrl.origin, { method: 'HEAD', signal: AbortSignal.timeout(5000) }).catch(() => {}); } catch (_) {}
-            console.log('[EnginePool] OpenAI proxy, model=' + modelId, '| thinking=' + thinkingEnabled);
-        } else { if (apiKey) envVars.ANTHROPIC_API_KEY = apiKey; envVars.ANTHROPIC_BASE_URL = normalizeBaseUrl(baseUrl || engineEnvVars.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'); }
-        console.log('[EnginePool] Spawning persistent engine, conv=' + convId + ' model=' + modelId + ' thinking=' + thinkingEnabled + ' session=' + (conv.claude_session_id || 'new'));
+            console.log('[EnginePool] OpenAI proxy, model=' + modelId, '| thinking=' + thinkingEnabled + '| effort=' + (effort || 'auto'));
+        } else {
+            if (apiKey) {
+                if (config.authScheme === 'bearer') {
+                    envVars.ANTHROPIC_AUTH_TOKEN = apiKey;
+                    delete envVars.ANTHROPIC_API_KEY;
+                } else {
+                    approveEngineApiKey(apiKey);
+                    envVars.ANTHROPIC_API_KEY = apiKey;
+                    delete envVars.ANTHROPIC_AUTH_TOKEN;
+                }
+            }
+            const customHeaders = normalizeHeaderMap(config.customHeaders);
+            if (Object.keys(customHeaders).length > 0) {
+                envVars.ANTHROPIC_CUSTOM_HEADERS = headersToText(customHeaders);
+            }
+            envVars.ANTHROPIC_BASE_URL = normalizeBaseUrl(baseUrl);
+        }
+        const loggedKey = envVars.ANTHROPIC_API_KEY || envVars.ANTHROPIC_AUTH_TOKEN;
+        console.log('[EnginePool] Spawning persistent engine, conv=' + convId + ' model=' + modelId + ' thinking=' + thinkingEnabled + ' effort=' + (effort || 'auto') + ' session=' + (conv.claude_session_id || 'new') + ' configDir=' + claudeConfigDir + ' entrypoint=' + envVars.CLAUDE_CODE_ENTRYPOINT + ' auth=' + (config.authSource || 'unknown') + ' scheme=' + (config.authScheme || 'x-api-key') + ' key=' + maskSecret(loggedKey) + ' baseUrl=' + envVars.ANTHROPIC_BASE_URL);
         const { spawn } = require('child_process');
         const engineCwd = conv.code_cwd || conv.workspace_path;
         const child = spawn(bunExePath, cliArgs, { cwd: engineCwd, env: envVars, stdio: ['pipe', 'pipe', 'pipe'] });
         let resolveReady;
         const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
-        const engine = { child, convId, modelId, thinkingEnabled, apiKey, baseUrl, apiFormat, lastUsed: Date.now(), sessionId: conv.claude_session_id, state: 'idle', buf: '', turn: null, needsRestart: false, ready: false, readyPromise, resolveReady };
+        const engine = { child, convId, modelId, thinkingEnabled, effort, apiKey, baseUrl, apiFormat, authScheme: config.authScheme || 'x-api-key', customHeaders: JSON.stringify(normalizeHeaderMap(config.customHeaders || {})), lastUsed: Date.now(), sessionId: conv.claude_session_id, state: 'idle', buf: '', turn: null, needsRestart: false, ready: false, readyPromise, resolveReady };
         activeChildren.set(convId, child);
 
         const handleEngineStdoutLine = (line) => {
@@ -4246,29 +4702,31 @@ You have the following skills available. When a user's request matches a skill's
         if (existing && existing.needsRestart) killEngine(convId, 'warm_existing_engine_marked_needs_restart');
         const conv = db.conversations.find(c => c.id === convId);
         if (!conv) return res.status(404).json({ error: 'Not found' });
-        const { env_token, env_base_url, user_mode, user_profile } = req.body || {};
+        const { user_profile } = req.body || {};
         let config;
         try {
-            config = resolveChatConfig(conv, user_mode, env_token, env_base_url);
+            config = resolveChatConfig(conv);
         } catch (err) {
             return res.status(400).json({ error: err.message || 'Invalid chat config' });
         }
-        const sysPrompt = buildChatSystemPrompt(conv, user_mode, user_profile);
-        console.log('[EnginePool] Pre-warming engine for', convId, 'model=' + config.modelId, 'thinking=' + config.thinkingEnabled);
+        if (!config.provider && !config.apiKey) {
+            return res.status(401).json({ error: '尚未配置 third-party inference：请在设置的 Connection 页面填写 Gateway base URL 和 Gateway API key。' });
+        }
+        const sysPrompt = buildChatSystemPrompt(conv, user_profile);
+        console.log('[EnginePool] Pre-warming engine for', convId, 'model=' + config.modelId, 'thinking=' + config.thinkingEnabled, 'effort=' + (config.effort || 'auto'));
         spawnPersistentEngine(convId, conv, { ...config, sysPrompt });
         res.json({ ok: true });
     });
 
     // Chat endpoint (persistent engine)
     server.post('/api/chat', async (req, res) => {
-        const { conversation_id, message, attachments, env_token, env_base_url, user_mode, user_profile } = req.body;
+        const { conversation_id, message, attachments, user_profile } = req.body;
         const conv = db.conversations.find(c => c.id === conversation_id);
         if (!conv) return res.status(404).json({ error: 'Conversation not found' });
         console.log('[Chat] Incoming request',
             '| conv=', conversation_id,
             '| msgLen=', (message || '').length,
             '| attachments=', Array.isArray(attachments) ? attachments.length : 0,
-            '| user_mode=', user_mode,
             '| model=', conv.model,
             '| pool=', summarizeEnginePool());
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -4398,6 +4856,7 @@ You have the following skills available. When a user's request matches a skill's
                 engineUuidSynced: true,
                 attachments: attachments && attachments.length > 0 ? attachments.map(a => ({ fileId: a.fileId, fileName: a.fileName, fileType: a.fileType, mimeType: a.mimeType, size: a.size, source: a.source, gh_repo: a.ghRepo, gh_ref: a.ghRef })) : undefined
             });
+            updateDefaultConversationTitleFromMessage(conv, message);
             conv.updated_at = new Date().toISOString();
             saveDb();
 
@@ -4406,8 +4865,8 @@ You have the following skills available. When a user's request matches a skill's
             // a research-worthy question, divert to the research orchestrator and
             // bypass the engine entirely. Short messages, slash commands, and
             // greetings still go through the normal chat path.
-            if (conv.research_mode && shouldRunResearch(message)) {
-                const config = resolveChatConfig(conv, user_mode, env_token, env_base_url);
+            if (!conv.code_cwd && conv.research_mode && shouldRunResearch(message)) {
+                const config = resolveChatConfig(conv);
                 console.log('[Research] Routing to orchestrator',
                     '| conv=', conversation_id,
                     '| model=', config.modelId,
@@ -4455,20 +4914,22 @@ You have the following skills available. When a user's request matches a skill's
             }
 
             // 鈹€鈹€ 3. Get or create persistent engine 鈹€鈹€
-            const config = resolveChatConfig(conv, user_mode, env_token, env_base_url);
+            const config = resolveChatConfig(conv);
+            if (!config.provider && !config.apiKey) {
+                throw new Error('尚未配置 third-party inference：请在设置的 Connection 页面填写 Gateway base URL 和 Gateway API key。');
+            }
             let engine = enginePool.get(conversation_id);
             console.log('[Chat] Engine lookup for', conversation_id, '| existing=', summarizeEngine(engine), '| requestedModel=', config.modelId);
-            // Engine reuse: must match on every dimension that's baked into the spawn
-            // env at startup. modelId / apiKey / baseUrl / apiFormat are all hardcoded
-            // into the child process's environment vars and CANNOT be changed without
-            // a respawn. If the user switches user_mode (clawparrot ↔ selfhosted) or
-            // changes provider config, the resolved config differs from the running
-            // engine — kill it so the next spawn uses the new endpoint/credentials.
+            // Engine reuse: must match every value baked into the child process
+            // environment at startup. Changing Connection config requires respawn.
             const apiKeyChanged = !!engine && engine.apiKey !== config.apiKey;
             const baseUrlChanged = !!engine && engine.baseUrl !== config.baseUrl;
             const apiFormatChanged = !!engine && engine.apiFormat !== config.apiFormat;
+            const authSchemeChanged = !!engine && (engine.authScheme || 'x-api-key') !== (config.authScheme || 'x-api-key');
+            const customHeadersChanged = !!engine && (engine.customHeaders || '{}') !== JSON.stringify(normalizeHeaderMap(config.customHeaders || {}));
             const thinkingChanged = !!engine && !!engine.thinkingEnabled !== !!config.thinkingEnabled;
-            if (engine && (!isEngineAlive(engine) || engine.modelId !== config.modelId || thinkingChanged || engine.needsRestart || apiKeyChanged || baseUrlChanged || apiFormatChanged)) {
+            const effortChanged = !!engine && (engine.effort || null) !== (config.effort || null);
+            if (engine && (!isEngineAlive(engine) || engine.modelId !== config.modelId || thinkingChanged || effortChanged || engine.needsRestart || apiKeyChanged || baseUrlChanged || apiFormatChanged || authSchemeChanged || customHeadersChanged)) {
                 killEngine(conversation_id, 'chat_existing_engine_invalid_or_stale', {
                     isAlive: !!isEngineAlive(engine),
                     currentModel: engine && engine.modelId,
@@ -4476,15 +4937,20 @@ You have the following skills available. When a user's request matches a skill's
                     currentThinkingEnabled: !!(engine && engine.thinkingEnabled),
                     requestedThinkingEnabled: !!config.thinkingEnabled,
                     thinkingChanged,
+                    currentEffort: engine && engine.effort,
+                    requestedEffort: config.effort || null,
+                    effortChanged,
                     needsRestart: !!(engine && engine.needsRestart),
                     apiKeyChanged,
                     baseUrlChanged,
                     apiFormatChanged,
+                    authSchemeChanged,
+                    customHeadersChanged,
                 });
                 engine = null;
             }
             if (!engine) {
-                const sysPrompt = buildChatSystemPrompt(conv, user_mode, user_profile);
+                const sysPrompt = buildChatSystemPrompt(conv, user_profile);
                 engine = spawnPersistentEngine(conversation_id, conv, { ...config, sysPrompt });
             }
             if (!isEngineAlive(engine)) throw new Error('Engine failed to start');
@@ -4496,7 +4962,7 @@ You have the following skills available. When a user's request matches a skill's
                     console.warn('[Chat] Engine stuck in processing state for', conversation_id, '鈥?killing and respawning');
                     killEngine(conversation_id, 'chat_previous_turn_stuck_processing', { existing: summarizeEngine(engine) });
                     engine = null;
-                    const sysPrompt = buildChatSystemPrompt(conv, user_mode, user_profile);
+                    const sysPrompt = buildChatSystemPrompt(conv, user_profile);
                     engine = spawnPersistentEngine(conversation_id, conv, { ...config, sysPrompt });
                     if (!isEngineAlive(engine)) throw new Error('Engine failed to restart');
                 }

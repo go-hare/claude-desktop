@@ -26,10 +26,6 @@ import { getConversations, deleteConversation, updateConversation, getUser, getU
 import settingsMenuIcon from '../assets/profile-menu/settings.svg';
 import languageMenuIcon from '../assets/profile-menu/language.svg';
 import chevronRightIcon from '../assets/profile-menu/chevron-right.svg';
-import helpMenuIcon from '../assets/profile-menu/help.svg';
-import upgradeMenuIcon from '../assets/profile-menu/upgrade.svg';
-import extensionsMenuIcon from '../assets/profile-menu/extensions.svg';
-import giftMenuIcon from '../assets/profile-menu/gift.svg';
 import infoMenuIcon from '../assets/profile-menu/info.svg';
 import logoutMenuIcon from '../assets/profile-menu/logout.svg';
 
@@ -59,6 +55,70 @@ interface RenameModalProps {
 
 type SidebarTopMode = 'chat' | 'cowork' | 'code';
 const SIDEBAR_MODE_STORAGE_KEY = 'sidebar-selected-mode';
+type ProfileSubmenuKey = 'language' | 'learn-more';
+
+type SidebarChat = {
+  id: string;
+  title?: string;
+  project_name?: string;
+  updated_at?: string;
+  created_at?: string;
+  code_cwd?: string | null;
+  scheduledTaskId?: string | null;
+  sessionType?: string | null;
+  isArchived?: boolean;
+  isStarred?: boolean;
+};
+
+type SidebarSessionKind = 'cowork' | 'code';
+
+type SidebarSession = SidebarChat & {
+  ref: {
+    kind: SidebarSessionKind;
+    id: string;
+  };
+  source: {
+    kind: SidebarSessionKind;
+    data: SidebarChat;
+  };
+  updatedAtMs: number;
+  createdAtMs: number;
+};
+
+type ProfileMenuItem = {
+  key: string;
+  label: string;
+  icon?: string;
+  rightText?: string;
+  trailingChevron?: boolean;
+  submenu?: ProfileSubmenuKey;
+  onClick?: () => void;
+};
+
+type ProfileSubmenuItem = {
+  key: string;
+  label: string;
+  rightText?: string;
+  checked?: boolean;
+  separatorBefore?: boolean;
+  onClick: () => void;
+};
+
+const PROFILE_MENU_WIDTH = 270;
+const PROFILE_SUBMENU_WIDTH = 196;
+
+const LANGUAGE_OPTIONS = [
+  { key: 'en-US', label: 'English' },
+  { key: 'zh-CN', label: '简体中文' },
+  { key: 'zh-TW', label: '繁體中文' },
+  { key: 'ja-JP', label: '日本語' },
+  { key: 'ko-KR', label: '한국어' },
+  { key: 'fr-FR', label: 'Français' },
+  { key: 'de-DE', label: 'Deutsch' },
+  { key: 'es-ES', label: 'Español' },
+  { key: 'pt-BR', label: 'Português' },
+  { key: 'it-IT', label: 'Italiano' },
+];
 
 function getInitialSidebarTopMode(): SidebarTopMode {
   if (typeof window === 'undefined') return 'cowork';
@@ -66,9 +126,42 @@ function getInitialSidebarTopMode(): SidebarTopMode {
   return stored === 'code' ? 'code' : 'cowork';
 }
 
+function getInitialAppLocale() {
+  if (typeof window === 'undefined') return 'en-US';
+  return window.localStorage.getItem('app_locale') || 'en-US';
+}
+
 function normalizeModePath(path: string) {
   if (path.startsWith('#')) return path.slice(1);
   return path;
+}
+
+function parseSidebarTime(value?: string) {
+  if (!value) return 0;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getSidebarSessionKind(chat: SidebarChat): SidebarSessionKind {
+  return chat.code_cwd ? 'code' : 'cowork';
+}
+
+function toSidebarSession(chat: SidebarChat): SidebarSession {
+  const kind = getSidebarSessionKind(chat);
+  return {
+    ...chat,
+    ref: { kind, id: chat.id },
+    source: { kind, data: chat },
+    updatedAtMs: parseSidebarTime(chat.updated_at || chat.created_at),
+    createdAtMs: parseSidebarTime(chat.created_at || chat.updated_at),
+  };
+}
+
+function isRegularCoworkSession(session: SidebarSession) {
+  return session.source.kind === 'cowork'
+    && !session.source.data.scheduledTaskId
+    && session.source.data.sessionType !== 'dispatch_child'
+    && !session.source.data.isArchived;
 }
 
 const RenameModal = ({ isOpen, onClose, onSave, initialTitle }: RenameModalProps) => {
@@ -139,7 +232,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
   const navigate = useNavigate();
   const location = useLocation();
   const codeJumpUrl = ((import.meta as any).env?.VITE_CODE_JUMP_URL || '/code/').trim();
-  const [chats, setChats] = useState<any[]>([]);
+  const [chats, setChats] = useState<SidebarSession[]>([]);
   const [activeMenuIndex, setActiveMenuIndex] = useState<number | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number, left: number } | null>(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -150,6 +243,9 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [userMenuPos, setUserMenuPos] = useState<{ bottom: number; left: number } | null>(null);
+  const [openUserSubmenu, setOpenUserSubmenu] = useState<ProfileSubmenuKey | null>(null);
+  const [userSubmenuPos, setUserSubmenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [appLocale, setAppLocale] = useState(getInitialAppLocale);
   const [planLabel, setPlanLabel] = useState('Free plan');
   const [usageData, setUsageData] = useState<{ token_used: number; token_quota: number } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -189,6 +285,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
   const menuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const userSubmenuRef = useRef<HTMLDivElement>(null);
   const userBtnRef = useRef<HTMLButtonElement>(null);
 
   const isTaskRoute = location.pathname === '/task' || location.pathname.startsWith('/task/');
@@ -311,7 +408,11 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
       const data = await getConversations();
       console.log('[Sidebar] Fetched conversations:', data);
       if (Array.isArray(data)) {
-        setChats(data);
+        setChats(
+          data
+            .map(toSidebarSession)
+            .sort((a, b) => b.updatedAtMs - a.updatedAtMs)
+        );
       }
     } catch (e) {
       console.error("Failed to fetch chats", e);
@@ -343,9 +444,10 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
 
   const handleRenameClick = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-    if (chats[index]) {
-      setRenameChatId(chats[index].id);
-      setRenameInitialTitle(chats[index].title || 'New Chat');
+    const chat = visibleSidebarChats[index];
+    if (chat) {
+      setRenameChatId(chat.id);
+      setRenameInitialTitle(chat.title || 'New Chat');
       setShowRenameModal(true);
     }
     setActiveMenuIndex(null);
@@ -396,15 +498,23 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setActiveMenuIndex(null);
       }
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+      const clickedInUserMenu = userMenuRef.current?.contains(event.target as Node);
+      const clickedInUserSubmenu = userSubmenuRef.current?.contains(event.target as Node);
+      if (!clickedInUserMenu && !clickedInUserSubmenu) {
         setShowUserMenu(false);
+        setOpenUserSubmenu(null);
+        setUserSubmenuPos(null);
       }
     };
 
     // Close on scroll
     const handleScroll = () => {
       if (activeMenuIndex !== null) setActiveMenuIndex(null);
-      if (showUserMenu) setShowUserMenu(false);
+      if (showUserMenu) {
+        setShowUserMenu(false);
+        setOpenUserSubmenu(null);
+        setUserSubmenuPos(null);
+      }
     };
 
     if (activeMenuIndex !== null || showUserMenu) {
@@ -471,13 +581,20 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const closeUserMenu = () => setShowUserMenu(false);
+  const closeUserMenu = () => {
+    setShowUserMenu(false);
+    setOpenUserSubmenu(null);
+    setUserSubmenuPos(null);
+  };
   const toggleUserMenu = () => {
     if (!showUserMenu && userBtnRef.current) {
       const rect = userBtnRef.current.getBoundingClientRect();
-      setUserMenuPos({ bottom: window.innerHeight - rect.top + 4, left: rect.left });
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - PROFILE_MENU_WIDTH - 8));
+      setUserMenuPos({ bottom: window.innerHeight - rect.top + 4, left });
+      setOpenUserSubmenu(null);
+      setUserSubmenuPos(null);
     }
-    setShowUserMenu(!showUserMenu);
+    setShowUserMenu((current) => !current);
   };
   const isCoworkExactLayout = isCoworkSection && !isCollapsed;
   const isCodeExactLayout = isCodeSection && !isCollapsed;
@@ -488,14 +605,50 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
     : isCodeExactLayout
       ? codeSidebarWidth
       : standardSidebarWidth;
+  const coworkChats = chats.filter(isRegularCoworkSession);
+  const codeChats = chats.filter((chat) => chat.ref.kind === 'code');
+  const visibleSidebarChats = isCodeSection ? codeChats : coworkChats;
 
-  const profileMenuSections = [
+  const setLanguage = (locale: string) => {
+    setAppLocale(locale);
+    localStorage.setItem('app_locale', locale);
+    window.dispatchEvent(new CustomEvent('app-locale-changed', { detail: { locale } }));
+    closeUserMenu();
+  };
+
+  const showKeyboardShortcuts = () => {
+    closeUserMenu();
+    window.dispatchEvent(new CustomEvent('open-keyboard-shortcuts'));
+  };
+
+  const openLearnMoreUrl = (pathOrUrl: string) => {
+    const url = pathOrUrl.startsWith('http')
+      ? pathOrUrl
+      : `https://www.anthropic.com${pathOrUrl}`;
+    closeUserMenu();
+    openExternalUrl(url);
+  };
+
+  const openProfileSubmenu = (submenu: ProfileSubmenuKey, target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    const menuLeft = userMenuPos?.left ?? rect.left;
+    const opensRight = menuLeft + PROFILE_MENU_WIDTH + PROFILE_SUBMENU_WIDTH + 8 <= window.innerWidth;
+    const left = opensRight
+      ? menuLeft + PROFILE_MENU_WIDTH - 6
+      : Math.max(8, menuLeft - PROFILE_SUBMENU_WIDTH + 6);
+    const estimatedHeight = submenu === 'language' ? 340 : 230;
+    const top = Math.max(8, Math.min(rect.top - 8, window.innerHeight - estimatedHeight - 8));
+    setOpenUserSubmenu(submenu);
+    setUserSubmenuPos({ top, left });
+  };
+
+  const profileMenuSections: ProfileMenuItem[][] = [
     [
       {
         key: 'settings',
-        label: 'Settings',
+        label: '设置',
         icon: settingsMenuIcon,
-        rightText: '⇧⌘,',
+        rightText: '⌘,',
         onClick: () => {
           closeUserMenu();
           onOpenSettings?.();
@@ -503,67 +656,25 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
       },
       {
         key: 'language',
-        label: 'Language',
+        label: '语言',
         icon: languageMenuIcon,
         trailingChevron: true,
-        onClick: () => {
-          closeUserMenu();
-          onOpenSettings?.();
-        },
-      },
-      {
-        key: 'help',
-        label: 'Get help',
-        icon: helpMenuIcon,
-        onClick: () => {
-          closeUserMenu();
-          setShowHelpModal(true);
-        },
+        submenu: 'language',
       },
     ],
     [
       {
-        key: 'upgrade',
-        label: 'Upgrade plan',
-        icon: upgradeMenuIcon,
-        onClick: () => {
-          closeUserMenu();
-          onOpenUpgrade?.();
-        },
-      },
-      {
-        key: 'extensions',
-        label: 'Get apps and extensions',
-        icon: extensionsMenuIcon,
-        onClick: () => {
-          closeUserMenu();
-          navigate('/cowork/customize');
-        },
-      },
-      {
-        key: 'gift',
-        label: 'Gift Claude',
-        icon: giftMenuIcon,
-        onClick: () => {
-          closeUserMenu();
-          openExternalUrl('https://claude.ai');
-        },
-      },
-      {
         key: 'learn-more',
-        label: 'Learn more',
+        label: '了解更多',
         icon: infoMenuIcon,
         trailingChevron: true,
-        onClick: () => {
-          closeUserMenu();
-          openExternalUrl('https://www.anthropic.com/claude');
-        },
+        submenu: 'learn-more',
       },
     ],
     [
       {
         key: 'logout',
-        label: 'Log out',
+        label: '退出登录',
         icon: logoutMenuIcon,
         onClick: () => {
           closeUserMenu();
@@ -572,6 +683,59 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
       },
     ],
   ];
+
+  const languageSubmenuItems: ProfileSubmenuItem[] = LANGUAGE_OPTIONS.map((item) => ({
+    ...item,
+    checked: item.key === appLocale,
+    onClick: () => setLanguage(item.key),
+  }));
+
+  const learnMoreSubmenuItems: ProfileSubmenuItem[] = [
+    {
+      key: 'about',
+      label: '关于 Anthropic',
+      rightText: '↗',
+      onClick: () => openLearnMoreUrl('/'),
+    },
+    {
+      key: 'tutorials',
+      label: '教程',
+      rightText: '↗',
+      onClick: () => openLearnMoreUrl('https://claude.com/resources/tutorials?open_in_browser=1'),
+    },
+    {
+      key: 'courses',
+      label: '课程',
+      rightText: '↗',
+      onClick: () => openLearnMoreUrl('https://claude.com/resources/courses?open_in_browser=1'),
+    },
+    {
+      key: 'usage-policy',
+      label: '使用政策',
+      rightText: '↗',
+      separatorBefore: true,
+      onClick: () => openLearnMoreUrl('/legal/aup'),
+    },
+    {
+      key: 'privacy-policy',
+      label: '隐私政策',
+      rightText: '↗',
+      onClick: () => openLearnMoreUrl('/legal/privacy'),
+    },
+    {
+      key: 'keyboard-shortcuts',
+      label: '键盘快捷键',
+      rightText: '⌘/',
+      separatorBefore: true,
+      onClick: showKeyboardShortcuts,
+    },
+  ];
+
+  const profileSubmenuItems = openUserSubmenu === 'language'
+    ? languageSubmenuItems
+    : openUserSubmenu === 'learn-more'
+      ? learnMoreSubmenuItems
+      : [];
 
   return (
     <>
@@ -587,7 +751,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
       >
         {isCoworkExactLayout ? (
           <CoworkExactSidebar
-            chats={chats}
+            chats={coworkChats}
             locationPathname={location.pathname}
             onInstallUpdate={() => {
               const api = (window as any).electronAPI;
@@ -610,7 +774,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
           />
         ) : isCodeExactLayout ? (
           <CodeExactSidebar
-            chats={chats}
+            chats={codeChats}
             locationPathname={location.pathname}
             onNewSession={() => {
               sessionStorage.removeItem('prefill_input');
@@ -619,7 +783,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
             }}
             onOpenChat={(id) => {
               onCloseOverlays?.();
-              navigate(normalizedCodePath);
+              navigate(`${normalizedCodePath}/${id}`);
             }}
             onOpenCowork={() => navigate('/task/new')}
             onOpenCustomize={() => navigate(`${normalizedCodePath}/customize`)}
@@ -863,7 +1027,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
 
           {/* Recents List */}
           <div className={`space-y-0.5 pb-2 transition-all duration-200 ${isCollapsed || isRecentsCollapsed ? 'opacity-0 hidden h-0 overflow-hidden' : 'opacity-100'}`}>
-            {chats.slice(0, 30).map((chat, index) => {
+            {visibleSidebarChats.slice(0, 30).map((chat, index) => {
               const isActive = location.pathname === `/chat/${chat.id}`;
               return (
                 <div
@@ -916,7 +1080,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
                 </div>
               );
             })}
-            {chats.length > 30 && (
+            {visibleSidebarChats.length > 30 && (
               <button
                 onClick={() => { onCloseOverlays?.(); navigate('/task/new'); }}
                 className="w-full flex items-center gap-2 rounded-lg hover:bg-claude-hover transition-colors text-claude-textSecondary hover:text-claude-text"
@@ -1037,43 +1201,60 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
       {showUserMenu && userMenuPos && (
         <div
           ref={userMenuRef}
-          className="fixed z-[70] w-[270px] overflow-hidden rounded-[12px] border border-[rgba(31,31,30,0.3)] dark:border-white/15 bg-white dark:bg-claude-input shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
+          className="fixed z-[70] w-[270px] overflow-hidden rounded-[14px] border border-[rgba(31,31,30,0.18)] bg-white shadow-[0_8px_30px_rgba(0,0,0,0.16)] dark:border-white/15 dark:bg-claude-input dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)]"
           style={{
             bottom: `${userMenuPos.bottom}px`,
             left: `${userMenuPos.left}px`,
           }}
         >
-          <div className="px-[14px] pb-[8px] pt-[10px]">
-            <p className="truncate text-[12px] leading-[16.8px] text-[#7b7974] dark:text-claude-textSecondary">
-              {userUser?.email || ''}
-            </p>
+          <div className="px-[11px] pt-[10px] pb-[4px]">
+            <div className="truncate text-[13px] font-medium leading-[18px] text-[#8a8882] dark:text-claude-textSecondary">
+              Cowork 3P
+            </div>
           </div>
-
           {profileMenuSections.map((section, sectionIndex) => (
             <div key={`section-${sectionIndex}`}>
               {sectionIndex > 0 && (
-                <div className="mx-[14px] h-px bg-[rgba(31,31,30,0.15)] dark:bg-white/10" />
+                <div className="mx-[11px] h-px bg-[rgba(31,31,30,0.14)] dark:bg-white/10" />
               )}
-              <div className="px-[6px] py-[6.5px]">
+              <div className="px-[7px] py-[5px]">
                 {section.map((item) => (
                   <button
                     key={item.key}
-                    onClick={item.onClick}
-                    className="flex h-[32px] w-full items-center rounded-[8px] px-[8px] text-left transition-colors hover:bg-[#f5f4f1] dark:hover:bg-white/5"
+                    onMouseEnter={(event) => {
+                      if (item.submenu) openProfileSubmenu(item.submenu, event.currentTarget);
+                      else setOpenUserSubmenu(null);
+                    }}
+                    onFocus={(event) => {
+                      if (item.submenu) openProfileSubmenu(item.submenu, event.currentTarget);
+                    }}
+                    onClick={(event) => {
+                      if (item.submenu) {
+                        event.preventDefault();
+                        openProfileSubmenu(item.submenu, event.currentTarget);
+                        return;
+                      }
+                      item.onClick?.();
+                    }}
+                    className={`flex h-[34px] w-full items-center rounded-[9px] px-[6px] text-left transition-colors hover:bg-[#f5f4f1] focus:bg-[#f5f4f1] focus:outline-none dark:hover:bg-white/5 dark:focus:bg-white/5 ${
+                      item.submenu && openUserSubmenu === item.submenu ? 'bg-[#f5f4f1] dark:bg-white/5' : ''
+                    }`}
                   >
-                    <div className="mr-[8px] flex h-5 w-5 shrink-0 items-center justify-center">
-                      <img src={item.icon} alt="" aria-hidden="true" className="h-5 w-5 dark:invert dark:brightness-200" />
-                    </div>
-                    <span className="min-w-0 flex-1 truncate text-[14px] leading-5 tracking-[-0.1504px] text-[#373734] dark:text-claude-text">
+                    {item.icon && (
+                      <div className="mr-[10px] flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+                        <img src={item.icon} alt="" aria-hidden="true" className="h-[18px] w-[18px] opacity-[0.95] dark:invert dark:brightness-200" />
+                      </div>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-[#262624] dark:text-claude-text">
                       {item.label}
                     </span>
                     {item.rightText && (
-                      <span className="ml-2 text-[12px] leading-[16.8px] text-[#7b7974] dark:text-claude-textSecondary">
+                      <span className="ml-2 text-[13px] leading-5 text-[#8a8882] dark:text-claude-textSecondary">
                         {item.rightText}
                       </span>
                     )}
                     {item.trailingChevron && (
-                      <img src={chevronRightIcon} alt="" aria-hidden="true" className="ml-2 h-4 w-4 shrink-0 dark:invert dark:brightness-150" />
+                      <img src={chevronRightIcon} alt="" aria-hidden="true" className="ml-2 h-4 w-4 shrink-0 opacity-80 dark:invert dark:brightness-150" />
                     )}
                   </button>
                 ))}
@@ -1083,9 +1264,44 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
         </div>
       )}
 
+      {showUserMenu && openUserSubmenu && userSubmenuPos && (
+        <div
+          ref={userSubmenuRef}
+          className="fixed z-[71] w-[196px] overflow-hidden rounded-[14px] border border-[rgba(31,31,30,0.18)] bg-white p-[6px] shadow-[0_8px_30px_rgba(0,0,0,0.16)] dark:border-white/15 dark:bg-claude-input dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)]"
+          style={{
+            top: `${userSubmenuPos.top}px`,
+            left: `${userSubmenuPos.left}px`,
+          }}
+          onMouseEnter={() => setOpenUserSubmenu(openUserSubmenu)}
+        >
+          {profileSubmenuItems.map((item) => (
+            <React.Fragment key={item.key}>
+              {item.separatorBefore && (
+                <div className="mx-[8px] my-[6px] h-px bg-[rgba(31,31,30,0.15)] dark:bg-white/10" />
+              )}
+              <button
+                onClick={item.onClick}
+                className="flex h-[32px] w-full items-center rounded-[8px] px-[9px] text-left transition-colors hover:bg-[#f5f4f1] focus:bg-[#f5f4f1] focus:outline-none dark:hover:bg-white/5 dark:focus:bg-white/5"
+              >
+                <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-[#262624] dark:text-claude-text">
+                  {item.label}
+                </span>
+                {item.checked ? (
+                  <span className="ml-2 text-[20px] leading-5 text-[#1f1f1e] dark:text-claude-text">✓</span>
+                ) : item.rightText ? (
+                  <span className="ml-2 text-[14px] leading-5 text-[#88867f] dark:text-claude-textSecondary">
+                    {item.rightText}
+                  </span>
+                ) : null}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+
       {/* Fixed Context Menu Portal */}
       {
-        activeMenuIndex !== null && menuPosition && chats[activeMenuIndex] && (
+        activeMenuIndex !== null && menuPosition && visibleSidebarChats[activeMenuIndex] && (
           <div
             ref={menuRef}
             className="fixed z-50 bg-claude-input border border-claude-border rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.08)] py-1.5 flex flex-col w-[200px]"
@@ -1107,7 +1323,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onOpenSettings, o
             </button>
             <div className="h-[1px] bg-claude-border my-1 mx-3" />
             <button
-              onClick={(e) => handleDeleteChat(chats[activeMenuIndex].id, e)}
+              onClick={(e) => handleDeleteChat(visibleSidebarChats[activeMenuIndex].id, e)}
               className="flex items-center gap-3 px-3 py-2 hover:bg-claude-hover text-left w-full transition-colors group"
             >
               <IconTrash size={16} className="text-[#B9382C]" />

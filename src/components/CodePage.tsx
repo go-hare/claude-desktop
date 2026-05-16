@@ -4,6 +4,7 @@ import starSparkleImg from '../assets/figma-exports/cowork-icons/star-sparkle.pn
 import { createConversation, getCodeStats, getConversations } from '../api';
 import CodeActionCenter, { type CodeConversationSummary } from './code/CodeActionCenter';
 import CodeComposer from './code/CodeComposer';
+import { effortFromModel, getLocalCodeModels, toCodeModelString, type CodeEffort } from './code/CodeModelEffortSelector';
 import type { RawCodeStats } from './code/CodeStatsCard';
 
 const READ_SESSIONS_KEY = 'code_action_center_read_sessions';
@@ -64,7 +65,9 @@ export default function CodePage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
-  const [model] = useState(getDefaultCodeModel);
+  const [model, setModel] = useState(getDefaultCodeModel);
+  const [effort, setEffort] = useState<CodeEffort>(() => effortFromModel(getDefaultCodeModel(), localStorage.getItem('code_default_effort')));
+  const [modelOptions] = useState(getLocalCodeModels);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +89,17 @@ export default function CodePage() {
                 code_cwd: conversation.code_cwd,
                 created_at: conversation.created_at,
                 updated_at: conversation.updated_at,
+                isArchived: conversation.isArchived,
+                is_archived: conversation.is_archived,
+                isStarred: conversation.isStarred,
+                is_starred: conversation.is_starred,
+                isUnread: conversation.isUnread,
+                is_unread: conversation.is_unread,
+                sessionStatus: conversation.sessionStatus,
+                session_status: conversation.session_status,
+                postTurnSummary: conversation.postTurnSummary,
+                external_metadata: conversation.external_metadata,
+                _originalSession: conversation._originalSession,
               }))
           );
         }
@@ -143,7 +157,11 @@ export default function CodePage() {
     setIsSubmitting(true);
     setComposerError(null);
     try {
-      const conversation = await createConversation(undefined, model, { code_cwd: selectedFolder });
+      const conversation = await createConversation(undefined, toCodeModelString(model, effort), {
+        code_cwd: selectedFolder,
+        research_mode: false,
+        code_effort: effort,
+      });
       if (!conversation?.id) throw new Error('Invalid conversation response');
       setReadSessionTimes((current) => {
         const next = new Map(current);
@@ -154,7 +172,7 @@ export default function CodePage() {
       window.dispatchEvent(new CustomEvent('conversationTitleUpdated'));
       navigate(`/code/${conversation.id}`, {
         replace: true,
-        state: { initialMessage: prompt, model },
+        state: { initialMessage: prompt, model: toCodeModelString(model, effort), effort },
       });
     } catch (error: any) {
       setComposerError(error?.message || '创建 Code 会话失败。');
@@ -165,7 +183,7 @@ export default function CodePage() {
   return (
     <main className="epitaxy-root epitaxy-code-page select-none h-full w-full flex flex-col">
       <div className="h-full min-w-0 flex flex-col">
-        <div className="flex-1 min-h-0 relative isolate overflow-y-auto">
+        <div className="epitaxy-code-scroll flex-1 min-h-0 relative isolate overflow-y-auto">
           <div className="flex flex-col">
             <CodeGreeting />
             <CodeActionCenter
@@ -178,13 +196,21 @@ export default function CodePage() {
           </div>
         </div>
 
-        <div className="epitaxy-chat-column epitaxy-chat-size relative shrink-0 flex flex-col gap-g5 [contain:layout] pb-[14px]">
+        <div className="epitaxy-code-composer-region epitaxy-chat-column epitaxy-chat-size relative shrink-0 flex flex-col gap-g5 [contain:layout] pb-[14px]">
           <CodeComposer
             error={composerError}
             inputText={inputText}
             isSubmitting={isSubmitting}
+            effort={effort}
             modelLabel={model}
+            modelOptions={modelOptions}
             selectedFolder={selectedFolder}
+            onModelEffortChange={({ model: nextModel, effort: nextEffort }) => {
+              setModel(nextModel);
+              setEffort(nextEffort);
+              localStorage.setItem('default_model', nextModel);
+              localStorage.setItem('code_default_effort', nextEffort);
+            }}
             onChooseFolder={chooseFolder}
             onInputChange={(value) => {
               setInputText(value);

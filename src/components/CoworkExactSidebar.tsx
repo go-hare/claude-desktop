@@ -394,6 +394,7 @@ export default function CoworkExactSidebar({
         <div className="mb-2 mt-[52px] px-[9px]">
           <PillNav
             activeKey="cowork"
+            className="sidebar-mode-switch"
             indicatorColor="#ffffff"
             items={[...topModeItems]}
             onItemSelect={(item) => item.onSelect?.(item)}

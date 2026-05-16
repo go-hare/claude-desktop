@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { login, register, sendCode, forgotPassword, resetPassword, gatewayLogin } from '../api';
+import { login, register, sendCode, forgotPassword, resetPassword, gatewayLogin, isLocalBridgeApp } from '../api';
 
 type View = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 
@@ -38,14 +38,14 @@ const Auth = () => {
   const showStrength = (view === 'register' || view === 'reset') && password;
   const strength = showStrength ? getPasswordStrength(password) : null;
 
-  const isElectron = !!(window as any).electronAPI?.isElectron;
+  const isDesktopShell = isLocalBridgeApp();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      if (isElectron) {
-        // Electron app: login via US gateway, get API key for Claude Code SDK
+      if (isDesktopShell) {
+        // Local desktop shell/dev app: login via gateway, get API key for Claude Code.
         const data = await gatewayLogin(email, password);
         if (data.api_key) {
           window.location.hash = '#/'; window.location.reload();
@@ -179,7 +179,7 @@ const Auth = () => {
   );
 
   const userMode = localStorage.getItem('user_mode');
-  const showClawparrotHint = isElectron && userMode === 'clawparrot';
+  const showClawparrotHint = isDesktopShell && userMode === 'clawparrot';
 
   const handleSkipLogin = () => {
     // 切换到自部署模式, 不走 clawparrot 网关. 用户之后可以在 Settings → Models 里配置自己的 provider.

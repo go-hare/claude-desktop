@@ -1,10 +1,25 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CornerDownLeft, Folder, Laptop, Plus, Square } from 'lucide-react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CornerDownLeft, FileDiff, Folder, Laptop, ListChecks, ListTodo, Plus, Terminal, X, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { getConversation, sendMessage, stopGeneration } from '../api';
+import { getConversation, getGenerationStatus, getStreamStatus, reconnectStream, sendMessage, stopGeneration, updateConversation } from '../api';
+import { addStreaming, removeStreaming } from '../streamingState';
 import CodeDraftClawd from './CodeDraftClawd';
+import {
+  addCodeSessionUiListener,
+  dispatchCodeSessionUiEvent,
+  type CodeSidePane,
+  type CodeTextSize,
+  type CodeTranscriptMode,
+} from '../codeSessionUi';
+import CodeModelEffortSelector, {
+  effortFromModel,
+  getLocalCodeModels,
+  toCodeModelString,
+  type CodeEffort,
+  type CodeModelOption,
+} from './code/CodeModelEffortSelector';
 
 type CodeToolCall = {
   id: string;
@@ -24,6 +39,30 @@ type CodeMessage = {
   error?: boolean;
   is_compact_boundary?: boolean;
   toolCalls?: CodeToolCall[];
+};
+
+const CODE_TEXT_SIZE_STORAGE_KEY = 'epitaxy.chatTextSize';
+
+function getInitialCodeTextSize(): CodeTextSize {
+  if (typeof window === 'undefined') return 'm';
+  const value = window.localStorage.getItem(CODE_TEXT_SIZE_STORAGE_KEY);
+  return value === 's' || value === 'l' ? value : 'm';
+}
+
+const sidePaneTitle: Record<CodeSidePane, string> = {
+  diff: 'Diff',
+  terminal: 'Terminal',
+  tasks: 'Tasks',
+  plan: 'Plan',
+  transcript: 'Transcript',
+};
+
+const sidePaneIcon: Record<CodeSidePane, React.ReactNode> = {
+  diff: <FileDiff size={16} strokeWidth={1.8} />,
+  terminal: <Terminal size={16} strokeWidth={1.8} />,
+  tasks: <ListTodo size={16} strokeWidth={1.8} />,
+  plan: <ListChecks size={16} strokeWidth={1.8} />,
+  transcript: null,
 };
 
 function extractTextContent(content: unknown): string {
@@ -80,6 +119,47 @@ function formatInput(input: unknown): string {
   } catch {
     return String(input);
   }
+}
+
+function createAssistantPlaceholder(): CodeMessage {
+  return {
+    id: `assistant-${Date.now()}`,
+    role: 'assistant',
+    content: '',
+    created_at: new Date().toISOString(),
+    toolCalls: [],
+  };
+}
+
+function applyGenerationSnapshot(message: CodeMessage, snapshot: any): CodeMessage {
+  return {
+    ...message,
+    content: snapshot?.text ?? message.content ?? '',
+    thinking: snapshot?.thinking ?? message.thinking,
+    toolCalls: Array.isArray(snapshot?.toolCalls)
+      ? snapshot.toolCalls.map((tool: any) => ({
+        id: tool.id || tool.tool_use_id || `${tool.name}-${Math.random()}`,
+        name: tool.name || tool.tool_name || 'tool',
+        input: tool.input,
+        content: tool.result || tool.content,
+        status: tool.status === 'error' || tool.is_error ? 'error' : tool.status === 'running' ? 'running' : 'done',
+        textBefore: tool.textBefore,
+      }))
+      : message.toolCalls,
+  };
+}
+
+function appendOrUpdateAssistant(
+  messages: CodeMessage[],
+  updater: (message: CodeMessage) => CodeMessage,
+): CodeMessage[] {
+  const next = [...messages];
+  const index = next.length - 1;
+  if (index >= 0 && next[index].role === 'assistant') {
+    next[index] = updater(next[index]);
+    return next;
+  }
+  return [...next, updater(createAssistantPlaceholder())];
 }
 
 function EpitaxyMarkdown({ content }: { content: string }) {
@@ -160,18 +240,113 @@ function AssistantMessage({ message, streaming }: { message: CodeMessage; stream
   );
 }
 
+function filterMessagesForMode(messages: CodeMessage[], mode: CodeTranscriptMode) {
+  return messages
+    .filter((message) => message.role !== 'system' || message.is_compact_boundary)
+    .map((message) => {
+      if (message.role !== 'assistant') return message;
+      if (mode === 'verbose') return message;
+      if (mode === 'thinking') return { ...message, content: '' };
+      if (mode === 'summary') {
+        const toolCount = message.toolCalls?.length || 0;
+        const summary = [
+          message.thinking ? message.thinking.split('\n')[0] : '',
+          message.content ? message.content.split('\n').find(Boolean) : '',
+          toolCount ? `${toolCount} tool ${toolCount === 1 ? 'call' : 'calls'}` : '',
+        ].filter(Boolean).join('\n');
+        return { ...message, thinking: undefined, content: summary || message.content };
+      }
+      return { ...message, thinking: undefined };
+    });
+}
+
+function CodeSidePaneView({
+  pane,
+  messages,
+  cwd,
+  onClose,
+}: {
+  pane: CodeSidePane;
+  messages: CodeMessage[];
+  cwd?: string | null;
+  onClose: () => void;
+}) {
+  const toolCalls = useMemo(() => messages.flatMap((message) => message.toolCalls || []), [messages]);
+  return (
+    <aside className="w-[360px] max-w-[42vw] min-w-[300px] shrink-0 border-l border-t3 bg-z1 flex flex-col">
+      <div className="flex h-[44px] shrink-0 items-center gap-g4 border-b border-t3 px-p6">
+        <span className="flex h-[24px] w-[24px] items-center justify-center text-t6">{sidePaneIcon[pane]}</span>
+        <span className="min-w-0 flex-1 truncate text-body-medium text-t8">{sidePaneTitle[pane]}</span>
+        <button type="button" onClick={onClose} aria-label="Close" className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-r5 text-t6 hover:bg-t2 hover:text-t8">
+          <X size={16} strokeWidth={1.9} />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-p6 text-body text-t7">
+        {pane === 'transcript' ? (
+          <div className="flex flex-col gap-g6">
+            {messages.length ? messages.map((message) => (
+              <div key={message.id} className="rounded-r5 border border-t3 bg-z0 p-p5">
+                <div className="mb-g3 text-footnote text-t5">{message.role}</div>
+                <pre className="whitespace-pre-wrap break-words font-sans text-body text-t8">{message.thinking || message.content || '(empty)'}</pre>
+              </div>
+            )) : <div className="text-t5">No messages yet.</div>}
+          </div>
+        ) : pane === 'tasks' ? (
+          <div className="flex flex-col gap-g4">
+            {toolCalls.length ? toolCalls.map((tool) => (
+              <div key={tool.id} className="rounded-r5 border border-t3 bg-z0 p-p5">
+                <div className="flex items-center justify-between gap-g4">
+                  <span className="truncate text-body-medium text-t8">{tool.name}</span>
+                  <span className="shrink-0 text-footnote text-t6">{tool.status}</span>
+                </div>
+                {tool.input ? <pre className="mt-g4 whitespace-pre-wrap break-words text-code text-t6">{formatInput(tool.input)}</pre> : null}
+              </div>
+            )) : <div className="text-t5">No tasks yet.</div>}
+          </div>
+        ) : pane === 'terminal' ? (
+          <div className="rounded-r5 bg-[#1f1f1f] p-p6 font-mono text-code text-[#eeeeee]">
+            <div>$ cd {cwd || '~'}</div>
+            <div className="mt-g2 text-[#999]">Terminal pane is ready for local session integration.</div>
+          </div>
+        ) : pane === 'plan' ? (
+          <div className="flex h-full items-center justify-center text-center text-t5">No plan yet.</div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-center text-t5">No diff yet.</div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 type ComposerProps = {
   busy: boolean;
+  disabled?: boolean;
+  effort: CodeEffort;
   cwd?: string | null;
   modelLabel?: string;
+  modelOptions: CodeModelOption[];
   value: string;
   error: string | null;
   onChange: (value: string) => void;
+  onModelEffortChange: (next: { model: string; effort: CodeEffort }) => void;
   onSubmit: () => void;
   onStop: () => void;
 };
 
-function CodeSessionComposer({ busy, cwd, modelLabel, value, error, onChange, onSubmit, onStop }: ComposerProps) {
+function CodeSessionComposer({
+  busy,
+  disabled,
+  effort,
+  cwd,
+  modelLabel,
+  modelOptions,
+  value,
+  error,
+  onChange,
+  onModelEffortChange,
+  onSubmit,
+  onStop,
+}: ComposerProps) {
   return (
     <div className="relative shrink-0 flex flex-col gap-g5 [contain:layout]">
       <CodeDraftClawd />
@@ -186,9 +361,9 @@ function CodeSessionComposer({ busy, cwd, modelLabel, value, error, onChange, on
                 event.preventDefault();
                 onSubmit();
               }}
-              disabled={busy}
+              disabled={busy || disabled}
               rows={1}
-              placeholder="描述任务或提出问题"
+              placeholder={disabled ? 'Start a local session first' : '描述任务或提出问题'}
               className="epitaxy-code-textarea"
             />
           </div>
@@ -197,7 +372,7 @@ function CodeSessionComposer({ busy, cwd, modelLabel, value, error, onChange, on
               type="button"
               aria-label={busy ? '停止' : '发送'}
               onClick={busy ? onStop : onSubmit}
-              disabled={!busy && !value.trim()}
+              disabled={busy ? false : disabled || !value.trim()}
               className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t6 transition-colors hover:bg-t2 hover:text-t8 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
             >
               {busy ? <Square size={12} strokeWidth={2} /> : <CornerDownLeft size={16} strokeWidth={1.9} />}
@@ -221,7 +396,13 @@ function CodeSessionComposer({ busy, cwd, modelLabel, value, error, onChange, on
           </button>
         </div>
         <div className="ml-auto flex items-center gap-g4 text-body text-t6">
-          <span className="truncate">{modelLabel || 'claude-sonnet-4-6'} · 中</span>
+          <CodeModelEffortSelector
+            disabled={busy || disabled}
+            model={modelLabel || 'claude-sonnet-4-6'}
+            effort={effort}
+            models={modelOptions}
+            onChange={onModelEffortChange}
+          />
         </div>
       </div>
       {error ? <div className="text-footnote text-extended-pink select-text">{error}</div> : null}
@@ -235,20 +416,50 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pollRef = useRef<number | null>(null);
+  const streamRunRef = useRef(0);
   const [messages, setMessages] = useState<CodeMessage[]>([]);
   const [conversation, setConversation] = useState<any>(null);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [transcriptMode, setTranscriptMode] = useState<CodeTranscriptMode>('normal');
+  const [textSize, setTextSize] = useState<CodeTextSize>(getInitialCodeTextSize);
+  const [sidePane, setSidePane] = useState<CodeSidePane | null>(null);
+  const [modelOptions] = useState(getLocalCodeModels);
 
   const initialMessage = (location.state as any)?.initialMessage;
   const modelFromState = (location.state as any)?.model;
-  const modelLabel = modelFromState || conversation?.model;
+  const effortFromState = (location.state as any)?.effort;
+  const modelLabel = conversation?.model || modelFromState || 'claude-sonnet-4-6';
+  const effort = effortFromModel(modelLabel, conversation?.code_effort || effortFromState);
 
-  const loadConversation = useCallback(async () => {
+  const stopPolling = useCallback(() => {
+    if (!pollRef.current) return;
+    window.clearInterval(pollRef.current);
+    pollRef.current = null;
+  }, []);
+
+  const isActiveRun = useCallback((runId: number) => streamRunRef.current === runId, []);
+
+  const beginRun = useCallback(() => {
+    streamRunRef.current += 1;
+    return streamRunRef.current;
+  }, []);
+
+  const finishRun = useCallback((runId: number) => {
+    if (!isActiveRun(runId)) return false;
+    abortControllerRef.current = null;
+    stopPolling();
+    setLoading(false);
+    if (id) removeStreaming(id);
+    return true;
+  }, [id, isActiveRun, stopPolling]);
+
+  const loadConversation = useCallback(async (options?: { silent?: boolean }) => {
     if (!id) return;
-    setLoaded(false);
+    if (!options?.silent) setLoaded(false);
     try {
       const data = await getConversation(id);
       setConversation(data);
@@ -266,6 +477,16 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
   }, [loadConversation]);
 
   useEffect(() => {
+    return () => {
+      streamRunRef.current += 1;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      stopPolling();
+      if (id) removeStreaming(id);
+    };
+  }, [id, stopPolling]);
+
+  useEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
     requestAnimationFrame(() => {
@@ -273,7 +494,8 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
     });
   }, [messages, loading]);
 
-  const updateLastAssistant = useCallback((updater: (message: CodeMessage) => CodeMessage) => {
+  const updateLastAssistant = useCallback((updater: (message: CodeMessage) => CodeMessage, runId?: number) => {
+    if (runId && !isActiveRun(runId)) return;
     setMessages((current) => {
       const next = [...current];
       const index = next.length - 1;
@@ -282,7 +504,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
       }
       return next;
     });
-  }, []);
+  }, [isActiveRun]);
 
   const pollConversationTitle = useCallback(() => {
     if (!id) return;
@@ -301,8 +523,150 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
     window.setTimeout(refresh, 6000);
   }, [id, onConversationUpdated]);
 
+  const startGenerationPolling = useCallback((runId: number) => {
+    if (!id) return;
+    stopPolling();
+    pollRef.current = window.setInterval(async () => {
+      if (!isActiveRun(runId)) return;
+      try {
+        const status = await getGenerationStatus(id);
+        if (!status?.active || status.status !== 'generating') {
+          finishRun(runId);
+          await loadConversation({ silent: true });
+          pollConversationTitle();
+          return;
+        }
+        setMessages((current) => appendOrUpdateAssistant(current, (message) => applyGenerationSnapshot(message, status)));
+      } catch {
+        stopPolling();
+      }
+    }, 1500);
+  }, [finishRun, id, isActiveRun, loadConversation, pollConversationTitle, stopPolling]);
+
+  const reconnectActiveStream = useCallback(async () => {
+    if (!id || initialMessage || loading || !conversation?.code_cwd) return;
+    try {
+      const status = await getStreamStatus(id);
+      if (!status.active) {
+        const generation = await getGenerationStatus(id).catch(() => null);
+        if (generation?.active && generation.status === 'generating') {
+          const runId = beginRun();
+          addStreaming(id);
+          setLoading(true);
+          setMessages((current) => appendOrUpdateAssistant(current, (message) => applyGenerationSnapshot(message, generation)));
+          startGenerationPolling(runId);
+        }
+        return;
+      }
+
+      const runId = beginRun();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      addStreaming(id);
+      setLoading(true);
+      setMessages((current) => appendOrUpdateAssistant(current, (message) => message));
+
+      reconnectStream(
+        id,
+        (_delta, full) => {
+          updateLastAssistant((message) => ({ ...message, content: full }), runId);
+        },
+        async (full) => {
+          updateLastAssistant((message) => ({ ...message, content: full }), runId);
+          finishRun(runId);
+          await loadConversation({ silent: true });
+          pollConversationTitle();
+        },
+        (message) => {
+          updateLastAssistant((current) => ({ ...current, content: message, error: true }), runId);
+          finishRun(runId);
+          pollConversationTitle();
+        },
+        (_thinkingDelta, thinkingFull) => {
+          updateLastAssistant((message) => ({ ...message, thinking: thinkingFull }), runId);
+        },
+        (event, message, data) => {
+          if (event === 'status' && data?.message) {
+            updateLastAssistant((current) => ({ ...current, thinking: data.message }), runId);
+          }
+          if (event === 'compact_boundary') {
+            setMessages((current) => [
+              ...current,
+              {
+                id: `compact-${Date.now()}`,
+                role: 'system',
+                content: message || 'Context auto-compacted by engine.',
+                is_compact_boundary: true,
+                created_at: new Date().toISOString(),
+              },
+            ]);
+          }
+        },
+        (toolEvent: any) => {
+          updateLastAssistant((message) => {
+            const toolCalls = [...(message.toolCalls || [])];
+            const index = toolCalls.findIndex((tool) => tool.id === toolEvent.tool_use_id);
+            if (toolEvent.type === 'start') {
+              const nextTool: CodeToolCall = {
+                id: toolEvent.tool_use_id,
+                name: toolEvent.tool_name || 'tool',
+                input: toolEvent.tool_input,
+                status: 'running',
+                textBefore: toolEvent.textBefore,
+              };
+              if (index >= 0) toolCalls[index] = { ...toolCalls[index], ...nextTool };
+              else toolCalls.push(nextTool);
+            }
+            if (toolEvent.type === 'input' && index >= 0) {
+              toolCalls[index] = { ...toolCalls[index], input: toolEvent.tool_input };
+            }
+            if (toolEvent.type === 'done' && index >= 0) {
+              toolCalls[index] = {
+                ...toolCalls[index],
+                content: toolEvent.content,
+                status: toolEvent.is_error ? 'error' : 'done',
+              };
+            }
+            return { ...message, toolCalls };
+          }, runId);
+        },
+        controller.signal,
+      );
+    } catch {
+      // Reconnect is opportunistic; normal loaded transcript stays usable.
+    }
+  }, [beginRun, conversation?.code_cwd, finishRun, id, initialMessage, loadConversation, loading, pollConversationTitle, startGenerationPolling, updateLastAssistant]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    reconnectActiveStream();
+  }, [loaded, reconnectActiveStream]);
+
+  useEffect(() => {
+    return addCodeSessionUiListener((event) => {
+      if (event.type === 'setTranscriptMode') setTranscriptMode(event.mode);
+      if (event.type === 'setTextSize') {
+        window.localStorage.setItem(CODE_TEXT_SIZE_STORAGE_KEY, event.size);
+        setTextSize(event.size);
+      }
+      if (event.type === 'toggleSidePane') setSidePane((current) => current === event.pane ? null : event.pane);
+      if (event.type === 'closeSidePane') setSidePane(null);
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.chatTextSize = textSize;
+    return () => {
+      delete document.documentElement.dataset.chatTextSize;
+    };
+  }, [textSize]);
+
   const submitMessage = useCallback(async (textOverride?: string) => {
     if (!id || loading) return;
+    if (loaded && !conversation?.code_cwd) {
+      setError('Start a local session first to use Code.');
+      return;
+    }
     const text = (textOverride ?? inputText).trim();
     if (!text) return;
 
@@ -312,51 +676,60 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
       content: text,
       created_at: new Date().toISOString(),
     };
-    const assistantMessage: CodeMessage = {
-      id: `assistant-${Date.now()}`,
-      role: 'assistant',
-      content: '',
-      created_at: new Date().toISOString(),
-      toolCalls: [],
-    };
+    const assistantMessage = createAssistantPlaceholder();
 
     setInputText('');
     setError(null);
     setLoading(true);
     setMessages((current) => [...current, userMessage, assistantMessage]);
 
+    const runId = beginRun();
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    addStreaming(id);
 
     await sendMessage(
       id,
       text,
       null,
       (_delta, full) => {
-        updateLastAssistant((message) => ({ ...message, content: full }));
+        updateLastAssistant((message) => ({ ...message, content: full }), runId);
       },
-      (full) => {
-        updateLastAssistant((message) => ({ ...message, content: full }));
-        abortControllerRef.current = null;
-        setLoading(false);
+      async (full) => {
+        updateLastAssistant((message) => ({ ...message, content: full }), runId);
+        finishRun(runId);
+        await loadConversation({ silent: true });
         pollConversationTitle();
       },
       (message) => {
-        updateLastAssistant((current) => ({ ...current, content: message, error: true }));
-        abortControllerRef.current = null;
-        setLoading(false);
+        updateLastAssistant((current) => ({ ...current, content: message, error: true }), runId);
+        finishRun(runId);
+        pollConversationTitle();
       },
       (_thinkingDelta, thinkingFull) => {
-        updateLastAssistant((message) => ({ ...message, thinking: thinkingFull }));
+        updateLastAssistant((message) => ({ ...message, thinking: thinkingFull }), runId);
       },
       (event, _message, data) => {
+        if (!isActiveRun(runId)) return;
         if (event === 'metadata' && data?.user_message_id) {
           setMessages((current) => current.map((message) => (
             message.id === userMessage.id ? { ...message, id: data.user_message_id } : message
           )));
         }
         if (event === 'status' && data?.message) {
-          updateLastAssistant((message) => ({ ...message, thinking: data.message }));
+          updateLastAssistant((message) => ({ ...message, thinking: data.message }), runId);
+        }
+        if (event === 'compact_boundary') {
+          setMessages((current) => [
+            ...current,
+            {
+              id: `compact-${Date.now()}`,
+              role: 'system',
+              content: 'Context auto-compacted by engine.',
+              is_compact_boundary: true,
+              created_at: new Date().toISOString(),
+            },
+          ]);
         }
       },
       undefined,
@@ -389,11 +762,11 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
             };
           }
           return { ...message, toolCalls };
-        });
+        }, runId);
       },
       controller.signal,
     );
-  }, [id, inputText, loading, pollConversationTitle, updateLastAssistant]);
+  }, [beginRun, conversation?.code_cwd, finishRun, id, inputText, isActiveRun, loadConversation, loaded, loading, pollConversationTitle, updateLastAssistant]);
 
   useEffect(() => {
     if (!id || !loaded || !initialMessage) return;
@@ -406,50 +779,101 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
 
   const stop = useCallback(() => {
     if (!id) return;
+    const runId = streamRunRef.current;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    stopPolling();
     setLoading(false);
-    stopGeneration(id).catch(() => {});
-  }, [id]);
+    removeStreaming(id);
+    stopGeneration(id)
+      .then(() => {
+        finishRun(runId);
+        loadConversation({ silent: true });
+      })
+      .catch(() => {});
+  }, [finishRun, id, loadConversation, stopPolling]);
+
+  const blocksLocalCodeSession = loaded && conversation && !conversation.code_cwd;
+
+  const handleModelEffortChange = useCallback(async ({ model: nextModel, effort: nextEffort }: { model: string; effort: CodeEffort }) => {
+    if (!id || loading || blocksLocalCodeSession) return;
+    const normalizedModel = toCodeModelString(nextModel, nextEffort);
+    const previousConversation = conversation;
+    setConversation((current: any) => current ? { ...current, model: normalizedModel, code_effort: nextEffort } : current);
+    localStorage.setItem('default_model', normalizedModel);
+    localStorage.setItem('code_default_effort', nextEffort);
+    try {
+      const updated = await updateConversation(id, {
+        model: normalizedModel,
+        code_effort: nextEffort,
+        research_mode: false,
+      });
+      setConversation(updated);
+      window.dispatchEvent(new CustomEvent('conversationTitleUpdated'));
+      onConversationUpdated?.();
+    } catch (err: any) {
+      setConversation(previousConversation);
+      setError(err?.message || '更新模型设置失败。');
+    }
+  }, [blocksLocalCodeSession, conversation, id, loading, onConversationUpdated]);
 
   const visibleMessages = useMemo(
-    () => messages.filter((message) => message.role !== 'system' || message.is_compact_boundary),
-    [messages],
+    () => filterMessagesForMode(messages, transcriptMode),
+    [messages, transcriptMode],
   );
 
   return (
     <main className="epitaxy-root epitaxy-code-page epitaxy-code-session select-none h-full w-full flex flex-col">
-      <div className="flex-1 min-h-0 relative isolate [--epitaxy-scrim-inset-end:16px]">
-        <div aria-hidden="true" className="epitaxy-top-scrim" />
-        <div aria-hidden="true" className="epitaxy-bottom-scrim" style={{ opacity: 1 }} />
-        <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden [contain:strict]">
-          {!loaded ? (
-            <div className="h-full flex items-center justify-center text-body text-t5">加载中...</div>
-          ) : visibleMessages.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-body text-t5">No messages yet.</div>
-          ) : (
-            <div className="epitaxy-chat-column epitaxy-chat-size flex flex-col gap-[var(--chat-turn-gap)] pt-[48px] pb-[32px]">
-              {visibleMessages.map((message, index) => (
-                message.role === 'user'
-                  ? <UserMessage key={message.id} message={message} />
-                  : <AssistantMessage key={message.id} message={message} streaming={loading && index === visibleMessages.length - 1} />
-              ))}
-            </div>
-          )}
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-w-0 relative isolate [--epitaxy-scrim-inset-end:16px]">
+          <div aria-hidden="true" className="epitaxy-top-scrim" />
+          <div aria-hidden="true" className="epitaxy-bottom-scrim" style={{ opacity: 1 }} />
+          <div ref={scrollRef} className="epitaxy-code-scroll h-full overflow-y-auto overflow-x-hidden [contain:strict]">
+            {!loaded ? (
+              <div className="h-full flex items-center justify-center text-body text-t5">加载中...</div>
+            ) : blocksLocalCodeSession ? (
+              <div className="h-full flex items-center justify-center text-body text-t5">Start a local session first to use Code.</div>
+            ) : visibleMessages.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-body text-t5">No messages yet.</div>
+            ) : (
+              <div className="epitaxy-chat-column epitaxy-chat-size flex flex-col gap-[var(--chat-turn-gap)] pt-[28px] pb-[32px]">
+                {visibleMessages.map((message, index) => (
+                  message.role === 'user'
+                    ? <UserMessage key={message.id} message={message} />
+                    : <AssistantMessage key={message.id} message={message} streaming={loading && index === visibleMessages.length - 1} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+        {sidePane ? (
+          <CodeSidePaneView
+            pane={sidePane}
+            messages={messages}
+            cwd={conversation?.code_cwd}
+            onClose={() => {
+              setSidePane(null);
+              dispatchCodeSessionUiEvent({ type: 'closeSidePane' });
+            }}
+          />
+        ) : null}
       </div>
 
-      <div className="epitaxy-chat-column epitaxy-chat-size relative shrink-0 flex flex-col gap-g5 [contain:layout]">
+      <div className="epitaxy-code-composer-region epitaxy-chat-column epitaxy-chat-size relative shrink-0 flex flex-col gap-g5 [contain:layout]">
         <CodeSessionComposer
           busy={loading}
+          disabled={!!blocksLocalCodeSession}
+          effort={effort}
           cwd={conversation?.code_cwd}
           modelLabel={modelLabel}
+          modelOptions={modelOptions}
           value={inputText}
           error={error}
           onChange={(value) => {
             setInputText(value);
             if (error) setError(null);
           }}
+          onModelEffortChange={handleModelEffortChange}
           onSubmit={() => submitMessage()}
           onStop={stop}
         />

@@ -74,7 +74,7 @@ claude.ai 网页版体验顶级，但国内用户几乎用不了：注册要纯�
 - 输入框 `+` 菜单选 Skills → `/skill-name` 以蓝色 tag 出现在消息里
 - 模型通过 Skill 工具读取指令集内容（UI 里可见）
 - 内置 **skill-creator** 用于创建自定义 Skill
-- Skill 存在 `~/.claude/skills/` 目录，引擎自动加载
+- Skill 存在官方同款 `Claude-3p` Code 数据目录（默认 `~/Library/Application Support/Claude-3p/skills/`），引擎自动加载
 
 ### Projects（项目知识库）
 - 上传参考文档（代码、文档、PDF）作为项目知识库
@@ -200,10 +200,10 @@ npx electron .
 
 ### Skills
 
-Skills 存在 `~/.claude/skills/`，每个 skill 一个目录 + 一个 `SKILL.md`：
+Skills 存在官方同款 `Claude-3p` Code 数据目录，默认是 `~/Library/Application Support/Claude-3p/skills/`。每个 skill 一个目录 + 一个 `SKILL.md`：
 
 ```
-~/.claude/skills/
+~/Library/Application Support/Claude-3p/skills/
 ├── skill-creator/
 │   └── SKILL.md
 ├── code-review/

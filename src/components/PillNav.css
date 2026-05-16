@@ -3,12 +3,25 @@
   width: max-content;
 }
 
+.pill-nav-root.sidebar-mode-switch {
+  width: 100%;
+}
+
 .pill-nav-track {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--pill-gap, 6px);
   min-height: var(--pill-track-height, 47px);
+}
+
+.sidebar-mode-switch .pill-nav-track {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  padding: 4px;
+  border-radius: 14px;
+  background: #f5f3ef;
 }
 
 .pill-nav-indicator {
@@ -44,6 +57,12 @@
     color 180ms ease,
     opacity 180ms ease,
     gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar-mode-switch .pill-nav-button {
+  flex: 1 1 0;
+  gap: 8px;
+  padding: 0 10px;
 }
 
 .pill-nav-button:hover:not(:disabled) {
@@ -96,6 +115,12 @@
     max-width 240ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 140ms ease,
     transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar-mode-switch .pill-nav-label {
+  max-width: var(--pill-label-max, 64px);
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .pill-nav-button.is-active .pill-nav-label {

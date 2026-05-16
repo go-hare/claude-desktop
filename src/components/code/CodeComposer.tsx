@@ -1,14 +1,18 @@
 import { CornerDownLeft, Folder, Laptop, Plus } from 'lucide-react';
 import CodeDraftClawd from '../CodeDraftClawd';
+import CodeModelEffortSelector, { type CodeEffort, type CodeModelOption } from './CodeModelEffortSelector';
 
 type CodeComposerProps = {
   error: string | null;
+  effort: CodeEffort;
   inputText: string;
   isSubmitting: boolean;
   modelLabel: string;
+  modelOptions: CodeModelOption[];
   selectedFolder: string | null;
   onChooseFolder: () => void;
   onInputChange: (value: string) => void;
+  onModelEffortChange: (next: { model: string; effort: CodeEffort }) => void;
   onSubmit: () => void;
 };
 
@@ -19,12 +23,15 @@ function folderLabel(folder: string | null) {
 
 export default function CodeComposer({
   error,
+  effort,
   inputText,
   isSubmitting,
   modelLabel,
+  modelOptions,
   selectedFolder,
   onChooseFolder,
   onInputChange,
+  onModelEffortChange,
   onSubmit,
 }: CodeComposerProps) {
   return (
@@ -94,7 +101,13 @@ export default function CodeComposer({
           </button>
         </div>
         <div className="ml-auto flex items-center gap-g4 text-body text-t6">
-          <span className="truncate">{modelLabel} · 中</span>
+          <CodeModelEffortSelector
+            disabled={isSubmitting}
+            model={modelLabel}
+            effort={effort}
+            models={modelOptions}
+            onChange={onModelEffortChange}
+          />
           <span className="h-[10px] w-[10px] rounded-full border border-t3 bg-z0" />
         </div>
       </div>

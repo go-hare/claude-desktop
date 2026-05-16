@@ -3,6 +3,14 @@ const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
 const { autoUpdater } = require('electron-updater');
+const { configureRuntimePaths } = require('./runtime-paths.cjs');
+
+const runtimePaths = configureRuntimePaths();
+console.log('[Runtime] userData:', runtimePaths.appSupportDir);
+console.log('[Runtime] Claude-3p data:', runtimePaths.codeSupportDir);
+console.log('[Runtime] CLAUDE_CONFIG_DIR:', runtimePaths.claudeConfigDir);
+console.log('[Runtime] claude-code data:', runtimePaths.claudeCodeDir);
+
 // Load build-time secrets before requiring bridge-server so they're available on process.env.
 // secrets.json is gitignored — populated by CI at build time from GitHub Actions secrets.
 // In dev just export the env vars in your shell (or put them in this file locally).
@@ -29,8 +37,191 @@ if (process.platform === 'win32') {
 // Squirrel startup handler removed — using NSIS installer, not Squirrel
 
 let mainWindow;
+let bridgeHttpServer = null;
+let bridgeRestartTimer = null;
 
 const isDev = process.env.NODE_ENV === 'development';
+
+const EIPC_PREFIX = '$eipc_message$_ea5fa1fd-aa4e-4f73-a689-0f14f3e8be79_$_';
+const eipcChannel = (namespace, interfaceName, method) => (
+    `${EIPC_PREFIX}${namespace}_$_${interfaceName}_$_${method}`
+);
+
+const CodeEditorType = {
+    VSCode: 'vscode',
+    Cursor: 'cursor',
+    Zed: 'zed',
+    Windsurf: 'windsurf',
+    Xcode: 'xcode',
+};
+
+const editorDefinitions = {
+    [CodeEditorType.VSCode]: { protocol: 'vscode://', name: 'VS Code' },
+    [CodeEditorType.Cursor]: { protocol: 'cursor://', name: 'Cursor' },
+    [CodeEditorType.Zed]: { protocol: 'zed://', name: 'Zed' },
+    [CodeEditorType.Windsurf]: { protocol: 'windsurf://', name: 'Windsurf' },
+    [CodeEditorType.Xcode]: { protocol: 'xcode://', name: 'Xcode', platform: 'darwin' },
+};
+
+async function findXcodeProjectFile(cwd) {
+    if (!cwd) return null;
+    const findInDirectory = async (dirPath) => {
+        let entries;
+        try {
+            entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+        } catch (_) {
+            return null;
+        }
+        const workspace = entries.find((entry) => entry.isDirectory() && entry.name.endsWith('.xcworkspace'));
+        if (workspace) return path.join(dirPath, workspace.name);
+        const project = entries.find((entry) => entry.isDirectory() && entry.name.endsWith('.xcodeproj'));
+        if (project) return path.join(dirPath, project.name);
+        const swiftPackage = entries.find((entry) => entry.isFile() && entry.name === 'Package.swift');
+        return swiftPackage ? path.join(dirPath, swiftPackage.name) : null;
+    };
+
+    const directMatch = await findInDirectory(cwd);
+    if (directMatch) return directMatch;
+    for (const childDir of ['ios', 'macos', 'apple']) {
+        const childMatch = await findInDirectory(path.join(cwd, childDir));
+        if (childMatch) return childMatch;
+    }
+    return null;
+}
+
+async function getInstalledEditors(cwd) {
+    const editors = [];
+    for (const [type, definition] of Object.entries(editorDefinitions)) {
+        if (definition.platform && definition.platform !== process.platform) continue;
+        try {
+            const appInfo = await app.getApplicationInfoForProtocol(definition.protocol);
+            const installed = !!appInfo?.path;
+            if (type === CodeEditorType.Xcode && installed && cwd && !await findXcodeProjectFile(cwd)) {
+                continue;
+            }
+            let iconDataUrl;
+            if (installed && appInfo.path) {
+                let icon = appInfo.icon;
+                if (!icon || icon.isEmpty()) {
+                    icon = await app.getFileIcon(appInfo.path, { size: 'normal' });
+                }
+                if (icon && !icon.isEmpty()) {
+                    iconDataUrl = icon.resize({ width: 32, height: 32 }).toDataURL();
+                }
+            }
+            editors.push({ type, name: definition.name, installed, iconDataUrl });
+        } catch (_) {
+            editors.push({ type, name: definition.name, installed: false });
+        }
+    }
+    return editors;
+}
+
+async function isVSCodeInstalled() {
+    try {
+        const appInfo = await app.getApplicationInfoForProtocol('vscode://');
+        return !!appInfo?.path;
+    } catch (_) {
+        return false;
+    }
+}
+
+async function openInEditor(targetPath, editorType, sshConfig, line) {
+    const definition = editorDefinitions[editorType];
+    if (!definition) {
+        console.error(`[Editor] Unknown editor type: ${editorType}`);
+        return false;
+    }
+    try {
+        const appInfo = await app.getApplicationInfoForProtocol(definition.protocol);
+        if (!appInfo?.path) return false;
+
+        if (editorType === CodeEditorType.Xcode) {
+            if (sshConfig) return false;
+            const xcodeProject = await findXcodeProjectFile(targetPath);
+            if (!xcodeProject) {
+                console.info(`[Editor] No Xcode project file found in ${targetPath}`);
+                return false;
+            }
+            const stat = await fs.promises.lstat(xcodeProject);
+            if (stat.isSymbolicLink()) {
+                console.warn(`[Editor] Refusing to open Xcode symlink: ${xcodeProject}`);
+                return false;
+            }
+            const result = await shell.openPath(xcodeProject);
+            if (result) {
+                console.error(`[Editor] shell.openPath failed for Xcode: ${result}`);
+                return false;
+            }
+            return true;
+        }
+
+        const lineSuffix = line !== undefined ? `:${line}` : '';
+        let editorUrl;
+        if (sshConfig) {
+            const sshHost = sshConfig.sshHost;
+            const normalizedPath = targetPath.replace(/\\/g, '/');
+            editorUrl = `${definition.protocol}vscode-remote/ssh-remote+${sshHost}${normalizedPath}${lineSuffix}`;
+        } else {
+            const normalizedPath = targetPath.replace(/\\/g, '/');
+            editorUrl = `${definition.protocol}file/${encodeURIComponent(normalizedPath).replace(/%2F/g, '/')}${lineSuffix}`;
+        }
+        await shell.openExternal(editorUrl);
+        return true;
+    } catch (error) {
+        console.error('[Editor] Failed to open editor:', error && (error.stack || error.message || error));
+        return false;
+    }
+}
+
+async function openInVSCode(targetPath) {
+    return openInEditor(targetPath, CodeEditorType.VSCode);
+}
+
+function startBridgeServer() {
+    if (bridgeHttpServer?.listening) {
+        return bridgeHttpServer;
+    }
+
+    if (bridgeRestartTimer) {
+        clearTimeout(bridgeRestartTimer);
+        bridgeRestartTimer = null;
+    }
+
+    const appServer = initServer(mainWindow);
+    const httpServer = appServer.listen(30080, '127.0.0.1', () => {
+        bridgeHttpServer = httpServer;
+        console.log('Bridge Server running on http://127.0.0.1:30080');
+    });
+
+    httpServer.on('error', (error) => {
+        console.error('[Bridge] Server error:', error && (error.stack || error.message || error));
+        if (bridgeHttpServer === httpServer) {
+            bridgeHttpServer = null;
+        }
+    });
+
+    httpServer.on('close', () => {
+        console.warn('[Bridge] Server closed');
+        if (bridgeHttpServer === httpServer) {
+            bridgeHttpServer = null;
+        }
+        if (app.isQuitting || bridgeRestartTimer) return;
+        bridgeRestartTimer = setTimeout(() => {
+            bridgeRestartTimer = null;
+            if (!app.isQuitting) {
+                try {
+                    startBridgeServer();
+                } catch (error) {
+                    console.error('[Bridge] Restart failed:', error && (error.stack || error.message || error));
+                }
+            }
+        }, 1000);
+    });
+
+    bridgeHttpServer = httpServer;
+    return httpServer;
+}
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -165,10 +356,7 @@ app.whenReady().then(() => {
     }
 
     // Start Bridge Server
-    const server = initServer();
-    server.listen(30080, '127.0.0.1', () => {
-        console.log('Bridge Server running on http://127.0.0.1:30080');
-    });
+    startBridgeServer();
 
     createWindow();
 
@@ -247,6 +435,18 @@ app.on('window-all-closed', () => {
     }
 });
 
+app.on('before-quit', () => {
+    app.isQuitting = true;
+    if (bridgeRestartTimer) {
+        clearTimeout(bridgeRestartTimer);
+        bridgeRestartTimer = null;
+    }
+    if (bridgeHttpServer) {
+        try { bridgeHttpServer.close(); } catch (_) {}
+        bridgeHttpServer = null;
+    }
+});
+
 // IPC Handlers for future bridge communication
 ipcMain.handle('get-app-path', () => app.getPath('userData'));
 ipcMain.handle('get-platform', () => process.platform);
@@ -276,6 +476,33 @@ ipcMain.handle('resize-window', (_, width, height) => {
         mainWindow.setSize(width, height);
         mainWindow.center();
     }
+});
+
+ipcMain.handle(
+    eipcChannel('claude.web', 'LocalSessions', 'isVSCodeInstalled'),
+    () => isVSCodeInstalled(),
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'LocalSessions', 'openInVSCode'),
+    (_, targetPath) => openInVSCode(targetPath),
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'LocalSessions', 'getInstalledEditors'),
+    (_, cwd) => getInstalledEditors(cwd),
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'LocalSessions', 'openInEditor'),
+    (_, targetPath, editorType, sshConfig, line) => openInEditor(targetPath, editorType, sshConfig, line),
+);
+
+ipcMain.handle('get-installed-editors', (_, cwd) => getInstalledEditors(cwd));
+
+ipcMain.handle('open-in-editor', (_, targetPath, editorType, sshConfig, line) => (
+    openInEditor(targetPath, editorType, sshConfig, line)
+));
+
+ipcMain.handle(eipcChannel('claude.web', 'FileSystem', 'showInFolder'), async (_, filePath) => {
+    if (filePath) shell.showItemInFolder(filePath);
 });
 
 // Open the folder containing the given file path in system explorer

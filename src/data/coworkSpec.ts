@@ -7,8 +7,8 @@ export const COWORK_REFERENCE_CHUNKS = {
 } as const;
 
 export const COWORK_TOP_MODES = [
-  { key: 'cowork', label: 'Cowork' },
-  { key: 'code', label: 'Code' },
+  { key: 'cowork', label: '协作' },
+  { key: 'code', label: '代码' },
 ] as const;
 
 export const COWORK_NAV = {

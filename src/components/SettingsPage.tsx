@@ -1,14 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
+  Eye,
+  EyeOff,
   ExternalLink,
   Monitor,
   MousePointer2,
+  Search,
   Shield,
 } from 'lucide-react';
 import {
+  getThirdPartyInferenceConfig,
   getUserProfile,
+  saveThirdPartyInferenceConfig,
   updateUserProfile
+} from '../api';
+import type {
+  GatewayAuthScheme,
+  ThirdPartyInferenceConfig,
 } from '../api';
 
 interface SettingsPageProps {
@@ -16,6 +25,12 @@ interface SettingsPageProps {
 }
 
 type Tab =
+  | 'connection'
+  | 'sandbox'
+  | 'telemetry'
+  | 'limits'
+  | 'plugins'
+  | 'egress'
   | 'general'
   | 'privacy'
   | 'capabilities'
@@ -33,10 +48,21 @@ const WORK_OPTIONS = [
 const navGroups: Array<{ title?: string; items: Array<{ id: Tab; label: string; badge?: string }> }> = [
   {
     items: [
+      { id: 'connection', label: 'Connection' },
+      { id: 'sandbox', label: 'Sandbox & workspace' },
+      { id: 'connectors', label: 'Connectors & extensions' },
+      { id: 'telemetry', label: 'Telemetry & updates' },
+      { id: 'limits', label: 'Usage limits' },
+      { id: 'plugins', label: 'Plugins & skills' },
+      { id: 'egress', label: 'Egress Requirements' },
+    ],
+  },
+  {
+    title: 'Claude',
+    items: [
       { id: 'general', label: '一般' },
       { id: 'privacy', label: '隐私' },
       { id: 'capabilities', label: '技能' },
-      { id: 'connectors', label: '连接器' },
       { id: 'claude-code', label: 'Claude Code' },
       { id: 'cowork', label: 'Cowork' },
     ],
@@ -50,6 +76,43 @@ const navGroups: Array<{ title?: string; items: Array<{ id: Tab; label: string; 
     ],
   },
 ];
+
+const defaultInferenceConfig: ThirdPartyInferenceConfig = {
+  inferenceProvider: 'gateway',
+  inferenceGatewayBaseUrl: '',
+  inferenceGatewayApiKey: '',
+  inferenceGatewayAuthScheme: 'bearer',
+  inferenceGatewayHeaders: {},
+  inferenceGatewayHeadersText: '',
+};
+
+function parseHeadersText(text?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const idx = line.indexOf(':');
+    if (idx <= 0) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (key && value) headers[key] = value;
+  }
+  return headers;
+}
+
+function formatHeadersText(headers?: Record<string, string>): string {
+  return Object.entries(headers || {}).map(([key, value]) => `${key}: ${value}`).join('\n');
+}
+
+function inferenceConfigForJson(config: ThirdPartyInferenceConfig) {
+  const headers = parseHeadersText(config.inferenceGatewayHeadersText);
+  const next: Record<string, unknown> = {
+    inferenceProvider: config.inferenceProvider,
+    inferenceGatewayBaseUrl: config.inferenceGatewayBaseUrl,
+    inferenceGatewayApiKey: config.inferenceGatewayApiKey ? '••••••••' : '',
+    inferenceGatewayAuthScheme: config.inferenceGatewayAuthScheme,
+  };
+  if (Object.keys(headers).length > 0) next.inferenceGatewayHeaders = headers;
+  return next;
+}
 
 const flagDefaults: Record<string, boolean> = {
   responseCompletions: true,
@@ -87,7 +150,7 @@ function readSettingsFlags() {
 }
 
 const SettingsPage = ({ onClose }: SettingsPageProps) => {
-  const [tab, setTab] = useState<Tab>('general');
+  const [tab, setTab] = useState<Tab>('connection');
   const [profile, setProfile] = useState<any>(null);
   const [fullName, setFullName] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -100,6 +163,13 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
   const [coworkGlobalInstructions, setCoworkGlobalInstructions] = useState(localStorage.getItem('cowork_global_instructions') || '');
   const [editingCoworkInstructions, setEditingCoworkInstructions] = useState(false);
   const [showExtensionAdvanced, setShowExtensionAdvanced] = useState(false);
+  const [inferenceConfig, setInferenceConfig] = useState<ThirdPartyInferenceConfig>(defaultInferenceConfig);
+  const [inferenceConfigPath, setInferenceConfigPath] = useState('');
+  const [inferenceLoading, setInferenceLoading] = useState(false);
+  const [inferenceSaving, setInferenceSaving] = useState(false);
+  const [inferenceStatus, setInferenceStatus] = useState('');
+  const [showInferenceKey, setShowInferenceKey] = useState(false);
+  const [showInferenceJson, setShowInferenceJson] = useState(false);
   const [flags, setFlags] = useState<Record<string, boolean>>(() => ({
     ...flagDefaults,
     ...readSettingsFlags(),
@@ -128,6 +198,30 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
 
     loadProfile();
   }, [isSelfHosted]);
+
+  useEffect(() => {
+    let mounted = true;
+    setInferenceLoading(true);
+    getThirdPartyInferenceConfig()
+      .then((data) => {
+        if (!mounted) return;
+        setInferenceConfig({
+          ...defaultInferenceConfig,
+          ...data.config,
+          inferenceGatewayHeadersText: data.config.inferenceGatewayHeadersText || formatHeadersText(data.config.inferenceGatewayHeaders),
+        });
+        setInferenceConfigPath(data.configPath);
+      })
+      .catch((error) => {
+        if (mounted) setInferenceStatus(error.message || '配置加载失败');
+      })
+      .finally(() => {
+        if (mounted) setInferenceLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const saveProfile = async () => {
     const payload = {
@@ -172,8 +266,42 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
     updateUserProfile({ chat_font: value }).catch(() => {});
   };
 
+  const updateInferenceConfig = (patch: Partial<ThirdPartyInferenceConfig>) => {
+    setInferenceConfig(current => ({ ...current, ...patch }));
+    setInferenceStatus('');
+  };
+
+  const applyThirdPartyInference = async () => {
+    setInferenceSaving(true);
+    setInferenceStatus('');
+    try {
+      const headers = parseHeadersText(inferenceConfig.inferenceGatewayHeadersText);
+      const data = await saveThirdPartyInferenceConfig({
+        ...inferenceConfig,
+        inferenceGatewayHeaders: headers,
+      });
+      setInferenceConfig({
+        ...defaultInferenceConfig,
+        ...data.config,
+        inferenceGatewayHeadersText: data.config.inferenceGatewayHeadersText || formatHeadersText(data.config.inferenceGatewayHeaders),
+      });
+      setInferenceConfigPath(data.configPath);
+      setInferenceStatus('已应用到本机 Claude-3p 配置。');
+    } catch (error: any) {
+      setInferenceStatus(error?.message || '保存失败');
+    } finally {
+      setInferenceSaving(false);
+    }
+  };
+
   const renderCurrentPage = () => {
     switch (tab) {
+      case 'connection': return renderConnection();
+      case 'sandbox': return renderPlaceholderSection('Sandbox & workspace', '控制 Claude Desktop 可以访问的工作区和沙箱行为。');
+      case 'telemetry': return renderPlaceholderSection('Telemetry & updates', 'Prompts, completions, and your data are never sent to Anthropic — telemetry covers crash and usage signals only.');
+      case 'limits': return renderPlaceholderSection('Usage limits', '查看并配置第三方推理的使用限制。');
+      case 'plugins': return renderPlaceholderSection('Plugins & skills', '管理插件、技能和组织挂载目录。');
+      case 'egress': return renderPlaceholderSection('Egress Requirements', '根据当前配置列出网络防火墙需要允许的主机。');
       case 'general': return renderGeneral();
       case 'privacy': return renderPrivacy();
       case 'capabilities': return renderCapabilities();
@@ -188,21 +316,32 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex h-screen w-screen flex-col overflow-hidden bg-[#f9f7f3] text-claude-text dark:bg-[#1a1917]">
-      <div className="absolute inset-x-0 top-0 z-10 h-[42px] border-b border-[#ddd8cf] bg-[#f9f7f3] dark:border-white/10 dark:bg-[#1a1917]">
+      <div
+        className="absolute inset-x-0 top-0 z-10 flex h-12 items-center gap-3 border-b border-[#ddd8cf] bg-[#f9f7f3] pl-24 pr-4 dark:border-white/10 dark:bg-[#1a1917]"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
         <button
           type="button"
           aria-label="返回设置"
           onClick={onClose}
-          className="ml-6 flex h-full items-center gap-2 text-[15px] text-claude-text hover:text-claude-textSecondary"
+          className="flex h-8 items-center gap-2 rounded-md px-2 text-[14px] text-claude-textSecondary hover:bg-[#f2efea] hover:text-claude-text dark:hover:bg-white/10"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           <ArrowLeft size={16} />
           <span>设置</span>
         </button>
+        <div className="text-[15px] font-semibold text-claude-text">Configure third-party inference</div>
       </div>
 
-      <div className="mx-auto flex h-full w-full max-w-[1080px] min-w-0 pt-[42px]">
+      <div className="mx-auto flex h-full w-full max-w-[1080px] min-w-0 pt-12">
         <aside className="w-[224px] shrink-0 border-r border-[#e5e1d8] pr-1 pt-8 dark:border-white/10">
-          <div className="space-y-8">
+          <div className="px-3 pb-4">
+            <div className="flex h-11 items-center gap-2 rounded-lg border border-[#d8d2c8] bg-white px-3 text-claude-textSecondary shadow-sm dark:border-white/10 dark:bg-white/5">
+              <Search size={17} />
+              <span className="text-[14px]">Search settings</span>
+            </div>
+          </div>
+          <div className="space-y-7">
             {navGroups.map((group, groupIndex) => (
               <div key={group.title || groupIndex}>
                 {group.title && <div className="px-3 pb-3 text-[14px] text-claude-textSecondary">{group.title}</div>}
@@ -237,6 +376,166 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
       </div>
     </div>
   );
+
+  function renderConnection() {
+    const providers: Array<{ value: ThirdPartyInferenceConfig['inferenceProvider']; name: string; detail: string }> = [
+      { value: 'gateway', name: 'Gateway', detail: 'Anthropic-compatible' },
+      { value: 'bedrock', name: 'Bedrock', detail: 'AWS' },
+      { value: 'vertex', name: 'Vertex', detail: 'Google Cloud' },
+      { value: 'foundry', name: 'Foundry', detail: 'Azure AI' },
+    ];
+    const canApply = inferenceConfig.inferenceProvider === 'gateway'
+      && inferenceConfig.inferenceGatewayBaseUrl.trim()
+      && inferenceConfig.inferenceGatewayApiKey.trim();
+
+    return (
+      <main className="flex max-w-[900px] flex-col gap-7 pb-10">
+        <header>
+          <h2 className="text-[24px] font-semibold leading-8">Connection</h2>
+          <p className="mt-2 text-[15px] leading-6 text-claude-textSecondary">
+            Choose where Claude Desktop sends inference requests.
+          </p>
+        </header>
+
+        <div className="grid grid-cols-2 gap-3">
+          {providers.map(provider => {
+            const selected = inferenceConfig.inferenceProvider === provider.value;
+            return (
+              <button
+                key={provider.value}
+                type="button"
+                onClick={() => updateInferenceConfig({ inferenceProvider: provider.value })}
+                className={`flex h-[88px] items-center gap-4 rounded-xl border bg-white px-5 text-left transition ${
+                  selected ? 'border-[#2b7de9] shadow-[0_0_0_1px_#2b7de9]' : 'border-[#d9d4ca] hover:bg-[#fbfaf7]'
+                }`}
+              >
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? 'border-[#2b7de9]' : 'border-[#b6b2aa]'}`}>
+                  {selected && <span className="h-2 w-2 rounded-full bg-[#2b7de9]" />}
+                </span>
+                <span>
+                  <span className="block text-[18px] font-semibold">{provider.name}</span>
+                  <span className="block text-[14px] text-claude-textSecondary">{provider.detail}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {inferenceConfig.inferenceProvider !== 'gateway' && (
+          <Callout
+            message="当前本地 Claude Code 子进程只接入 Gateway。Bedrock、Vertex、Foundry 需要后续按官方字段继续接。"
+            buttonLabel="切回 Gateway"
+            onClick={() => updateInferenceConfig({ inferenceProvider: 'gateway' })}
+          />
+        )}
+
+        <Section title="GATEWAY CREDENTIALS">
+          <div className="grid grid-cols-[320px_1fr] gap-x-8 gap-y-5">
+            <FieldLabel
+              title="Gateway base URL"
+              required
+              description="Full URL of the inference gateway endpoint."
+            />
+            <TextInput
+              wide
+              value={inferenceConfig.inferenceGatewayBaseUrl}
+              onChange={value => updateInferenceConfig({ inferenceGatewayBaseUrl: value })}
+              placeholder="https://llm-gateway.example.com"
+            />
+
+            <FieldLabel title="Gateway API key" required />
+            <div className="relative">
+              <input
+                value={inferenceConfig.inferenceGatewayApiKey}
+                onChange={event => updateInferenceConfig({ inferenceGatewayApiKey: event.target.value })}
+                type={showInferenceKey ? 'text' : 'password'}
+                className="h-11 w-full rounded-xl border border-[#d9d4ca] bg-white px-4 pr-11 text-[14px] outline-none focus:border-[#c7c1b6]"
+              />
+              <button
+                type="button"
+                aria-label={showInferenceKey ? '隐藏 API key' : '显示 API key'}
+                onClick={() => setShowInferenceKey(value => !value)}
+                className="absolute right-2 top-1.5 flex h-8 w-8 items-center justify-center rounded-md text-claude-textSecondary hover:bg-[#f2efea]"
+              >
+                {showInferenceKey ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+
+            <FieldLabel
+              title="Gateway auth scheme"
+              description="Bearer sends Authorization: Bearer. x-api-key is for Anthropic API directly."
+            />
+            <Select
+              fullWidth
+              value={inferenceConfig.inferenceGatewayAuthScheme}
+              onChange={value => updateInferenceConfig({ inferenceGatewayAuthScheme: value as GatewayAuthScheme })}
+              options={[
+                { value: 'bearer', label: 'bearer' },
+                { value: 'x-api-key', label: 'x-api-key' },
+              ]}
+            />
+
+            <FieldLabel
+              title="Gateway extra headers"
+              description="One header per line, formatted as Name: value."
+            />
+            <textarea
+              value={inferenceConfig.inferenceGatewayHeadersText || ''}
+              onChange={event => updateInferenceConfig({ inferenceGatewayHeadersText: event.target.value })}
+              className="min-h-[84px] w-full rounded-xl border border-[#d9d4ca] bg-white px-4 py-3 font-mono text-[13px] outline-none focus:border-[#c7c1b6]"
+              placeholder="X-Header-Name: value"
+              spellCheck={false}
+            />
+          </div>
+          {inferenceConfigPath && (
+            <div className="pt-2 text-[12px] text-claude-textSecondary">
+              写入：<span className="font-mono">{inferenceConfigPath}</span>
+            </div>
+          )}
+        </Section>
+
+        {showInferenceJson && (
+          <pre className="max-h-[280px] overflow-auto rounded-xl border border-[#d9d4ca] bg-white p-4 font-mono text-[12px] leading-5">
+            {JSON.stringify(inferenceConfigForJson(inferenceConfig), null, 2)}
+          </pre>
+        )}
+
+        <div className="sticky bottom-0 -mx-10 mt-4 flex h-[58px] items-center gap-2 border-t border-[#ddd8cf] bg-[#f9f7f3]/95 px-10 backdrop-blur">
+          <SettingsButton onClick={() => setShowInferenceJson(value => !value)}>
+            {showInferenceJson ? 'Form view' : '{ } View as JSON'}
+          </SettingsButton>
+          <div className="flex-1" />
+          {inferenceStatus && (
+            <span className={`max-w-[360px] truncate text-[13px] ${inferenceStatus.includes('失败') || inferenceStatus.includes('Failed') ? 'text-red-600' : 'text-claude-textSecondary'}`}>
+              {inferenceStatus}
+            </span>
+          )}
+          <button
+            type="button"
+            disabled={!canApply || inferenceLoading || inferenceSaving}
+            onClick={applyThirdPartyInference}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#111] px-4 text-[14px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-[#111]"
+          >
+            {inferenceSaving ? 'Applying...' : 'Apply locally'}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  function renderPlaceholderSection(title: string, description: string) {
+    return (
+      <main className="flex max-w-[900px] flex-col gap-6">
+        <header>
+          <h2 className="text-[24px] font-semibold leading-8">{title}</h2>
+          <p className="mt-2 max-w-[720px] text-[15px] leading-6 text-claude-textSecondary">{description}</p>
+        </header>
+        <div className="rounded-xl border border-[#d9d4ca] bg-white p-5 text-[14px] text-claude-textSecondary">
+          该分区已按官方结构预留，当前先实现 Connection 对本地 Claude Code 子进程生效。
+        </div>
+      </main>
+    );
+  }
 
   function renderGeneral() {
     return (
@@ -764,6 +1063,15 @@ const TextInput = ({
     placeholder={placeholder}
     className={`h-11 rounded-xl border border-[#d9d4ca] bg-white px-4 text-[14px] outline-none focus:border-[#c7c1b6] ${wide ? 'w-full' : 'w-56'}`}
   />
+);
+
+const FieldLabel = ({ title, description, required }: { title: string; description?: string; required?: boolean }) => (
+  <div>
+    <div className="text-[15px] font-semibold">
+      {title} {required && <span className="text-[12px] font-normal text-claude-textSecondary">Required</span>}
+    </div>
+    {description && <div className="mt-2 max-w-[280px] text-[13px] leading-5 text-claude-textSecondary">{description}</div>}
+  </div>
 );
 
 const Select = ({

@@ -52,6 +52,34 @@ epitaxy-chat-column epitaxy-chat-size
 pt-[24px] pb-[56px] flex flex-col gap-[40px]
 ```
 
+## 官方 Code 执行模型
+
+官方 Desktop Code 的 `Local` session 是本机运行模型，不是前端直接请求远端业务 server 跑 Code。
+
+端到端边界：
+
+1. Renderer 只调用本机 Desktop API / Electron bridge
+2. Bridge 创建或复用本机 Claude Code runtime session
+3. Local session 的 cwd 是用户选择的本地目录
+4. 本机 runtime / engine 负责 tools、permission、resume、stream 与 abort
+5. 模型推理由 runtime 携带 provider 配置请求 Anthropic / 兼容 provider API
+
+官方依据：
+
+- 官方文档：`Local` session runs on your machine；Desktop uses the same underlying engine as Claude Code CLI
+- 官方对照包：`.tmp-official-app/electron/main.cjs` 通过 `createHeadlessChatSession({ cwd, sessionId, provider, includePartialMessages })` 创建 headless session，并在 `/api/chat` 中调用 `session.stream(prompt)`
+- 官方 SDK bundle：`HeadlessChatSessionImpl.stream()` 会设置 provider env、获取 commands/tools、调用 `ask({ cwd, tools, mutableMessages, userSpecifiedModel, ... })`
+
+当前项目对应关系：
+
+- `/api/chat` 是本机 bridge endpoint，不是远端 chat server
+- `electron/bridge-server.cjs` 当前通过 `spawnPersistentEngine()` 启动本机 Claude Code engine subprocess，并用 `conv.code_cwd || conv.workspace_path` 作为 cwd
+- Electron app 按官方结构拆两类数据目录：Desktop `userData` 使用 `~/Library/Application Support/Claude/`，Code runtime/config 使用 `~/Library/Application Support/Claude-3p/`
+- 每个本机 Code engine subprocess 都继承 `CLAUDE_CONFIG_DIR=~/Library/Application Support/Claude-3p`，并把 `--add-dir` 指向同一 Code 数据目录，而不是用户全局 `~/.claude`
+- provider / `ANTHROPIC_BASE_URL` 只决定本机 engine 往哪里发模型推理请求；不改变 Code session 由本机 engine 执行的边界
+- `code_cwd` conversation 强制关闭 `research_mode`，避免 Code session 绕过本机 engine 进入普通 research orchestrator
+- `/code/:id` 只允许带 `code_cwd` 的本机 Code conversation 继续发送；普通 conversation 进入该 route 时会提示先启动 local session
+
 ## 官方功能分层
 
 ### 1. Landing / Action Center
@@ -174,8 +202,10 @@ pt-[24px] pb-[56px] flex flex-col gap-[40px]
 当前项目状态：
 
 - 常规 Chat 页已有不少会话能力
-- Code 页目前没有复用完整 Chat 工作区
-- 需要判断是复用现有 Chat 组件，还是为 Code 页单独建轻量 `CodeSessionView`
+- Code 页已使用独立 `CodeSessionPage`，不再落回通用 Chat 工作区
+- `CodeSessionPage` 已能加载 transcript、发送后续消息、渲染 assistant/tool/thinking、显示 title/cwd/running 状态
+- `CodeSessionPage` 已接入 active stream reconnect、generation status polling、stop generation 与完成后 transcript/title refresh
+- Electron bridge 已补齐 `/api/conversations/:id/generation-status` 与 `/api/conversations/:id/stop-generation`，供 Code session route 恢复与停止生成使用
 
 建议路线：
 
@@ -311,14 +341,15 @@ pt-[24px] pb-[56px] flex flex-col gap-[40px]
   - 官方 Clawd Lottie 包装组件
 - `src/components/CodeSessionPage.tsx`
   - Code session route 的轻量工作区
+  - transcript 加载、继续发送、stream reconnect、stop、title/cwd 状态
 
 缺失：
 
 - 官方 PR attention 数据
 - 后端持久化 session read/unread 状态
-- Code session route
-- Code composer 提交逻辑
-- Code session transcript view
+- Code session fork / rewind / attach context
+- Code session 图片读取 / 文件 mention / queued message
+- background task notification 的官方式展示
 - side pane layout
 - preview server 管理
 - terminal pane
@@ -475,3 +506,46 @@ Code session view -> 官方 Code 工作区外观 -> stop/reconnect/title/cwd 状
 ```
 
 Phase 1 已经让 Code 页从“官方外观页”进入“官方工作流入口”的最小形态；后面要继续把会话区从通用 Chat 外观收成官方 Code 工作台。
+
+### Phase 2：已接入 session view 基础闭环
+
+已完成：
+
+- `/code/:id` 使用独立 `CodeSessionPage`
+- 会话页加载 conversation meta、cwd 与 transcript
+- 会话页继续发送消息并处理 text / thinking / tool events
+- 会话页进入时可通过 active stream reconnect 接回正在生成的响应
+- reconnect 不可用时可通过 generation-status snapshot polling 恢复运行态
+- stop generation 调用 Electron bridge 并持久化已有 partial assistant 输出
+- 完成或停止后刷新 transcript 与标题
+
+验证：
+
+- `node --check electron/bridge-server.cjs` 已通过
+- `npm run build` 已通过
+- 构建仍有既有警告：`MainContent.tsx` duplicate key、clipboard 动静态导入、chunk size
+- 真实 Electron 端到端 smoke 仍需启动 app 后验证：打开 `/code/:id`、发送、刷新重连、停止生成
+
+下一步：
+
+```text
+Code side pane shell -> file pane / terminal -> preview / diff / browser
+```
+
+### Phase 3：已接入 Code 模型 / Effort 选择
+
+已完成：
+
+- Code landing composer 和 Code session composer 使用同一个模型 / Effort popover
+- UI 对齐官方菜单结构：模型区、Effort 区、快捷键提示与当前项勾选
+- Code conversation 新建和更新都会持久化 `code_effort`
+- `code_cwd` conversation 继续强制 `research_mode=false`
+- Electron bridge 启动本机 Claude Code engine 时把 `code_effort` 转为 `--effort <low|medium|high|max>`
+- engine pool 复用条件纳入 `effort`，切换 Effort 后会重启本机会话子进程而不是复用旧参数
+
+验证：
+
+- `node --check electron/bridge-server.cjs` 已通过
+- `git diff --check` 已通过
+- `npm run build` 已通过
+- Electron 本机客户端已确认 Code session 底部 selector 可打开，并显示 `Sonnet 4.6 · Medium` 与 `Low / Medium / High / Max`

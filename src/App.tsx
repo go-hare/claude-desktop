@@ -1,10 +1,30 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { HashRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
-import { FileText, ChevronDown, Trash, Pencil, Star, BellRing, Menu, Folder, ArrowLeft, ArrowRight } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Clock3,
+  FileDiff,
+  FileText,
+  Folder,
+  ListChecks,
+  ListTodo,
+  Menu,
+  NotebookText,
+  PanelRight,
+  Terminal,
+  Trash,
+  Pencil,
+  Star,
+  BellRing,
+  ArrowLeft,
+  ArrowRight,
+} from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import { IconSidebarToggle } from './components/Icons';
-import { updateConversation, deleteConversation, exportConversation, getUnreadAnnouncements, markAnnouncementRead, getSystemStatus } from './api';
+import { updateConversation, deleteConversation, exportConversation, getUnreadAnnouncements, markAnnouncementRead, getSystemStatus, getConversation, isLocalBridgeApp } from './api';
 import GitBashRequiredModal from './components/GitBashRequiredModal';
 import Auth from './components/Auth';
 import Onboarding from './components/Onboarding';
@@ -28,6 +48,13 @@ import CoworkPage from './components/CoworkPage';
 import ScheduledPage from './components/ScheduledPage';
 import CodePage from './components/CodePage';
 import CodeSessionPage from './components/CodeSessionPage';
+import {
+  addCodeSessionUiListener,
+  dispatchCodeSessionUiEvent,
+  type CodeSidePane,
+  type CodeTextSize,
+  type CodeTranscriptMode,
+} from './codeSessionUi';
 
 const Tooltip = ({ children, text, shortcut }: { children: React.ReactNode; text: string; shortcut?: string }) => {
   const [show, setShow] = useState(false);
@@ -248,6 +275,781 @@ const ChatHeader = ({
   );
 };
 
+type CodeHeaderState = {
+  cwd: string | null;
+  title: string;
+  pinned: boolean;
+};
+
+type CodeInstalledEditor = {
+  type: string;
+  name: string;
+  installed?: boolean;
+  iconDataUrl?: string;
+};
+
+type ClaudeWebApi = {
+  FileSystem?: {
+    showInFolder?: (filePath: string) => Promise<void>;
+  };
+  LocalSessions?: {
+    getInstalledEditors?: (cwd?: string | null) => Promise<CodeInstalledEditor[]>;
+    openInEditor?: (
+      targetPath: string,
+      editorType: string,
+      sshConfig?: unknown,
+      line?: number,
+    ) => Promise<boolean>;
+  };
+};
+
+const getClaudeWebApi = (): ClaudeWebApi | undefined => (
+  typeof window === 'undefined' ? undefined : (window as any)['claude.web']
+);
+
+type CodeTopbarMenuItem = {
+  label: string;
+  shortcut?: string;
+  checked?: boolean;
+  icon?: React.ReactNode;
+  action: () => void;
+};
+
+type CodeTopbarSection = {
+  items: CodeTopbarMenuItem[];
+};
+
+const CodeTopbarIconButton = React.forwardRef<HTMLButtonElement, {
+  label: string;
+  active?: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}>(({ label, active, children, onClick }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    aria-label={label}
+    aria-expanded={active}
+    title={label}
+    onClick={onClick}
+    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+    className={`inline-flex h-[28px] min-w-[28px] items-center justify-center rounded-[7px] text-[#73726c] transition-colors hover:bg-[#f2f1ee] hover:text-[#2f2f2c] ${active ? 'bg-[#efeeeb] text-[#2f2f2c]' : ''}`}
+  >
+    {children}
+  </button>
+));
+CodeTopbarIconButton.displayName = 'CodeTopbarIconButton';
+
+const CodeTopbarMenu = ({
+  anchorRef,
+  open,
+  width = 220,
+  sections,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLElement>;
+  open: boolean;
+  width?: number;
+  sections: CodeTopbarSection[];
+  onClose: () => void;
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width));
+      const top = Math.max(8, Math.min(window.innerHeight - 8, rect.bottom + 6));
+      setPosition({ left, top });
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [anchorRef, open, width]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
+      onClose();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return;
+      const flatItems = sections.flatMap((section) => section.items);
+      const item = flatItems.find((entry) => entry.shortcut?.toLowerCase() === event.key.toLowerCase());
+      if (!item) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      item.action();
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [anchorRef, onClose, open, sections]);
+
+  if (!open || !position) return null;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        position: 'fixed',
+        left: `${position.left}px`,
+        top: `${position.top}px`,
+        width: `${width}px`,
+        zIndex: 10000,
+        WebkitAppRegion: 'no-drag',
+      } as React.CSSProperties}
+      className="overflow-hidden rounded-[12px] border border-[#e5e1da] bg-white py-[8px] text-[14px] font-normal text-[#2f2f2c] shadow-[0_14px_38px_rgba(0,0,0,0.14)]"
+    >
+      {sections.map((section, sectionIndex) => (
+        <React.Fragment key={sectionIndex}>
+          {sectionIndex > 0 ? <div className="my-[6px] h-px bg-[#ece8e1]" /> : null}
+          {section.items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => {
+                onClose();
+                item.action();
+              }}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              className="flex h-[38px] w-full items-center gap-[12px] px-[18px] text-left transition-colors hover:bg-[#f4f3f0]"
+            >
+              {item.icon ? <span className="flex w-[18px] shrink-0 justify-center text-[#6f6c66]">{item.icon}</span> : null}
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {item.checked ? <Check size={16} strokeWidth={1.9} className="shrink-0 text-[#2f2f2c]" /> : null}
+              {item.shortcut ? <span className="shrink-0 text-[#8a8781]">{item.shortcut}</span> : null}
+            </button>
+          ))}
+        </React.Fragment>
+      ))}
+    </div>,
+    document.body,
+  );
+};
+
+const CodeTranscriptMenu = ({
+  anchorRef,
+  open,
+  transcriptMode,
+  textSize,
+  onTranscriptModeChange,
+  onTextSizeChange,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLElement>;
+  open: boolean;
+  transcriptMode: CodeTranscriptMode;
+  textSize: CodeTextSize;
+  onTranscriptModeChange: (mode: CodeTranscriptMode) => void;
+  onTextSizeChange: (size: CodeTextSize) => void;
+  onClose: () => void;
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const width = 286;
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width));
+      const top = Math.max(8, Math.min(window.innerHeight - 8, rect.bottom + 8));
+      setPosition({ left, top });
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [anchorRef, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
+      onClose();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [anchorRef, onClose, open]);
+
+  if (!open || !position) return null;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        position: 'fixed',
+        left: `${position.left}px`,
+        top: `${position.top}px`,
+        width: `${width}px`,
+        zIndex: 10000,
+        WebkitAppRegion: 'no-drag',
+      } as React.CSSProperties}
+      className="overflow-hidden rounded-[14px] border border-[#e7e2da] bg-white py-[8px] text-[13px] font-normal text-[#252522] shadow-[0_18px_48px_rgba(0,0,0,0.15)]"
+    >
+      <div className="flex min-h-[20px] items-center gap-[4px] px-[18px] py-[3px] text-[12px] text-[#77736d]">
+        <span className="min-w-0 flex-1 truncate pr-[12px]">Transcript view</span>
+        <span className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-[4px] border border-[#ded9d2] bg-[#f7f6f3] px-[4px] text-[10px] text-[#77736d] shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
+          <ChevronDown size={11} strokeWidth={1.8} className="rotate-180" />
+        </span>
+        <span className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-[4px] border border-[#ded9d2] bg-[#f7f6f3] px-[4px] text-[10px] text-[#77736d] shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
+          O
+        </span>
+      </div>
+      <div>
+        {transcriptModeItems.map((item) => (
+          <button
+            key={item.mode}
+            type="button"
+            onClick={() => {
+              onTranscriptModeChange(item.mode);
+              onClose();
+            }}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            className="flex h-[32px] w-full items-center justify-between px-[18px] text-left text-[15px] leading-none transition-colors hover:bg-[#f4f3f0]"
+          >
+            <span>{item.label}</span>
+            {transcriptMode === item.mode ? <Check size={16} strokeWidth={1.9} /> : null}
+          </button>
+        ))}
+      </div>
+      <div className="border-t border-[#ece8e1] px-[16px] pb-[4px] pt-[8px]">
+        <div role="group" aria-label="Text size" className="grid grid-cols-3 gap-[4px]">
+          {textSizeItems.map((item) => (
+            <button
+              key={item.size}
+              type="button"
+              aria-label={item.label}
+              aria-pressed={textSize === item.size}
+              onClick={() => onTextSizeChange(item.size)}
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              className={`relative isolate flex h-[28px] items-center justify-center rounded-[6px] border-0 text-[#2f2f2c] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.10),0_1px_2px_rgba(0,0,0,0.08)] transition-colors ${textSize === item.size ? 'bg-[#efeeeb]' : 'bg-white hover:bg-[#f6f5f2]'}`}
+            >
+              <span className={item.size === 's' ? 'text-[11px]' : item.size === 'm' ? 'text-[14px]' : 'text-[17px]'}>
+                Aa
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+const transcriptModeItems: Array<{ mode: CodeTranscriptMode; label: string }> = [
+  { mode: 'normal', label: 'Normal' },
+  { mode: 'thinking', label: 'Thinking' },
+  { mode: 'verbose', label: 'Verbose' },
+  { mode: 'summary', label: 'Summary' },
+];
+
+const textSizeItems: Array<{ size: CodeTextSize; label: string }> = [
+  { size: 's', label: 'Small text' },
+  { size: 'm', label: 'Medium text' },
+  { size: 'l', label: 'Large text' },
+];
+
+const CODE_TEXT_SIZE_STORAGE_KEY = 'epitaxy.chatTextSize';
+
+function getInitialCodeTextSize(): CodeTextSize {
+  if (typeof window === 'undefined') return 'm';
+  const value = window.localStorage.getItem(CODE_TEXT_SIZE_STORAGE_KEY);
+  return value === 's' || value === 'l' ? value : 'm';
+}
+
+const sidePaneItems: Array<{ pane: CodeSidePane; label: string; icon: React.ReactNode }> = [
+  { pane: 'diff', label: 'Diff', icon: <FileDiff size={16} strokeWidth={1.7} /> },
+  { pane: 'terminal', label: 'Terminal', icon: <Terminal size={16} strokeWidth={1.7} /> },
+  { pane: 'tasks', label: 'Tasks', icon: <ListTodo size={16} strokeWidth={1.7} /> },
+  { pane: 'plan', label: 'Plan', icon: <ListChecks size={16} strokeWidth={1.7} /> },
+  { pane: 'transcript', label: 'Transcript', icon: <Clock3 size={16} strokeWidth={1.7} /> },
+];
+
+const CodeSessionTopActions = ({
+  visible,
+  titleBarHeight,
+  transcriptMode,
+  textSize,
+  sidePane,
+  onTranscriptModeChange,
+  onTextSizeChange,
+  onSidePaneToggle,
+}: {
+  visible: boolean;
+  titleBarHeight: number;
+  transcriptMode: CodeTranscriptMode;
+  textSize: CodeTextSize;
+  sidePane: CodeSidePane | null;
+  onTranscriptModeChange: (mode: CodeTranscriptMode) => void;
+  onTextSizeChange: (size: CodeTextSize) => void;
+  onSidePaneToggle: (pane: CodeSidePane) => void;
+}) => {
+  const [openMenu, setOpenMenu] = useState<'transcript' | 'views' | null>(null);
+  const transcriptButtonRef = useRef<HTMLButtonElement>(null);
+  const viewsButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!visible) setOpenMenu(null);
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const viewsSections: CodeTopbarSection[] = [
+    {
+      items: [
+        ...sidePaneItems.map((item) => ({
+          label: item.label,
+          checked: sidePane === item.pane,
+          icon: item.icon,
+          action: () => onSidePaneToggle(item.pane),
+        })),
+      ],
+    },
+  ];
+
+  return (
+    <div
+      className="absolute top-0 right-[18px] z-[2] flex items-center gap-[6px]"
+      style={{
+        height: `${titleBarHeight}px`,
+        WebkitAppRegion: 'no-drag',
+        pointerEvents: 'auto',
+      } as React.CSSProperties}
+    >
+      <CodeTopbarIconButton
+        ref={transcriptButtonRef}
+        label="Transcript view mode"
+        active={openMenu === 'transcript'}
+        onClick={() => setOpenMenu((current) => current === 'transcript' ? null : 'transcript')}
+      >
+        <NotebookText size={18} strokeWidth={1.8} />
+      </CodeTopbarIconButton>
+      <CodeTopbarIconButton
+        ref={viewsButtonRef}
+        label="Views"
+        active={openMenu === 'views'}
+        onClick={() => setOpenMenu((current) => current === 'views' ? null : 'views')}
+      >
+        <PanelRight size={19} strokeWidth={1.8} />
+        <ChevronDown size={12} strokeWidth={1.8} className="ml-[1px]" />
+      </CodeTopbarIconButton>
+      <CodeTranscriptMenu
+        anchorRef={transcriptButtonRef}
+        open={openMenu === 'transcript'}
+        transcriptMode={transcriptMode}
+        textSize={textSize}
+        onTranscriptModeChange={onTranscriptModeChange}
+        onTextSizeChange={onTextSizeChange}
+        onClose={() => setOpenMenu(null)}
+      />
+      <CodeTopbarMenu
+        anchorRef={viewsButtonRef}
+        open={openMenu === 'views'}
+        width={230}
+        sections={viewsSections}
+        onClose={() => setOpenMenu(null)}
+      />
+    </div>
+  );
+};
+
+const CodeTitleBreadcrumb = ({
+  state,
+  sidebarWidth,
+  titleBarHeight,
+  onOpenInEditor,
+  onShowInFolder,
+  onRename,
+  onTogglePin,
+  onArchive,
+  onDelete,
+}: {
+  state: CodeHeaderState;
+  sidebarWidth: number;
+  titleBarHeight: number;
+  onOpenInEditor: (editorType: string) => void;
+  onShowInFolder: () => void;
+  onRename: (title: string) => Promise<void> | void;
+  onTogglePin: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const [openInSubmenu, setOpenInSubmenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null);
+  const [installedEditors, setInstalledEditors] = useState<CodeInstalledEditor[]>([]);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const menuWidth = 280;
+  const submenuWidth = 260;
+  const noDragStyle = {
+    WebkitAppRegion: 'no-drag',
+    pointerEvents: 'auto',
+  } as React.CSSProperties;
+  const title = state.title && state.title !== 'New Conversation'
+    ? state.title
+    : 'General coding session';
+
+  const refreshInstalledEditors = useCallback(async () => {
+    const localSessions = getClaudeWebApi()?.LocalSessions;
+    if (!localSessions?.getInstalledEditors) {
+      setInstalledEditors([]);
+      return;
+    }
+    try {
+      const editors = await localSessions.getInstalledEditors(state.cwd);
+      setInstalledEditors(Array.isArray(editors)
+        ? editors
+          .filter((editor) => editor?.installed && editor.type !== 'xcode')
+          .sort((left, right) => left.name.localeCompare(right.name))
+        : []);
+    } catch (error) {
+      console.error('Failed to load installed editors:', error);
+      setInstalledEditors([]);
+    }
+  }, [state.cwd]);
+
+  useEffect(() => {
+    refreshInstalledEditors();
+  }, [refreshInstalledEditors]);
+
+  useEffect(() => {
+    if (open) refreshInstalledEditors();
+  }, [open, refreshInstalledEditors]);
+
+  useEffect(() => {
+    if (!isEditingTitle) return;
+    titleInputRef.current?.focus();
+    titleInputRef.current?.select();
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    if (!open) return;
+    const updateMenuPosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const left = Math.max(8, Math.min(window.innerWidth - menuWidth - 8, rect.right - menuWidth));
+      const top = Math.max(8, Math.min(window.innerHeight - 8, rect.bottom + 6));
+      setMenuPosition({ left, top });
+    };
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [open]);
+
+  const runAction = useCallback((action: () => void) => {
+    setOpen(false);
+    setOpenInSubmenu(false);
+    action();
+  }, []);
+
+  const openInItems = useMemo(() => {
+    if (!state.cwd) return [];
+    return [
+      ...installedEditors
+        .map((editor) => ({
+          label: editor.name,
+          action: () => onOpenInEditor(editor.type),
+        })),
+      {
+        label: 'Finder',
+        action: onShowInFolder,
+      },
+    ];
+  }, [installedEditors, onOpenInEditor, onShowInFolder, state.cwd]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
+      setOpen(false);
+      setOpenInSubmenu(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        setOpenInSubmenu(false);
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return;
+      if (openInSubmenu) {
+        const itemIndex = Number.parseInt(event.key, 10) - 1;
+        const item = openInItems[itemIndex];
+        if (item) {
+          event.preventDefault();
+          event.stopPropagation();
+          runAction(item.action);
+        }
+        return;
+      }
+      const action = shortcutActions.get(event.key.toLowerCase());
+      if (!action) return;
+      event.preventDefault();
+      event.stopPropagation();
+      action();
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [open, openInSubmenu, openInItems, runAction]);
+
+  const startRename = () => {
+    setOpen(false);
+    setOpenInSubmenu(false);
+    setDraftTitle(title);
+    setIsEditingTitle(true);
+  };
+
+  const submitRename = async () => {
+    const nextTitle = draftTitle.trim();
+    if (!nextTitle || nextTitle === title) {
+      setIsEditingTitle(false);
+      return;
+    }
+
+    try {
+      await onRename(nextTitle);
+      setIsEditingTitle(false);
+    } catch (err) {
+      console.error('Failed to rename code session:', err);
+    }
+  };
+
+  const handleRenameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitRename();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setIsEditingTitle(false);
+    }
+  };
+
+  const shortcutActions = new Map<string, () => void>([
+    ['p', () => runAction(onTogglePin)],
+    ['u', () => runAction(() => {})],
+    ['r', startRename],
+    ['f', () => runAction(() => {})],
+    ['a', () => runAction(onArchive)],
+    ['d', () => runAction(onDelete)],
+  ]);
+
+  const menuItems: Array<{
+    label?: string;
+    shortcut?: string;
+    separator?: boolean;
+    danger?: boolean;
+    action?: () => void;
+  }> = [
+    { label: state.pinned ? 'Unpin' : 'Pin', shortcut: 'P', action: onTogglePin },
+    { label: 'Mark as unread', shortcut: 'U', action: () => {} },
+    { label: 'Rename', shortcut: 'R', action: startRename },
+    { label: 'Fork', shortcut: 'F', action: () => {} },
+    { separator: true },
+    { label: 'Archive', shortcut: 'A', action: onArchive },
+    { label: 'Delete', shortcut: 'D', danger: true, action: onDelete },
+  ];
+
+  const menu = open && menuPosition ? createPortal(
+    <div
+      ref={menuRef}
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        ...noDragStyle,
+        position: 'fixed',
+        left: `${menuPosition.left}px`,
+        top: `${menuPosition.top}px`,
+        width: `${menuWidth}px`,
+        zIndex: 10000,
+      }}
+      className="overflow-visible rounded-[12px] border border-[#e5e1da] bg-white py-[8px] text-[14px] font-normal text-[#2f2f2c] shadow-[0_14px_38px_rgba(0,0,0,0.14)]"
+    >
+      {openInItems.length > 0 ? (
+        <>
+          <button
+            type="button"
+            onMouseEnter={() => setOpenInSubmenu(true)}
+            onFocus={() => setOpenInSubmenu(true)}
+            onClick={(event) => {
+              event.preventDefault();
+              setOpenInSubmenu(true);
+            }}
+            style={noDragStyle}
+            className="flex h-[38px] w-full items-center justify-between px-[20px] text-left transition-colors hover:bg-[#f4f3f0]"
+          >
+            <span>Open in</span>
+            <span className="text-[#2f2f2c]">›</span>
+          </button>
+          <div className="my-[6px] h-px bg-[#ece8e1]" />
+        </>
+      ) : null}
+      {menuItems.map((item, index) => (
+        item.separator ? (
+          <div key={`sep-${index}`} className="my-[6px] h-px bg-[#ece8e1]" />
+        ) : (
+          <button
+            key={item.label || index}
+            type="button"
+            onMouseEnter={() => setOpenInSubmenu(false)}
+            onFocus={() => setOpenInSubmenu(false)}
+            onClick={() => {
+              item.action && runAction(item.action);
+            }}
+            style={noDragStyle}
+            className={`flex h-[38px] w-full items-center justify-between px-[20px] text-left transition-colors hover:bg-[#f4f3f0] ${item.danger ? 'text-[#ff3b30]' : 'text-[#2f2f2c]'}`}
+          >
+            <span>{item.label}</span>
+            <span className="text-[#8a8781]">{item.shortcut}</span>
+          </button>
+        )
+      ))}
+      {openInSubmenu && openInItems.length > 0 ? (
+        <div
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          style={{
+            ...noDragStyle,
+            position: 'absolute',
+            left: `${menuWidth - 4}px`,
+            top: '0px',
+            width: `${submenuWidth}px`,
+          }}
+          className="overflow-hidden rounded-[12px] border border-[#e5e1da] bg-white py-[8px] text-[14px] font-normal text-[#2f2f2c] shadow-[0_14px_38px_rgba(0,0,0,0.14)]"
+        >
+          {openInItems.map((item, index) => (
+            <button
+              key={`${item.label}-${index}`}
+              type="button"
+              onClick={() => runAction(item.action)}
+              style={noDragStyle}
+              className="flex h-[38px] w-full items-center justify-between px-[24px] text-left transition-colors hover:bg-[#f4f3f0]"
+            >
+              <span>{item.label}</span>
+              <span className="text-[#8a8781]">{index < 9 ? index + 1 : ''}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>,
+    document.body,
+  ) : null;
+
+  return (
+    <div
+      className="absolute top-0 right-0 flex h-full items-center"
+      style={{
+        left: `${sidebarWidth}px`,
+        WebkitAppRegion: 'drag',
+      } as React.CSSProperties}
+    >
+      <div
+        className="relative flex min-w-0 items-center pl-[28px] text-[14px] font-medium leading-none text-[#2f2f2c]"
+        style={{
+          height: `${titleBarHeight}px`,
+          WebkitAppRegion: 'no-drag',
+        } as React.CSSProperties}
+      >
+        <div className="flex min-w-0 items-center gap-[7px]">
+          <Folder size={15} strokeWidth={1.8} className="shrink-0 text-[#2f2f2c]" />
+          <span className="shrink-0">base</span>
+          <span className="shrink-0 text-[#6f6c66]">/</span>
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={draftTitle}
+              onChange={(event) => setDraftTitle(event.target.value)}
+              onBlur={submitRename}
+              onKeyDown={handleRenameKeyDown}
+              style={noDragStyle}
+              className="h-[28px] w-[260px] rounded-[7px] border border-[#d8d3cb] bg-white px-[8px] text-[14px] font-medium leading-none text-[#2f2f2c] outline-none shadow-[0_0_0_3px_rgba(70,130,180,0.12)]"
+            />
+          ) : (
+            <button
+              type="button"
+              onDoubleClick={startRename}
+              style={noDragStyle}
+              className="max-w-[260px] truncate rounded-[6px] px-[2px] text-left hover:bg-[#f0efec]"
+              title={title}
+            >
+              {title}
+            </button>
+          )}
+        </div>
+        <button
+          ref={buttonRef}
+          type="button"
+          aria-expanded={open}
+          aria-label="Session actions"
+          onClick={() => {
+            setOpen((value) => {
+              const next = !value;
+              if (!next) setOpenInSubmenu(false);
+              return next;
+            });
+          }}
+          style={noDragStyle}
+          className={`ml-[4px] inline-flex h-[28px] w-[28px] items-center justify-center rounded-[8px] text-[#77746f] transition-colors ${open ? 'bg-[#efeeeb]' : 'hover:bg-[#f0efec]'}`}
+        >
+          <ChevronDown size={13} strokeWidth={1.8} />
+        </button>
+        {menu}
+      </div>
+    </div>
+  );
+};
+
 const Layout = () => {
   const [unreadAnnouncements, setUnreadAnnouncements] = useState<Array<{
     id: number;
@@ -261,14 +1063,9 @@ const Layout = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [newChatKey, setNewChatKey] = useState(0);
-  const [authChecked, setAuthChecked] = useState(true);
-  const [authValid, setAuthValid] = useState(() => {
-    // Electron + clawparrot mode without gateway key → need login. Other cases pass.
-    if (!(window as any).electronAPI?.isElectron) return true;
-    const mode = localStorage.getItem('user_mode');
-    const hasGatewayKey = !!(localStorage.getItem('ANTHROPIC_API_KEY') && localStorage.getItem('gateway_user'));
-    return !(mode === 'clawparrot' && !hasGatewayKey);
-  });
+  const [codeTranscriptMode, setCodeTranscriptMode] = useState<CodeTranscriptMode>('normal');
+  const [codeTextSize, setCodeTextSize] = useState<CodeTextSize>(getInitialCodeTextSize);
+  const [codeSidePane, setCodeSidePane] = useState<CodeSidePane | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
@@ -325,11 +1122,21 @@ const Layout = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const isCodeSection = location.pathname.startsWith('/code');
+  const isCodeSessionRoute = /^\/code\/[^/]+/.test(location.pathname)
+    && location.pathname !== '/code/scheduled'
+    && location.pathname !== '/code/customize';
+  const activeCodeConversationId = isCodeSessionRoute ? location.pathname.split('/')[2] : null;
 
   // Navigation history for back/forward buttons
   const [navHistory, setNavHistory] = useState<string[]>([location.pathname + location.search + location.hash]);
   const [navIndex, setNavIndex] = useState(0);
   const isNavAction = useRef(false);
+  const [codeHeaderState, setCodeHeaderState] = useState<CodeHeaderState>({
+    cwd: null,
+    title: '',
+    pinned: false,
+  });
 
   useEffect(() => {
     const fullPath = location.pathname + location.search;
@@ -396,6 +1203,35 @@ const Layout = () => {
     setShowArtifacts(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeCodeConversationId) {
+      setCodeHeaderState({ cwd: null, title: '', pinned: false });
+      setCodeSidePane(null);
+      return () => { cancelled = true; };
+    }
+
+    getConversation(activeCodeConversationId)
+      .then((data) => {
+        if (!cancelled) {
+          setCodeHeaderState({
+            cwd: data?.code_cwd || null,
+            title: data?.title || '',
+            pinned: !!data?.pinned,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCodeHeaderState({ cwd: null, title: '', pinned: false });
+      });
+
+    return () => { cancelled = true; };
+  }, [activeCodeConversationId, refreshTrigger]);
+
+  useEffect(() => {
+    if (!isCodeSessionRoute) setCodeSidePane(null);
+  }, [isCodeSessionRoute]);
+
   // Listen for open-upgrade event from MainContent paywall
   useEffect(() => {
     const handler = () => { setShowUpgrade(true); setShowSettings(false); };
@@ -408,17 +1244,6 @@ const Layout = () => {
     // Intentionally empty: do not collapse left sidebar automatically
   }, [location.pathname]);
 
-  const isElectron = !!(window as any).electronAPI?.isElectron;
-  // Electron auth rule: clawparrot users must login before entering the main UI
-  // (登录页会提示去 clawparrot.com 注册, 也提供"跳过登录"按钮切到 selfhosted).
-  // selfhosted users skip the login page entirely.
-  useEffect(() => {
-    if (!isElectron) return;
-    const mode = localStorage.getItem('user_mode');
-    const hasGatewayKey = !!(localStorage.getItem('ANTHROPIC_API_KEY') && localStorage.getItem('gateway_user'));
-    setAuthValid(!(mode === 'clawparrot' && !hasGatewayKey));
-  }, [isElectron]);
-
   const loadUnreadAnnouncements = useCallback(async () => {
     try {
       const data = await getUnreadAnnouncements();
@@ -429,8 +1254,6 @@ const Layout = () => {
   }, []);
 
   useEffect(() => {
-    if (!authValid) return;
-
     loadUnreadAnnouncements();
 
     const intervalId = window.setInterval(() => {
@@ -455,7 +1278,7 @@ const Layout = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [authValid, loadUnreadAnnouncements]);
+  }, [loadUnreadAnnouncements]);
 
   useEffect(() => {
     if (unreadAnnouncements.length === 0) {
@@ -487,6 +1310,82 @@ const Layout = () => {
   const refreshSidebar = () => {
     setRefreshTrigger(prev => prev + 1);
   };
+
+  const handleCodeTitleOpenInEditor = useCallback(async (editorType: string) => {
+    const folder = codeHeaderState.cwd;
+    const localSessions = getClaudeWebApi()?.LocalSessions;
+    if (!folder || !localSessions?.openInEditor) return;
+    await localSessions.openInEditor(folder, editorType, undefined, undefined);
+  }, [codeHeaderState.cwd]);
+
+  const handleCodeTitleShowInFolder = useCallback(async () => {
+    const folder = codeHeaderState.cwd;
+    if (!folder) return;
+    const fileSystem = getClaudeWebApi()?.FileSystem;
+    if (fileSystem?.showInFolder) {
+      await fileSystem.showInFolder(folder).catch(() => {});
+    }
+  }, [codeHeaderState.cwd]);
+
+  const handleCodeTranscriptModeChange = useCallback((mode: CodeTranscriptMode) => {
+    setCodeTranscriptMode(mode);
+    dispatchCodeSessionUiEvent({ type: 'setTranscriptMode', mode });
+  }, []);
+
+  const handleCodeTextSizeChange = useCallback((size: CodeTextSize) => {
+    window.localStorage.setItem(CODE_TEXT_SIZE_STORAGE_KEY, size);
+    setCodeTextSize(size);
+    dispatchCodeSessionUiEvent({ type: 'setTextSize', size });
+  }, []);
+
+  const handleCodeSidePaneToggle = useCallback((pane: CodeSidePane) => {
+    const next = codeSidePane === pane ? null : pane;
+    setCodeSidePane(next);
+    dispatchCodeSessionUiEvent(next ? { type: 'toggleSidePane', pane: next } : { type: 'closeSidePane' });
+  }, [codeSidePane]);
+
+  useEffect(() => addCodeSessionUiListener((event) => {
+    if (event.type === 'closeSidePane') setCodeSidePane(null);
+    if (event.type === 'toggleSidePane') setCodeSidePane(event.pane);
+    if (event.type === 'setTranscriptMode') setCodeTranscriptMode(event.mode);
+    if (event.type === 'setTextSize') {
+      window.localStorage.setItem(CODE_TEXT_SIZE_STORAGE_KEY, event.size);
+      setCodeTextSize(event.size);
+    }
+  }), []);
+
+  const handleCodeTitleRename = useCallback(async (title: string) => {
+    if (!activeCodeConversationId) return;
+
+    try {
+      await updateConversation(activeCodeConversationId, { title });
+      setCodeHeaderState((prev) => ({ ...prev, title }));
+      refreshSidebar();
+      window.dispatchEvent(new CustomEvent('conversationTitleUpdated'));
+    } catch (err) {
+      console.error('Failed to rename code session:', err);
+    }
+  }, [activeCodeConversationId]);
+
+  const handleCodeTitleTogglePin = useCallback(() => {
+    setCodeHeaderState((prev) => ({ ...prev, pinned: !prev.pinned }));
+  }, []);
+
+  const handleCodeTitleArchive = useCallback(() => {
+    // Conversation archive is not persisted by the current local bridge yet.
+    // Keep the official menu surface visible without changing storage semantics.
+  }, []);
+
+  const handleCodeTitleDelete = useCallback(async () => {
+    if (!activeCodeConversationId) return;
+    try {
+      await deleteConversation(activeCodeConversationId);
+      refreshSidebar();
+      navigate('/code');
+    } catch (err) {
+      console.error('Failed to delete code session:', err);
+    }
+  }, [activeCodeConversationId, navigate]);
 
   const handleNewChat = () => {
     setNewChatKey(prev => prev + 1);
@@ -574,6 +1473,7 @@ const Layout = () => {
     toggleAbsTop: 11,
     toggleAbsLeft: 8, // Collapsed State Left Position
   });
+  const effectiveSidebarWidth = isSidebarCollapsed ? 46 : isCodeSection ? 302 : (tunerConfig.sidebarWidth || 280);
 
   // Git-bash required (Windows): block app until installed
   if (needsGitBash) {
@@ -584,21 +1484,7 @@ const Layout = () => {
   if (showOnboarding) {
     return <Onboarding onComplete={() => {
       setShowOnboarding(false);
-      if (!isElectron) { setAuthValid(true); return; }
-      // clawparrot users go straight to /login (Onboarding also opens clawparrot.com
-      // in the browser so they can register). selfhosted users enter the main UI.
-      const mode = localStorage.getItem('user_mode');
-      const hasGatewayKey = !!(localStorage.getItem('ANTHROPIC_API_KEY') && localStorage.getItem('gateway_user'));
-      setAuthValid(!(mode === 'clawparrot' && !hasGatewayKey));
     }} />;
-  }
-
-  // Guard: check if logged in
-  if (!authChecked) {
-    return null; // 验证中，不渲染
-  }
-  if (!authValid) {
-    return <Navigate to="/login" replace />;
   }
 
   return (
@@ -663,6 +1549,31 @@ const Layout = () => {
           </div>
 
           {/* Mode tabs moved to sidebar */}
+          {isCodeSessionRoute && !showSettings && !showUpgrade ? (
+            <>
+              <CodeTitleBreadcrumb
+                state={codeHeaderState}
+                onArchive={handleCodeTitleArchive}
+                onDelete={handleCodeTitleDelete}
+                onOpenInEditor={handleCodeTitleOpenInEditor}
+                onShowInFolder={handleCodeTitleShowInFolder}
+                onRename={handleCodeTitleRename}
+                onTogglePin={handleCodeTitleTogglePin}
+                sidebarWidth={effectiveSidebarWidth}
+                titleBarHeight={titleBarHeight}
+              />
+              <CodeSessionTopActions
+                visible
+                titleBarHeight={titleBarHeight}
+                transcriptMode={codeTranscriptMode}
+                textSize={codeTextSize}
+                sidePane={codeSidePane}
+                onTranscriptModeChange={handleCodeTranscriptModeChange}
+                onTextSizeChange={handleCodeTextSizeChange}
+                onSidePaneToggle={handleCodeSidePaneToggle}
+              />
+            </>
+          ) : null}
         </div>
 
         <Sidebar

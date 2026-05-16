@@ -4,6 +4,20 @@
   font-family: var(--family-ui);
 }
 
+.epitaxy-code-page {
+  background: var(--surface-primary);
+}
+
+.epitaxy-root .epitaxy-code-session,
+.epitaxy-root .epitaxy-code-scroll,
+.epitaxy-root .epitaxy-code-composer-region {
+  background: var(--surface-primary);
+}
+
+.epitaxy-root .epitaxy-code-scroll {
+  scrollbar-gutter: stable;
+}
+
 .epitaxy-root .epitaxy-code-clawd {
   image-rendering: pixelated;
 }
@@ -45,4 +59,28 @@
 .epitaxy-root .epitaxy-code-session code {
   font-family: var(--family-monospace);
   font-size: var(--text-code);
+}
+
+.epitaxy-root .epitaxy-chat-column {
+  --text-body: 14px;
+  --leading-body: 1.4285714286;
+  --chat-turn-gap: calc(var(--text-body) * var(--leading-body) * 0.75);
+  --chat-item-gap: calc(var(--text-body) * var(--leading-body) * 0.5);
+  --text-code: 0.9285714286em;
+  --leading-code: 1.5384615385;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+[data-chat-text-size="s"] .epitaxy-root .epitaxy-chat-column {
+  --text-body: 13px;
+}
+
+[data-chat-text-size="l"] .epitaxy-root .epitaxy-chat-column {
+  --text-body: 16px;
+}
+
+.epitaxy-root .epitaxy-markdown {
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
 }

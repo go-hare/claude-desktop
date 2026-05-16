@@ -8,6 +8,34 @@ export type CodeConversationSummary = {
   code_cwd?: string | null;
   created_at?: string;
   updated_at?: string;
+  isArchived?: boolean;
+  is_archived?: boolean | number;
+  isStarred?: boolean;
+  is_starred?: boolean | number;
+  isUnread?: boolean;
+  is_unread?: boolean | number;
+  sessionStatus?: string;
+  session_status?: string;
+  postTurnSummary?: {
+    status_category?: string | null;
+    status_detail?: string | null;
+    recent_action?: string | null;
+  } | null;
+  external_metadata?: {
+    pending_action?: unknown;
+  } | null;
+  _originalSession?: {
+    external_metadata?: {
+      pending_action?: unknown;
+    } | null;
+  } | null;
+};
+
+type AttentionKind = 'blocked' | 'review' | 'unread';
+
+type AttentionSession = {
+  session: CodeConversationSummary;
+  kind: AttentionKind;
 };
 
 type CodeActionCenterProps = {
@@ -48,6 +76,39 @@ function sessionTimestampMs(session: CodeConversationSummary) {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
+function flag(value: unknown) {
+  return value === true || value === 1 || value === '1' || value === 'true';
+}
+
+function hasPendingAction(session: CodeConversationSummary) {
+  return Boolean(
+    session.external_metadata?.pending_action ||
+    session._originalSession?.external_metadata?.pending_action
+  );
+}
+
+function attentionKindForSession(
+  session: CodeConversationSummary,
+  readSessionTimes: ReadonlyMap<string, number>,
+): AttentionKind | null {
+  if (flag(session.isArchived) || flag(session.is_archived)) return null;
+  if (flag(session.isStarred) || flag(session.is_starred)) return null;
+
+  const status = session.sessionStatus || session.session_status;
+  const category = session.postTurnSummary?.status_category || '';
+  if (status === 'requires_action' || hasPendingAction(session) || ['blocked', 'needsAttention', 'requires_action'].includes(category)) {
+    return 'blocked';
+  }
+  if (['review', 'readyToMerge', 'ready_for_review'].includes(category)) {
+    return 'review';
+  }
+  if (flag(session.isUnread) || flag(session.is_unread)) {
+    return sessionTimestampMs(session) > (readSessionTimes.get(session.id) || 0) ? 'unread' : null;
+  }
+
+  return null;
+}
+
 function CodeStatsBranch({ stats }: { stats: RawCodeStats | null }) {
   return (
     <div className="flex flex-col">
@@ -60,14 +121,19 @@ function CodeStatsBranch({ stats }: { stats: RawCodeStats | null }) {
 
 function CodeSessionRow({
   session,
+  kind,
   onOpen,
 }: {
   session: CodeConversationSummary;
+  kind: AttentionKind;
   onOpen: (id: string) => void;
 }) {
   const title = session.title || 'Untitled session';
   const cwd = folderName(session.code_cwd);
   const timestamp = formatCompactTime(session.updated_at || session.created_at);
+  const statusLabel = kind === 'blocked' ? 'Needs input' : kind === 'review' ? 'Ready for review' : 'Unread';
+  const statusColor = kind === 'blocked' ? 'text-extended-yellow' : 'text-[var(--dot-ready)]';
+  const dotColor = kind === 'blocked' ? 'bg-extended-yellow' : 'bg-[var(--dot-ready)]';
 
   return (
     <li className="group flex items-center gap-g6 px-p4 py-p6 rounded-r6 bg-t1 hover:bg-t2 focus-within:bg-t2 transition-colors">
@@ -80,9 +146,9 @@ function CodeSessionRow({
         <span className="flex min-w-0 flex-1 items-center gap-g6">
           <span className="flex shrink-0 items-center">
             <span className="inline-flex w-[16px] items-center justify-center">
-              <span className="size-[5px] rounded-full bg-[var(--dot-ready)]" />
+              <span className={`size-[5px] rounded-full ${dotColor}`} />
             </span>
-            <span className="text-footnote text-[var(--dot-ready)]">Unread</span>
+            <span className={`text-footnote ${statusColor}`}>{statusLabel}</span>
           </span>
           <span className="flex min-w-0 flex-1 items-baseline gap-g4">
             <span className="min-w-0 text-body text-t9 truncate">{title}</span>
@@ -111,7 +177,10 @@ export default function CodeActionCenter({
 }: CodeActionCenterProps) {
   const [expanded, setExpanded] = useState(false);
   const attentionSessions = useMemo(
-    () => sessions.filter((session) => sessionTimestampMs(session) > (readSessionTimes.get(session.id) || 0)),
+    () => sessions.flatMap<AttentionSession>((session) => {
+      const kind = attentionKindForSession(session, readSessionTimes);
+      return kind ? [{ session, kind }] : [];
+    }),
     [readSessionTimes, sessions],
   );
 
@@ -146,8 +215,8 @@ export default function CodeActionCenter({
             ) : null}
           </header>
           <ul role="list" className="flex flex-col gap-g3">
-            {visibleSessions.map((session) => (
-              <CodeSessionRow key={session.id} session={session} onOpen={onOpenSession} />
+            {visibleSessions.map(({ session, kind }) => (
+              <CodeSessionRow key={session.id} session={session} kind={kind} onOpen={onOpenSession} />
             ))}
           </ul>
         </section>

@@ -1468,11 +1468,6 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
   // After user picks "switch model", we proceed to send. Stash the pending send args
   // here so the modal callback can fire them after dismissal.
   const pendingCrossModeSendRef = useRef<(() => void) | null>(null);
-  // Clawparrot login-required gate: shown when an un-logged-in clawparrot user
-  // tries to send their first message.
-  const [showLoginRequired, setShowLoginRequired] = useState(false);
-  const pendingLoginSendRef = useRef<(() => void) | null>(null);
-
   useEffect(() => {
     onTitleChange?.(conversationTitle);
   }, [conversationTitle, onTitleChange]);
@@ -2558,19 +2553,6 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
     const isUploading = pendingFiles.some(f => f.status === 'uploading');
     if (isUploading) {
       alert('文件仍在上传中，请稍等完成后再发送');
-      return;
-    }
-
-    // Clawparrot login gate: Electron users in clawparrot mode without a
-    // gateway API key get prompted to login on first send. Replaces the old
-    // hard redirect to /login at app start — users can now explore the app
-    // freely before deciding to login or switch modes.
-    const isElectronApp = !!(window as any).electronAPI?.isElectron;
-    const userMode = localStorage.getItem('user_mode');
-    const hasGatewayKey = localStorage.getItem('ANTHROPIC_API_KEY') && localStorage.getItem('gateway_user');
-    if (isElectronApp && userMode !== 'selfhosted' && !hasGatewayKey) {
-      pendingLoginSendRef.current = () => handleSend(effectiveText);
-      setShowLoginRequired(true);
       return;
     }
 
@@ -4617,47 +4599,6 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
           });
         }}
       />
-
-      {/* Clawparrot login-required modal: shown when a non-logged-in clawparrot
-          user tries to send their first message. Lets them go to login page or
-          switch to self-hosted mode in settings. */}
-      {showLoginRequired && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-claude-input border border-claude-border rounded-2xl shadow-xl w-[460px] overflow-hidden">
-            <div className="px-6 pt-6 pb-4">
-              <h3 className="text-[16px] font-semibold text-claude-text mb-3">需要登录 Clawparrot 账号</h3>
-              <p className="text-[14px] text-claude-textSecondary leading-relaxed">
-                你当前在 <span className="text-claude-text font-medium">Clawparrot</span> 模式下，需要登录 <span className="font-mono text-claude-text">clawparrot.com</span> 账号才能使用。
-                <br /><br />
-                如果你还没有账号，请先去 <span className="font-mono text-claude-text">clawparrot.com</span> 注册一个。
-                <br /><br />
-                或者你也可以在设置的 General 页面切换到 <span className="text-claude-text font-medium">自部署</span> 模式，用你自己的 API Key。
-              </p>
-            </div>
-            <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  pendingLoginSendRef.current = null;
-                  setShowLoginRequired(false);
-                  navigate('/login');
-                }}
-                className="w-full px-5 py-2.5 text-[14px] font-medium bg-claude-text text-claude-bg hover:opacity-90 rounded-lg transition-opacity"
-              >
-                去登录
-              </button>
-              <button
-                onClick={() => {
-                  pendingLoginSendRef.current = null;
-                  setShowLoginRequired(false);
-                }}
-                className="w-full px-5 py-1.5 text-[12px] text-claude-textSecondary hover:text-claude-text transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Cross-mode warning: conversation's model isn't available in current user_mode */}
       {crossModeWarning && crossModeWarning.convId === activeId && (
