@@ -51,3 +51,12 @@ Thumbs.db
 
 # Reverse-engineering scratch (unpacked official app.asar — never commit)
 .tmp/
+# Local dev secrets — NEVER commit
+.secrets/
+
+# Rebuild project — large vendored assets (regenerated from official app)
+app/ion-dist/
+app/vendor/
+app/node_modules/
+app/dist/
+app/out/

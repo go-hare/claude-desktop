@@ -1,0 +1,34 @@
+{
+  "name": "claude-desktop-rebuild",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Readable rebuild of Claude Desktop main process",
+  "main": "dist/main/index.cjs",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "file:vendor/@anthropic-ai/claude-agent-sdk",
+    "@ant/claude-native": "file:vendor/@ant/claude-native",
+    "@ant/claude-swift": "file:vendor/@ant/claude-swift",
+    "electron-store": "^8.2.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "electron": "41.5.0",
+    "electron-vite": "^3.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "~5.6.3",
+    "vite": "^6.4.1"
+  }
+}
