@@ -58,3 +58,6 @@ Thumbs.db
 app/node_modules/
 app/dist/
 app/out/
+
+# Local patch backups
+*.bak

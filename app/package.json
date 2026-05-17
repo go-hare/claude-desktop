@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "description": "Readable rebuild of Claude Desktop main process",
-  "main": "dist/main/index.cjs",
+  "main": "out/main/index.js",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"

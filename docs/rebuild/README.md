@@ -15,6 +15,7 @@
 | 04 | [内部依赖处理策略](./04-internal-deps.md) | 16 个 `@ant/*` 闭源包怎么办（拷二进制 vs claude-code-1 源码 vs stub） |
 | 05 | [重建路线图](./05-roadmap.md) | 阶段 0 / 1 / 2 / 3 的具体任务和时间表 |
 | 06 | [决策记录](./06-decisions.md) | 关键取舍点的决定 + 备选 + 触发改变的条件 |
+| 07 | [Sidebar toggle 调研](./07-sidebar-toggle-investigation.md) | 为什么 `协作/代码` toggle 不渲染——8 层 hook 链 + byte patch 解法 |
 
 附带文件：
 
