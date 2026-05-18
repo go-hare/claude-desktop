@@ -170,14 +170,30 @@ export function createMainWindow() {
     minWidth: 960,
     minHeight: 640,
     title: 'Claude',
-    backgroundColor: '#191919',
+    backgroundColor: '#ffffff',
     show: false,
-    // Frameless macOS-style window: traffic-light buttons overlay the SPA
-    // (no native title bar, no "Claude" string above the chrome). The SPA
-    // already reserves room for the traffic-lights via its `draggable h-11`
-    // header strip in FrameSidebar (cbc59a8af) — that's why the official
-    // build looks chromeless.
-    titleBarStyle: 'hiddenInset',
+    // Frameless chrome on every platform.
+    //   macOS: `hiddenInset` keeps the traffic-light overlay at the top-left.
+    //   Windows/Linux: `hidden` removes the native chrome; `titleBarOverlay`
+    //   re-injects the system min/max/close controls in the top-right so the
+    //   user can still close the window without a custom button. Without
+    //   this, Electron renders a full native title bar (with the app icon
+    //   and a "Claude" string) above the SPA — that's the strip the
+    //   reference screenshot doesn't have.
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    ...(process.platform !== 'darwin'
+      ? {
+          titleBarOverlay: {
+            // Match the SPA's light surface. Windows reserves this strip
+            // behind the system min/max/close buttons; if it doesn't match
+            // the SPA background, a colored band leaks through across the
+            // top of the window.
+            color: '#ffffff',
+            symbolColor: '#1a1a1a',
+            height: 32,
+          },
+        }
+      : {}),
     trafficLightPosition: { x: 12, y: 14 },
     // Let the SPA's CSS region declarations control which areas drag the
     // window (via `app-region: drag`/`-webkit-app-region: drag`). ion-dist's
@@ -202,6 +218,26 @@ export function createMainWindow() {
 
   win.once('ready-to-show', () => {
     win.show();
+  });
+
+  // ion-dist labels its top header strip `draggable` (= `-webkit-app-region:
+  // drag`) so users can drag the window from the empty space. The class is
+  // applied to the whole flex container, which means children — including
+  // the hamburger / sidebar toggle / search / back / forward buttons — also
+  // inherit drag, and Windows then swallows their mousedown as a window-move
+  // gesture. macOS doesn't notice because its traffic-light overlay sits in
+  // a separate region. Force every interactive descendant back to no-drag.
+  win.webContents.on('did-finish-load', () => {
+    if (win.isDestroyed()) return;
+    void win.webContents.insertCSS(
+      `.draggable button,
+       .draggable a,
+       .draggable [role="button"],
+       .draggable input,
+       .draggable [data-no-drag] {
+         -webkit-app-region: no-drag;
+       }`,
+    );
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {

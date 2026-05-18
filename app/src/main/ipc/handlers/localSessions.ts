@@ -15,10 +15,22 @@ import type { IpcRegistry } from '../registry';
 import type { ClaudeCodeAdapter } from '../../engine/claudeCodeAdapter';
 
 interface StartArgs {
+  /**
+   * SPA-generated id, e.g. `local_<uuid>`. ion-dist's session-type detection
+   * lives entirely in this id (id.startsWith('local_') → 'local', else
+   * 'remote'), so we MUST keep it; sending back our own UUID here flips the
+   * surface into a remote/cowork session and the chat header shows a cloud
+   * icon instead of a laptop.
+   */
+  sessionId?: string;
   cwd?: string;
   model?: string;
-  // SPA may pass other fields (folders, mcpServers, ...) — we ignore the
-  // ones we don't model yet.
+  /** First user message — SPA fires `start` with the prompt instead of a
+   * separate sendMessage on session creation. */
+  message?: string;
+  title?: string;
+  // SPA may pass other fields (folders, mcpServers, useWorktree, ...) — we
+  // ignore the ones we don't model yet.
 }
 
 interface SendMessageArgs {
@@ -29,8 +41,11 @@ interface SendMessageArgs {
 }
 
 export function registerLocalSessionsHandlers(reg: IpcRegistry, engine: ClaudeCodeAdapter) {
-  reg.method('claude.web', 'LocalSessions', 'getAll', () => []);
-  reg.method('claude.web', 'LocalSessions', 'getSession', () => null);
+  reg.method('claude.web', 'LocalSessions', 'getAll', () => engine.listSessionSnapshots());
+  reg.method('claude.web', 'LocalSessions', 'getSession', (sessionId) => {
+    if (typeof sessionId !== 'string') return null;
+    return engine.getSessionSnapshot(sessionId, homedir());
+  });
   reg.method('claude.web', 'LocalSessions', 'getDetectedProjects', () => []);
   reg.method('claude.web', 'LocalSessions', 'getInstalledEditors', () => []);
   reg.method('claude.web', 'LocalSessions', 'getSupportedCommands', () => []);
@@ -81,14 +96,46 @@ export function registerLocalSessionsHandlers(reg: IpcRegistry, engine: ClaudeCo
 
   reg.method('claude.web', 'LocalSessions', 'start', (rawArgs) => {
     const args = (rawArgs as StartArgs | undefined) ?? {};
-    const sessionId = randomUUID();
+    // Honour the SPA's id when it provides one (the standard new-session
+    // flow does, with a `local_<uuid>` shape). Only synthesise a fallback —
+    // also `local_`-prefixed — for callers that didn't.
+    const sessionId =
+      typeof args.sessionId === 'string' && args.sessionId.length > 0
+        ? args.sessionId
+        : `local_${randomUUID()}`;
+
+    const rawCwd =
+      typeof args.cwd === 'string' && args.cwd.length > 0 ? args.cwd : homedir();
+    // SPA passes "~" when no folder picked — Windows spawn won't expand it,
+    // and the SDK's child_process call fails with ENOENT (which the SDK
+    // surfaces as a misleading "executable not found"). Expand here.
+    const cwd =
+      rawCwd === '~' || rawCwd.startsWith('~/') || rawCwd.startsWith('~\\')
+        ? rawCwd === '~'
+          ? homedir()
+          : `${homedir()}${rawCwd.slice(1)}`
+        : rawCwd;
+
     engine.startSession({
       sessionId,
       // SDK requires an absolute path. Fall back to home dir when SPA
       // hasn't selected one yet so `query()` doesn't reject.
-      cwd: typeof args.cwd === 'string' && args.cwd.length > 0 ? args.cwd : homedir(),
+      cwd,
       model: typeof args.model === 'string' ? args.model : undefined,
+      title: typeof args.title === 'string' ? args.title : undefined,
     });
+
+    // SPA's H() flow passes the first user prompt as `message`. Fire it
+    // off without awaiting so `start` can return synchronously — events
+    // stream back through the broadcast channel.
+    if (typeof args.message === 'string' && args.message.length > 0) {
+      void engine
+        .sendMessage({ sessionId, prompt: args.message })
+        .catch((err) => {
+          console.error('[rebuild:engine] start.sendMessage failed', err);
+        });
+    }
+
     return { sessionId };
   });
 

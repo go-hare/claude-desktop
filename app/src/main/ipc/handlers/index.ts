@@ -10,6 +10,7 @@ import { registerLocalSessionsHandlers } from './localSessions';
 import { registerLocalAgentModeHandlers } from './localAgentMode';
 import { registerSkillsHandlers } from './skills';
 import { registerFilesystemHandlers } from './filesystem';
+import { registerResourcesHandlers } from './resources';
 import { registerAutoUpdaterHandlers } from './autoUpdater';
 import { registerLaunchHandlers } from './launch';
 import { registerCCDScheduledTasksHandlers } from './ccdScheduledTasks';
@@ -35,6 +36,7 @@ export function registerAllHandlers(reg: IpcRegistry) {
   registerLocalAgentModeHandlers(reg);
   registerSkillsHandlers(reg);
   registerFilesystemHandlers(reg);
+  registerResourcesHandlers(reg);
   registerAutoUpdaterHandlers(reg);
   registerLaunchHandlers(reg);
   registerCCDScheduledTasksHandlers(reg);
