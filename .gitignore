@@ -61,3 +61,6 @@ app/out/
 
 # Local patch backups
 *.bak
+
+# Vendored SDK sourcemaps — large (>50 MB) and not needed at runtime.
+app/vendor/**/*.js.map
