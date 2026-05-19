@@ -1,18 +1,24 @@
-import { CornerDownLeft, Folder, Laptop, Plus } from 'lucide-react';
+import { CornerDownLeft, Folder, Plus } from 'lucide-react';
 import CodeDraftClawd from '../CodeDraftClawd';
+import CodeEnvironmentSelector, { type CodeEnvironmentKind } from './CodeEnvironmentSelector';
 import CodeModelEffortSelector, { type CodeEffort, type CodeModelOption } from './CodeModelEffortSelector';
+import CodePermissionModeSelector, { type CodePermissionMode } from './CodePermissionModeSelector';
 
 type CodeComposerProps = {
   error: string | null;
   effort: CodeEffort;
+  environment: CodeEnvironmentKind;
   inputText: string;
   isSubmitting: boolean;
   modelLabel: string;
   modelOptions: CodeModelOption[];
+  permissionMode: CodePermissionMode;
   selectedFolder: string | null;
   onChooseFolder: () => void;
+  onEnvironmentChange: (next: CodeEnvironmentKind) => void;
   onInputChange: (value: string) => void;
   onModelEffortChange: (next: { model: string; effort: CodeEffort }) => void;
+  onPermissionModeChange: (next: CodePermissionMode) => void;
   onSubmit: () => void;
 };
 
@@ -24,27 +30,29 @@ function folderLabel(folder: string | null) {
 export default function CodeComposer({
   error,
   effort,
+  environment,
   inputText,
   isSubmitting,
   modelLabel,
   modelOptions,
+  permissionMode,
   selectedFolder,
   onChooseFolder,
+  onEnvironmentChange,
   onInputChange,
   onModelEffortChange,
+  onPermissionModeChange,
   onSubmit,
 }: CodeComposerProps) {
   return (
     <div className="relative shrink-0 flex flex-col gap-g5 [contain:layout]">
       <CodeDraftClawd />
       <div className="mb-[2px] flex items-center gap-g3">
-        <button
-          type="button"
-          className="inline-flex h-[24px] items-center gap-g3 rounded-r5 px-p3 text-body text-t7 hover:bg-t2"
-        >
-          <Laptop size={14} strokeWidth={1.7} />
-          本地
-        </button>
+        <CodeEnvironmentSelector
+          disabled={isSubmitting}
+          value={environment}
+          onChange={onEnvironmentChange}
+        />
         <button
           type="button"
           onClick={onChooseFolder}
@@ -89,9 +97,11 @@ export default function CodeComposer({
 
       <div className="w-full flex items-center gap-g5 py-[4px]">
         <div className="flex min-w-0 items-center gap-g5">
-          <button type="button" className="rounded-r5 px-p3 py-p2 text-body text-t6 hover:bg-t2">
-            接受编辑
-          </button>
+          <CodePermissionModeSelector
+            disabled={isSubmitting}
+            value={permissionMode}
+            onChange={onPermissionModeChange}
+          />
           <button
             type="button"
             className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t7 hover:bg-t2"

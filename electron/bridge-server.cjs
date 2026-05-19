@@ -73,6 +73,14 @@ function normalizeCodeEffort(value) {
     return CODE_EFFORT_LEVELS.has(effort) ? effort : null;
 }
 
+const CODE_PERMISSION_MODES = new Set(['default', 'acceptEdits', 'auto', 'bypassPermissions', 'plan']);
+
+function normalizeCodePermissionMode(value) {
+    if (value == null || value === '') return null;
+    const mode = String(value).trim();
+    return CODE_PERMISSION_MODES.has(mode) ? mode : null;
+}
+
 function normalizeApiKeyForConfig(apiKey) {
     return String(apiKey || '').slice(-20);
 }
@@ -1944,6 +1952,10 @@ function initServer(mainWindow) {
         if (req.body && 'code_effort' in req.body && req.body.code_effort != null && req.body.code_effort !== '' && !codeEffort) {
             return res.status(400).json({ error: 'Invalid code_effort. Expected one of: low, medium, high, max' });
         }
+        const codePermissionMode = normalizeCodePermissionMode(req.body && req.body.code_permission_mode);
+        if (req.body && 'code_permission_mode' in req.body && req.body.code_permission_mode != null && req.body.code_permission_mode !== '' && !codePermissionMode) {
+            return res.status(400).json({ error: 'Invalid code_permission_mode. Expected one of: default, acceptEdits, auto, bypassPermissions, plan' });
+        }
 
         if (!fs.existsSync(workspacePath)) {
             fs.mkdirSync(workspacePath, { recursive: true });
@@ -1969,12 +1981,13 @@ function initServer(mainWindow) {
             research_mode: isCodeConversation ? false : !!research_mode,
             ...(codeCwd ? { code_cwd: codeCwd } : {}),
             ...(codeCwd ? { code_effort: codeEffort || 'medium' } : {}),
+            ...(codeCwd ? { code_permission_mode: codePermissionMode || 'default' } : {}),
             ...(project_id ? { project_id } : {}),
         };
         db.conversations.push(newConv);
         saveDb();
 
-        res.json({ id, title, model, workspace_path: workspacePath, code_cwd: codeCwd, code_effort: newConv.code_effort, research_mode: newConv.research_mode, created_at: now, updated_at: now });
+        res.json({ id, title, model, workspace_path: workspacePath, code_cwd: codeCwd, code_effort: newConv.code_effort, code_permission_mode: newConv.code_permission_mode, research_mode: newConv.research_mode, created_at: now, updated_at: now });
     });
 
     server.get('/api/conversations/:id', (req, res) => {
@@ -2075,11 +2088,21 @@ function initServer(mainWindow) {
             if (codeEffort) conv.code_effort = codeEffort;
             else delete conv.code_effort;
         }
+        if ('code_permission_mode' in req.body) {
+            const mode = normalizeCodePermissionMode(req.body.code_permission_mode);
+            if (req.body.code_permission_mode != null && req.body.code_permission_mode !== '' && !mode) {
+                return res.status(400).json({ error: 'Invalid code_permission_mode. Expected one of: default, acceptEdits, auto, bypassPermissions, plan' });
+            }
+            if (mode) conv.code_permission_mode = mode;
+            else delete conv.code_permission_mode;
+        }
         if (conv.code_cwd) {
             conv.research_mode = false;
             conv.code_effort = normalizeCodeEffort(conv.code_effort) || 'medium';
+            conv.code_permission_mode = normalizeCodePermissionMode(conv.code_permission_mode) || 'default';
         } else {
             delete conv.code_effort;
+            delete conv.code_permission_mode;
         }
 
         saveDb();
@@ -4070,13 +4093,21 @@ You have the following skills available. When a user's request matches a skill's
         for (const candidate of candidates) {
             if (fs.existsSync(candidate)) return candidate;
         }
-        // Fallback: try `where git` and derive bash path from it
+        // Fallback: enumerate every git.exe via `where git` and derive the Git
+        // install root from each. Walk up known subdirs (cmd, bin, mingw64\\bin)
+        // until we find <root>\\bin\\bash.exe or <root>\\usr\\bin\\bash.exe.
         try {
             const out = require('child_process').execSync('where git', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-            const gitExe = out.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0];
-            if (gitExe) {
-                const bashFromGit = path.join(path.dirname(path.dirname(gitExe)), 'bin', 'bash.exe');
-                if (fs.existsSync(bashFromGit)) return bashFromGit;
+            const gitExes = out.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            for (const gitExe of gitExes) {
+                let dir = path.dirname(gitExe);
+                for (let i = 0; i < 4 && dir && dir !== path.dirname(dir); i++) {
+                    for (const rel of [['bin', 'bash.exe'], ['usr', 'bin', 'bash.exe']]) {
+                        const candidate = path.join(dir, ...rel);
+                        if (fs.existsSync(candidate)) return candidate;
+                    }
+                    dir = path.dirname(dir);
+                }
             }
         } catch (_) {}
         return null;
@@ -4233,6 +4264,7 @@ You have the following skills available. When a user's request matches a skill's
             state: eng.state,
             modelId: eng.modelId,
             effort: eng.effort || null,
+            permissionMode: eng.permissionMode || null,
             needsRestart: !!eng.needsRestart,
             ready: !!eng.ready,
             pid: eng.child && eng.child.pid,
@@ -4315,6 +4347,7 @@ You have the following skills available. When a user's request matches a skill's
     function resolveChatConfig(conv) {
         const rawModel = conv.model || 'claude-sonnet-4-6';
         const codeEffort = conv.code_cwd ? (normalizeCodeEffort(conv.code_effort) || 'medium') : null;
+        const codePermissionMode = conv.code_cwd ? (normalizeCodePermissionMode(conv.code_permission_mode) || 'default') : null;
         const thinkingEnabled = codeEffort ? true : /-thinking$/.test(rawModel);
         const requestedModelId = rawModel.replace(/-thinking$/, '');
         let modelId = requestedModelId;
@@ -4341,7 +4374,7 @@ You have the following skills available. When a user's request matches a skill's
             '| scheme=', authScheme,
             '| key=', maskSecret(apiKey),
             '| baseUrl=', baseUrl || '<default>');
-        return { modelId, thinkingEnabled, effort: codeEffort, provider: null, apiKey, baseUrl, apiFormat, supportsWebSearch, webSearchStrategy, authSource, authScheme, customHeaders };
+        return { modelId, thinkingEnabled, effort: codeEffort, permissionMode: codePermissionMode, provider: null, apiKey, baseUrl, apiFormat, supportsWebSearch, webSearchStrategy, authSource, authScheme, customHeaders };
     }
 
     function handleTurnEvent(engine, convId, conv, evt) {
@@ -4538,10 +4571,11 @@ You have the following skills available. When a user's request matches a skill's
     }
 
     function spawnPersistentEngine(convId, conv, config) {
-        const { modelId, thinkingEnabled = false, effort = null, apiKey, baseUrl, apiFormat, sysPrompt } = config;
+        const { modelId, thinkingEnabled = false, effort = null, permissionMode = null, apiKey, baseUrl, apiFormat, sysPrompt } = config;
         evictOldestEngine();
         const claudeDir = claudeConfigDir;
-        const cliArgs = createEngineCliArgs(['--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--permission-mode', 'bypassPermissions', '--permission-prompt-tool', 'stdio', '--setting-sources', 'user,project,local', '--settings', '{}', '--add-dir', claudeDir, '--model', modelId]);
+        const resolvedPermissionMode = normalizeCodePermissionMode(permissionMode) || 'bypassPermissions';
+        const cliArgs = createEngineCliArgs(['--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--permission-mode', resolvedPermissionMode, '--permission-prompt-tool', 'stdio', '--setting-sources', 'user,project,local', '--settings', '{}', '--add-dir', claudeDir, '--model', modelId]);
         if (effort) {
             cliArgs.push('--thinking', 'adaptive', '--effort', effort);
         } else {
@@ -4608,7 +4642,7 @@ You have the following skills available. When a user's request matches a skill's
         const child = spawn(bunExePath, cliArgs, { cwd: engineCwd, env: envVars, stdio: ['pipe', 'pipe', 'pipe'] });
         let resolveReady;
         const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
-        const engine = { child, convId, modelId, thinkingEnabled, effort, apiKey, baseUrl, apiFormat, authScheme: config.authScheme || 'x-api-key', customHeaders: JSON.stringify(normalizeHeaderMap(config.customHeaders || {})), lastUsed: Date.now(), sessionId: conv.claude_session_id, state: 'idle', buf: '', turn: null, needsRestart: false, ready: false, readyPromise, resolveReady };
+        const engine = { child, convId, modelId, thinkingEnabled, effort, permissionMode: permissionMode || null, apiKey, baseUrl, apiFormat, authScheme: config.authScheme || 'x-api-key', customHeaders: JSON.stringify(normalizeHeaderMap(config.customHeaders || {})), lastUsed: Date.now(), sessionId: conv.claude_session_id, state: 'idle', buf: '', turn: null, needsRestart: false, ready: false, readyPromise, resolveReady };
         activeChildren.set(convId, child);
 
         const handleEngineStdoutLine = (line) => {
@@ -4929,7 +4963,8 @@ You have the following skills available. When a user's request matches a skill's
             const customHeadersChanged = !!engine && (engine.customHeaders || '{}') !== JSON.stringify(normalizeHeaderMap(config.customHeaders || {}));
             const thinkingChanged = !!engine && !!engine.thinkingEnabled !== !!config.thinkingEnabled;
             const effortChanged = !!engine && (engine.effort || null) !== (config.effort || null);
-            if (engine && (!isEngineAlive(engine) || engine.modelId !== config.modelId || thinkingChanged || effortChanged || engine.needsRestart || apiKeyChanged || baseUrlChanged || apiFormatChanged || authSchemeChanged || customHeadersChanged)) {
+            const permissionModeChanged = !!engine && (engine.permissionMode || null) !== (config.permissionMode || null);
+            if (engine && (!isEngineAlive(engine) || engine.modelId !== config.modelId || thinkingChanged || effortChanged || permissionModeChanged || engine.needsRestart || apiKeyChanged || baseUrlChanged || apiFormatChanged || authSchemeChanged || customHeadersChanged)) {
                 killEngine(conversation_id, 'chat_existing_engine_invalid_or_stale', {
                     isAlive: !!isEngineAlive(engine),
                     currentModel: engine && engine.modelId,
@@ -4940,6 +4975,9 @@ You have the following skills available. When a user's request matches a skill's
                     currentEffort: engine && engine.effort,
                     requestedEffort: config.effort || null,
                     effortChanged,
+                    currentPermissionMode: engine && engine.permissionMode,
+                    requestedPermissionMode: config.permissionMode || null,
+                    permissionModeChanged,
                     needsRestart: !!(engine && engine.needsRestart),
                     apiKeyChanged,
                     baseUrlChanged,

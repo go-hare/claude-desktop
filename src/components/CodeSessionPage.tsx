@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CornerDownLeft, FileDiff, Folder, Laptop, ListChecks, ListTodo, Plus, Terminal, X, Square } from 'lucide-react';
+import { CornerDownLeft, FileDiff, Folder, ListChecks, ListTodo, Plus, Terminal, X, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -13,6 +13,7 @@ import {
   type CodeTextSize,
   type CodeTranscriptMode,
 } from '../codeSessionUi';
+import CodeEnvironmentSelector from './code/CodeEnvironmentSelector';
 import CodeModelEffortSelector, {
   effortFromModel,
   getLocalCodeModels,
@@ -20,6 +21,7 @@ import CodeModelEffortSelector, {
   type CodeEffort,
   type CodeModelOption,
 } from './code/CodeModelEffortSelector';
+import CodePermissionModeSelector, { type CodePermissionMode } from './code/CodePermissionModeSelector';
 
 type CodeToolCall = {
   id: string;
@@ -325,10 +327,12 @@ type ComposerProps = {
   cwd?: string | null;
   modelLabel?: string;
   modelOptions: CodeModelOption[];
+  permissionMode: CodePermissionMode;
   value: string;
   error: string | null;
   onChange: (value: string) => void;
   onModelEffortChange: (next: { model: string; effort: CodeEffort }) => void;
+  onPermissionModeChange: (next: CodePermissionMode) => void;
   onSubmit: () => void;
   onStop: () => void;
 };
@@ -340,10 +344,12 @@ function CodeSessionComposer({
   cwd,
   modelLabel,
   modelOptions,
+  permissionMode,
   value,
   error,
   onChange,
   onModelEffortChange,
+  onPermissionModeChange,
   onSubmit,
   onStop,
 }: ComposerProps) {
@@ -383,14 +389,16 @@ function CodeSessionComposer({
 
       <div className="w-full flex items-center gap-g5 py-[4px]">
         <div className="flex min-w-0 items-center gap-g5">
-          <button type="button" className="inline-flex h-[24px] items-center gap-g3 rounded-r5 px-p3 text-body text-t7 hover:bg-t2">
-            <Laptop size={14} strokeWidth={1.7} />
-            本地
-          </button>
+          <CodeEnvironmentSelector disabled value="local" onChange={() => {}} />
           <button type="button" className="inline-flex h-[24px] max-w-[240px] items-center gap-g3 rounded-r5 px-p3 text-body text-t7 hover:bg-t2" title={cwd || undefined}>
             <Folder size={14} strokeWidth={1.7} />
             <span className="truncate">{folderLabel(cwd)}</span>
           </button>
+          <CodePermissionModeSelector
+            disabled={busy || disabled}
+            value={permissionMode}
+            onChange={onPermissionModeChange}
+          />
           <button type="button" className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t7 hover:bg-t2" aria-label="添加">
             <Plus size={14} strokeWidth={2} />
           </button>
@@ -432,8 +440,15 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
   const initialMessage = (location.state as any)?.initialMessage;
   const modelFromState = (location.state as any)?.model;
   const effortFromState = (location.state as any)?.effort;
+  const permissionModeFromState = (location.state as any)?.permissionMode as CodePermissionMode | undefined;
   const modelLabel = conversation?.model || modelFromState || 'claude-sonnet-4-6';
   const effort = effortFromModel(modelLabel, conversation?.code_effort || effortFromState);
+  const permissionMode: CodePermissionMode = (
+    conversation?.code_permission_mode
+      || permissionModeFromState
+      || (typeof window !== 'undefined' ? localStorage.getItem('code_default_permission_mode') as CodePermissionMode | null : null)
+      || 'default'
+  );
 
   const stopPolling = useCallback(() => {
     if (!pollRef.current) return;
@@ -817,6 +832,21 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
     }
   }, [blocksLocalCodeSession, conversation, id, loading, onConversationUpdated]);
 
+  const handlePermissionModeChange = useCallback(async (next: CodePermissionMode) => {
+    if (!id || blocksLocalCodeSession) return;
+    const previousConversation = conversation;
+    setConversation((current: any) => current ? { ...current, code_permission_mode: next } : current);
+    localStorage.setItem('code_default_permission_mode', next);
+    try {
+      const updated = await updateConversation(id, { code_permission_mode: next });
+      setConversation(updated);
+      onConversationUpdated?.();
+    } catch (err: any) {
+      setConversation(previousConversation);
+      setError(err?.message || '更新权限模式失败。');
+    }
+  }, [blocksLocalCodeSession, conversation, id, onConversationUpdated]);
+
   const visibleMessages = useMemo(
     () => filterMessagesForMode(messages, transcriptMode),
     [messages, transcriptMode],
@@ -867,6 +897,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
           cwd={conversation?.code_cwd}
           modelLabel={modelLabel}
           modelOptions={modelOptions}
+          permissionMode={permissionMode}
           value={inputText}
           error={error}
           onChange={(value) => {
@@ -874,6 +905,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
             if (error) setError(null);
           }}
           onModelEffortChange={handleModelEffortChange}
+          onPermissionModeChange={handlePermissionModeChange}
           onSubmit={() => submitMessage()}
           onStop={stop}
         />

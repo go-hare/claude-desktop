@@ -4,10 +4,34 @@ import starSparkleImg from '../assets/figma-exports/cowork-icons/star-sparkle.pn
 import { createConversation, getCodeStats, getConversations } from '../api';
 import CodeActionCenter, { type CodeConversationSummary } from './code/CodeActionCenter';
 import CodeComposer from './code/CodeComposer';
+import type { CodeEnvironmentKind } from './code/CodeEnvironmentSelector';
 import { effortFromModel, getLocalCodeModels, toCodeModelString, type CodeEffort } from './code/CodeModelEffortSelector';
+import type { CodePermissionMode } from './code/CodePermissionModeSelector';
 import type { RawCodeStats } from './code/CodeStatsCard';
 
 const READ_SESSIONS_KEY = 'code_action_center_read_sessions';
+const PERMISSION_MODE_KEY = 'code_default_permission_mode';
+const ENVIRONMENT_KEY = 'code_default_environment';
+
+const PERMISSION_MODES: ReadonlySet<CodePermissionMode> = new Set([
+  'default',
+  'acceptEdits',
+  'auto',
+  'bypassPermissions',
+  'plan',
+]);
+
+function getDefaultPermissionMode(): CodePermissionMode {
+  if (typeof window === 'undefined') return 'default';
+  const saved = localStorage.getItem(PERMISSION_MODE_KEY) as CodePermissionMode | null;
+  return saved && PERMISSION_MODES.has(saved) ? saved : 'default';
+}
+
+function getDefaultEnvironment(): CodeEnvironmentKind {
+  if (typeof window === 'undefined') return 'local';
+  const saved = localStorage.getItem(ENVIRONMENT_KEY);
+  return saved === 'local' ? 'local' : 'local';
+}
 
 function getDefaultCodeModel() {
   if (typeof window === 'undefined') return 'claude-sonnet-4-6';
@@ -68,6 +92,8 @@ export default function CodePage() {
   const [model, setModel] = useState(getDefaultCodeModel);
   const [effort, setEffort] = useState<CodeEffort>(() => effortFromModel(getDefaultCodeModel(), localStorage.getItem('code_default_effort')));
   const [modelOptions] = useState(getLocalCodeModels);
+  const [permissionMode, setPermissionMode] = useState<CodePermissionMode>(getDefaultPermissionMode);
+  const [environment, setEnvironment] = useState<CodeEnvironmentKind>(getDefaultEnvironment);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +175,14 @@ export default function CodePage() {
   const submitPrompt = async () => {
     const prompt = inputText.trim();
     if (!prompt || isSubmitting) return;
+    if (environment !== 'local') {
+      setComposerError(
+        environment === 'ssh' ? 'SSH configuration is unavailable.'
+          : environment === 'bridge' ? 'Bridge environment unavailable.'
+            : 'Remote environments are not configured.'
+      );
+      return;
+    }
     if (!selectedFolder) {
       setComposerError('Select a folder first.');
       return;
@@ -161,6 +195,7 @@ export default function CodePage() {
         code_cwd: selectedFolder,
         research_mode: false,
         code_effort: effort,
+        code_permission_mode: permissionMode,
       });
       if (!conversation?.id) throw new Error('Invalid conversation response');
       setReadSessionTimes((current) => {
@@ -172,7 +207,7 @@ export default function CodePage() {
       window.dispatchEvent(new CustomEvent('conversationTitleUpdated'));
       navigate(`/code/${conversation.id}`, {
         replace: true,
-        state: { initialMessage: prompt, model: toCodeModelString(model, effort), effort },
+        state: { initialMessage: prompt, model: toCodeModelString(model, effort), effort, permissionMode },
       });
     } catch (error: any) {
       setComposerError(error?.message || '创建 Code 会话失败。');
@@ -202,14 +237,25 @@ export default function CodePage() {
             inputText={inputText}
             isSubmitting={isSubmitting}
             effort={effort}
+            environment={environment}
             modelLabel={model}
             modelOptions={modelOptions}
+            permissionMode={permissionMode}
             selectedFolder={selectedFolder}
             onModelEffortChange={({ model: nextModel, effort: nextEffort }) => {
               setModel(nextModel);
               setEffort(nextEffort);
               localStorage.setItem('default_model', nextModel);
               localStorage.setItem('code_default_effort', nextEffort);
+            }}
+            onEnvironmentChange={(next) => {
+              setEnvironment(next);
+              localStorage.setItem(ENVIRONMENT_KEY, next);
+              if (next === 'local') setComposerError(null);
+            }}
+            onPermissionModeChange={(next) => {
+              setPermissionMode(next);
+              localStorage.setItem(PERMISSION_MODE_KEY, next);
             }}
             onChooseFolder={chooseFolder}
             onInputChange={(value) => {

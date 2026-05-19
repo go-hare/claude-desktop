@@ -480,7 +480,7 @@ export async function getArtifactContent(filePath: string) {
   return res.json();
 }
 
-export async function createConversation(title?: string, model?: string, extras?: { research_mode?: boolean; code_cwd?: string | null; code_effort?: string | null }) {
+export async function createConversation(title?: string, model?: string, extras?: { research_mode?: boolean; code_cwd?: string | null; code_effort?: string | null; code_permission_mode?: string | null }) {
   const body: any = { model };
   if (title !== undefined) {
     body.title = title;
@@ -493,6 +493,9 @@ export async function createConversation(title?: string, model?: string, extras?
   }
   if (extras?.code_effort !== undefined) {
     body.code_effort = extras.code_effort;
+  }
+  if (extras?.code_permission_mode !== undefined) {
+    body.code_permission_mode = extras.code_permission_mode;
   }
   const res = await request('/conversations', {
     method: 'POST',
