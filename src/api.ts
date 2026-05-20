@@ -655,6 +655,25 @@ export async function answerUserQuestion(
   return res.json();
 }
 
+export async function decideToolPermission(
+  conversationId: string,
+  requestId: string,
+  toolUseId: string,
+  decision: 'allow' | 'deny',
+  updatedInput?: Record<string, unknown>,
+): Promise<{ ok: boolean }> {
+  const res = await request(`/conversations/${conversationId}/tool-permission`, {
+    method: 'POST',
+    body: JSON.stringify({
+      request_id: requestId,
+      tool_use_id: toolUseId,
+      decision,
+      ...(updatedInput ? { updated_input: updatedInput } : {}),
+    }),
+  });
+  return res.json();
+}
+
 // Pre-warm engine for a conversation (spawn in background before user sends first message)
 export function warmEngine(conversationId: string): void {
   let userProfile: any;
@@ -926,6 +945,9 @@ export function reconnectStream(
             }
             if (parsed.type === 'ask_user' && onSystem) {
               onSystem('ask_user', '', parsed);
+            }
+            if (parsed.type === 'tool_permission_request' && onSystem) {
+              onSystem('tool_permission_request', '', parsed);
             }
             if (parsed.type === 'task_event' && onSystem) {
               onSystem('task_event', '', parsed);
@@ -1530,6 +1552,14 @@ export async function sendMessage(
           if (parsed.type === 'ask_user') {
             if (onSystem) {
               onSystem('ask_user', '', parsed);
+            }
+            continue;
+          }
+
+          // Handle tool permission requests (can_use_tool from engine)
+          if (parsed.type === 'tool_permission_request') {
+            if (onSystem) {
+              onSystem('tool_permission_request', '', parsed);
             }
             continue;
           }

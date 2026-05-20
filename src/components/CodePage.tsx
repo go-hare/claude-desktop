@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import starSparkleImg from '../assets/figma-exports/cowork-icons/star-sparkle.png';
-import { createConversation, getCodeStats, getConversations } from '../api';
+import { createConversation, getCodeStats, getConversations, updateConversation } from '../api';
 import CodeActionCenter, { type CodeConversationSummary } from './code/CodeActionCenter';
 import CodeComposer from './code/CodeComposer';
 import type { CodeEnvironmentKind } from './code/CodeEnvironmentSelector';
@@ -148,6 +148,20 @@ export default function CodePage() {
     localStorage.setItem(READ_SESSIONS_KEY, JSON.stringify(Object.fromEntries(next)));
   };
 
+  const toggleStar = (id: string, next: boolean) => {
+    setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, is_starred: next ? 1 : 0, isStarred: next } : session));
+    updateConversation(id, { is_starred: !!next }).catch(() => {
+      setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, is_starred: !next ? 1 : 0, isStarred: !next } : session));
+    });
+  };
+
+  const toggleArchive = (id: string, next: boolean) => {
+    setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, is_archived: next ? 1 : 0, isArchived: next } : session));
+    updateConversation(id, { is_archived: !!next }).catch(() => {
+      setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, is_archived: !next ? 1 : 0, isArchived: !next } : session));
+    });
+  };
+
   const openCodeSession = (id: string) => {
     const session = codeSessions.find((item) => item.id === id);
     setReadSessionTimes((current) => {
@@ -227,6 +241,8 @@ export default function CodePage() {
               stats={stats}
               onMarkAllRead={markAllRead}
               onOpenSession={openCodeSession}
+              onToggleStar={toggleStar}
+              onToggleArchive={toggleArchive}
             />
           </div>
         </div>

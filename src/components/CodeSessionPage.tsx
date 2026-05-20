@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CornerDownLeft, FileDiff, Folder, ListChecks, ListTodo, Plus, Terminal, X, Square } from 'lucide-react';
+import { CornerDownLeft, FileDiff, FileText, Folder, Image as ImageIcon, ListChecks, ListTodo, Paperclip, Terminal, X, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { getConversation, getGenerationStatus, getStreamStatus, reconnectStream, sendMessage, stopGeneration, updateConversation } from '../api';
+import { compactConversation, decideToolPermission, getConversation, getGenerationStatus, getStreamStatus, reconnectStream, sendMessage, stopGeneration, updateConversation, uploadFile, type UploadResult } from '../api';
 import { addStreaming, removeStreaming } from '../streamingState';
 import CodeDraftClawd from './CodeDraftClawd';
 import {
@@ -13,7 +13,14 @@ import {
   type CodeTextSize,
   type CodeTranscriptMode,
 } from '../codeSessionUi';
-import CodeEnvironmentSelector from './code/CodeEnvironmentSelector';
+import CodeEnvironmentSelector, { type CodeEnvironmentKind } from './code/CodeEnvironmentSelector';
+import CodeTerminal from './code/CodeTerminal';
+import CodeDiffPane from './code/CodeDiffPane';
+import CodePlanPane from './code/CodePlanPane';
+import CodeTasksPane from './code/CodeTasksPane';
+import CodeToolPermissionModal, { type ToolPermissionRequest } from './code/CodeToolPermissionModal';
+import { detectSlashQuery, matchSlashCommands } from './code/codeSlashCommands';
+import { summarizeToolInput } from './code/codeToolSummary';
 import CodeModelEffortSelector, {
   effortFromModel,
   getLocalCodeModels,
@@ -30,6 +37,8 @@ type CodeToolCall = {
   content?: string;
   status: 'running' | 'done' | 'error';
   textBefore?: string;
+  startedAt?: number;
+  endedAt?: number;
 };
 
 type CodeMessage = {
@@ -40,6 +49,7 @@ type CodeMessage = {
   thinking?: string;
   error?: boolean;
   is_compact_boundary?: boolean;
+  is_local_notice?: boolean;
   toolCalls?: CodeToolCall[];
 };
 
@@ -174,26 +184,56 @@ function EpitaxyMarkdown({ content }: { content: string }) {
   );
 }
 
+function CollapsedText({ text, limit = 1500 }: { text: string; limit?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return null;
+  const truncated = text.length > limit;
+  const displayed = !truncated || expanded ? text : text.slice(0, limit);
+  return (
+    <div className="flex flex-col gap-g3">
+      <pre className="overflow-x-auto whitespace-pre-wrap text-code text-t7">{displayed}{truncated && !expanded ? '…' : ''}</pre>
+      {truncated ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setExpanded((value) => !value);
+          }}
+          className="self-start text-footnote text-t6 hover:text-t8"
+        >
+          {expanded ? 'Collapse' : `Show ${text.length - limit} more chars`}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function ToolList({ tools }: { tools?: CodeToolCall[] }) {
   if (!tools?.length) return null;
   return (
     <div className="flex flex-col gap-g3">
-      {tools.map((tool) => (
-        <details key={tool.id} className="rounded-r6 bg-t1 px-p6 py-p5 text-body text-t7">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-g6">
-            <span className="truncate font-medium">{tool.name}</span>
-            <span className="shrink-0 text-footnote text-t6">
-              {tool.status === 'running' ? '运行中' : tool.status === 'error' ? '出错' : '完成'}
-            </span>
-          </summary>
-          {formatInput(tool.input) ? (
-            <pre className="mt-g5 whitespace-pre-wrap text-code text-t7">{formatInput(tool.input)}</pre>
-          ) : null}
-          {tool.content ? (
-            <pre className="mt-g5 whitespace-pre-wrap text-code text-t7">{tool.content}</pre>
-          ) : null}
-        </details>
-      ))}
+      {tools.map((tool) => {
+        const inputText = formatInput(tool.input);
+        const summary = summarizeToolInput(tool.name, tool.input as any);
+        return (
+          <details key={tool.id} className="rounded-r6 bg-t1 px-p6 py-p5 text-body text-t7">
+            <summary className="flex cursor-pointer list-none items-center gap-g4">
+              <span className="shrink-0 font-medium">{tool.name}</span>
+              {summary ? (
+                <span className="min-w-0 flex-1 truncate text-footnote text-t6" title={summary}>{summary}</span>
+              ) : <span className="flex-1" />}
+              <span className="shrink-0 text-footnote text-t6">
+                {tool.status === 'running' ? '运行中' : tool.status === 'error' ? '出错' : '完成'}
+              </span>
+            </summary>
+            {inputText ? (
+              <pre className="mt-g5 whitespace-pre-wrap text-code text-t7">{inputText}</pre>
+            ) : null}
+            {tool.content ? <div className="mt-g5"><CollapsedText text={tool.content} /></div> : null}
+          </details>
+        );
+      })}
     </div>
   );
 }
@@ -216,6 +256,11 @@ function AssistantMessage({ message, streaming }: { message: CodeMessage; stream
       <div className="text-footnote text-t6">
         {message.content || 'Context auto-compacted.'}
       </div>
+    );
+  }
+  if (message.is_local_notice) {
+    return (
+      <div className="text-footnote text-t6">{message.content}</div>
     );
   }
 
@@ -244,7 +289,7 @@ function AssistantMessage({ message, streaming }: { message: CodeMessage; stream
 
 function filterMessagesForMode(messages: CodeMessage[], mode: CodeTranscriptMode) {
   return messages
-    .filter((message) => message.role !== 'system' || message.is_compact_boundary)
+    .filter((message) => message.role !== 'system' || message.is_compact_boundary || message.is_local_notice)
     .map((message) => {
       if (message.role !== 'assistant') return message;
       if (mode === 'verbose') return message;
@@ -283,56 +328,60 @@ function CodeSidePaneView({
           <X size={16} strokeWidth={1.9} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-p6 text-body text-t7">
-        {pane === 'transcript' ? (
-          <div className="flex flex-col gap-g6">
-            {messages.length ? messages.map((message) => (
-              <div key={message.id} className="rounded-r5 border border-t3 bg-z0 p-p5">
-                <div className="mb-g3 text-footnote text-t5">{message.role}</div>
-                <pre className="whitespace-pre-wrap break-words font-sans text-body text-t8">{message.thinking || message.content || '(empty)'}</pre>
-              </div>
-            )) : <div className="text-t5">No messages yet.</div>}
-          </div>
-        ) : pane === 'tasks' ? (
-          <div className="flex flex-col gap-g4">
-            {toolCalls.length ? toolCalls.map((tool) => (
-              <div key={tool.id} className="rounded-r5 border border-t3 bg-z0 p-p5">
-                <div className="flex items-center justify-between gap-g4">
-                  <span className="truncate text-body-medium text-t8">{tool.name}</span>
-                  <span className="shrink-0 text-footnote text-t6">{tool.status}</span>
+      {pane === 'terminal' ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <CodeTerminal cwd={cwd} />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {pane === 'transcript' ? (
+            <div className="flex flex-col gap-g6 p-p6 text-body text-t7">
+              {messages.length ? messages.map((message) => (
+                <div key={message.id} className="rounded-r5 border border-t3 bg-z0 p-p5">
+                  <div className="mb-g3 text-footnote text-t5">{message.role}</div>
+                  <pre className="whitespace-pre-wrap break-words font-sans text-body text-t8">{message.thinking || message.content || '(empty)'}</pre>
                 </div>
-                {tool.input ? <pre className="mt-g4 whitespace-pre-wrap break-words text-code text-t6">{formatInput(tool.input)}</pre> : null}
-              </div>
-            )) : <div className="text-t5">No tasks yet.</div>}
-          </div>
-        ) : pane === 'terminal' ? (
-          <div className="rounded-r5 bg-[#1f1f1f] p-p6 font-mono text-code text-[#eeeeee]">
-            <div>$ cd {cwd || '~'}</div>
-            <div className="mt-g2 text-[#999]">Terminal pane is ready for local session integration.</div>
-          </div>
-        ) : pane === 'plan' ? (
-          <div className="flex h-full items-center justify-center text-center text-t5">No plan yet.</div>
-        ) : (
-          <div className="flex h-full items-center justify-center text-center text-t5">No diff yet.</div>
-        )}
-      </div>
+              )) : <div className="flex h-full items-center justify-center text-center text-t5">No messages yet.</div>}
+            </div>
+          ) : pane === 'tasks' ? (
+            <CodeTasksPane toolCalls={toolCalls} />
+          ) : pane === 'plan' ? (
+            <CodePlanPane toolCalls={toolCalls} />
+          ) : (
+            <CodeDiffPane toolCalls={toolCalls} />
+          )}
+        </div>
+      )}
     </aside>
   );
 }
+
+type ComposerAttachment = {
+  fileId: string;
+  fileName: string;
+  fileType: 'image' | 'document' | 'text';
+  uploading?: boolean;
+  error?: string;
+};
 
 type ComposerProps = {
   busy: boolean;
   disabled?: boolean;
   effort: CodeEffort;
   cwd?: string | null;
+  environment: CodeEnvironmentKind;
   modelLabel?: string;
   modelOptions: CodeModelOption[];
   permissionMode: CodePermissionMode;
   value: string;
   error: string | null;
+  attachments: ComposerAttachment[];
   onChange: (value: string) => void;
+  onEnvironmentChange: (next: CodeEnvironmentKind) => void;
   onModelEffortChange: (next: { model: string; effort: CodeEffort }) => void;
   onPermissionModeChange: (next: CodePermissionMode) => void;
+  onPickFiles: (files: FileList) => void;
+  onRemoveAttachment: (fileId: string) => void;
   onSubmit: () => void;
   onStop: () => void;
 };
@@ -342,27 +391,149 @@ function CodeSessionComposer({
   disabled,
   effort,
   cwd,
+  environment,
   modelLabel,
   modelOptions,
   permissionMode,
   value,
   error,
+  attachments,
   onChange,
+  onEnvironmentChange,
   onModelEffortChange,
   onPermissionModeChange,
+  onPickFiles,
+  onRemoveAttachment,
   onSubmit,
   onStop,
 }: ComposerProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
+
+  const slashQuery = useMemo(() => {
+    if (!slashOpen) return null;
+    const node = textareaRef.current;
+    if (!node) return null;
+    return detectSlashQuery(value, node.selectionStart ?? value.length);
+  }, [slashOpen, value]);
+  const slashSuggestions = useMemo(() => {
+    if (slashQuery == null) return [];
+    return matchSlashCommands(slashQuery);
+  }, [slashQuery]);
+
+  useEffect(() => {
+    if (!slashSuggestions.length) {
+      setSlashOpen(false);
+      return;
+    }
+    if (slashIndex >= slashSuggestions.length) setSlashIndex(0);
+  }, [slashSuggestions, slashIndex]);
+
+  const replaceSlashWithCommand = (command: string) => {
+    const node = textareaRef.current;
+    if (!node) return;
+    const caret = node.selectionStart ?? value.length;
+    const before = value.slice(0, caret);
+    const after = value.slice(caret);
+    const lastNewline = before.lastIndexOf('\n');
+    const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+    const slashIndex = before.indexOf('/', lineStart);
+    if (slashIndex === -1) return;
+    const next = before.slice(0, slashIndex) + '/' + command + ' ' + after;
+    onChange(next);
+    setSlashOpen(false);
+    requestAnimationFrame(() => {
+      const cursor = slashIndex + command.length + 2;
+      node.focus();
+      node.setSelectionRange(cursor, cursor);
+    });
+  };
   return (
     <div className="relative shrink-0 flex flex-col gap-g5 [contain:layout]">
       <CodeDraftClawd />
+      {attachments.length ? (
+        <div className="flex flex-wrap gap-g3">
+          {attachments.map((attachment) => (
+            <div key={attachment.fileId} className={'inline-flex max-w-[260px] items-center gap-g3 rounded-r5 border border-t3 bg-t1 px-p3 py-[3px] text-footnote ' + (attachment.error ? 'text-extended-pink' : 'text-t7')}>
+              {attachment.fileType === 'image' ? <ImageIcon size={12} strokeWidth={1.7} /> : <FileText size={12} strokeWidth={1.7} />}
+              <span className="truncate" title={attachment.fileName}>{attachment.fileName}</span>
+              {attachment.uploading ? <span className="shrink-0 text-t5">…</span> : null}
+              <button
+                type="button"
+                aria-label={`Remove ${attachment.fileName}`}
+                onClick={() => onRemoveAttachment(attachment.fileId)}
+                className="inline-flex h-[14px] w-[14px] items-center justify-center rounded-r4 text-t5 hover:bg-t2 hover:text-t8"
+              >
+                <X size={10} strokeWidth={2} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="epitaxy-prompt effect-prompt-blur relative isolate rounded-r7 bg-[var(--surface-prompt-blur)] transition-shadow duration-300 focus-within:bg-[var(--surface-prompt-focus-hover)] focus-within:effect-prompt-focus">
+        {slashOpen && slashSuggestions.length ? (
+          <div
+            role="listbox"
+            className="absolute bottom-full left-0 z-40 mb-g3 box-border w-[320px] overflow-hidden rounded-[14px] border border-t2 bg-[var(--surface-popover)] px-[6px] py-[6px] text-left shadow-[0_8px_28px_rgba(0,0,0,0.12)]"
+          >
+            {slashSuggestions.map((command, idx) => (
+              <button
+                key={command.name}
+                type="button"
+                role="option"
+                aria-selected={idx === slashIndex}
+                onMouseEnter={() => setSlashIndex(idx)}
+                onClick={() => replaceSlashWithCommand(command.name)}
+                className={'flex w-full flex-col items-start gap-[2px] rounded-r5 px-p4 py-[6px] text-left transition-colors ' + (idx === slashIndex ? 'bg-t2' : 'hover:bg-t2')}
+              >
+                <span className="text-body text-t9">/{command.name}</span>
+                <span className="text-footnote text-t5">{command.description}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="relative flex w-full">
           <div className="epitaxy-prompt-input flex-1 min-w-0 text-heading text-t9">
             <textarea
+              ref={textareaRef}
               value={value}
-              onChange={(event) => onChange(event.target.value)}
+              onChange={(event) => {
+                onChange(event.target.value);
+                const caret = event.target.selectionStart ?? event.target.value.length;
+                const query = detectSlashQuery(event.target.value, caret);
+                setSlashOpen(query != null);
+                setSlashIndex(0);
+              }}
               onKeyDown={(event) => {
+                if (slashOpen && slashSuggestions.length) {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setSlashIndex((current) => (current + 1) % slashSuggestions.length);
+                    return;
+                  }
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setSlashIndex((current) => (current - 1 + slashSuggestions.length) % slashSuggestions.length);
+                    return;
+                  }
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    replaceSlashWithCommand(slashSuggestions[slashIndex].name);
+                    return;
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setSlashOpen(false);
+                    return;
+                  }
+                  if (event.key === 'Tab') {
+                    event.preventDefault();
+                    replaceSlashWithCommand(slashSuggestions[slashIndex].name);
+                    return;
+                  }
+                }
                 if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
                 event.preventDefault();
                 onSubmit();
@@ -389,7 +560,11 @@ function CodeSessionComposer({
 
       <div className="w-full flex items-center gap-g5 py-[4px]">
         <div className="flex min-w-0 items-center gap-g5">
-          <CodeEnvironmentSelector disabled value="local" onChange={() => {}} />
+          <CodeEnvironmentSelector
+            disabled={busy || disabled}
+            value={environment}
+            onChange={onEnvironmentChange}
+          />
           <button type="button" className="inline-flex h-[24px] max-w-[240px] items-center gap-g3 rounded-r5 px-p3 text-body text-t7 hover:bg-t2" title={cwd || undefined}>
             <Folder size={14} strokeWidth={1.7} />
             <span className="truncate">{folderLabel(cwd)}</span>
@@ -399,9 +574,26 @@ function CodeSessionComposer({
             value={permissionMode}
             onChange={onPermissionModeChange}
           />
-          <button type="button" className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t7 hover:bg-t2" aria-label="添加">
-            <Plus size={14} strokeWidth={2} />
+          <button
+            type="button"
+            disabled={busy || disabled}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t7 hover:bg-t2 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+            aria-label="添加附件"
+          >
+            <Paperclip size={14} strokeWidth={2} />
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              const files = event.target.files;
+              if (files && files.length) onPickFiles(files);
+              event.target.value = '';
+            }}
+          />
         </div>
         <div className="ml-auto flex items-center gap-g4 text-body text-t6">
           <CodeModelEffortSelector
@@ -428,7 +620,28 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
   const streamRunRef = useRef(0);
   const [messages, setMessages] = useState<CodeMessage[]>([]);
   const [conversation, setConversation] = useState<any>(null);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState(() => {
+    if (typeof window === 'undefined' || !id) return '';
+    return window.localStorage.getItem(`code-draft:${id}`) || '';
+  });
+  const lastDraftIdRef = useRef<string | null>(id || null);
+  useEffect(() => {
+    if (!id) return;
+    if (lastDraftIdRef.current !== id) {
+      const next = window.localStorage.getItem(`code-draft:${id}`) || '';
+      lastDraftIdRef.current = id;
+      setInputText(next);
+    }
+  }, [id]);
+  useEffect(() => {
+    if (!id) return;
+    if (lastDraftIdRef.current !== id) return;
+    if (inputText) {
+      window.localStorage.setItem(`code-draft:${id}`, inputText);
+    } else {
+      window.localStorage.removeItem(`code-draft:${id}`);
+    }
+  }, [id, inputText]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -436,6 +649,9 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
   const [textSize, setTextSize] = useState<CodeTextSize>(getInitialCodeTextSize);
   const [sidePane, setSidePane] = useState<CodeSidePane | null>(null);
   const [modelOptions] = useState(getLocalCodeModels);
+  const [environment, setEnvironment] = useState<CodeEnvironmentKind>('local');
+  const [permissionQueue, setPermissionQueue] = useState<ToolPermissionRequest[]>([]);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
 
   const initialMessage = (location.state as any)?.initialMessage;
   const modelFromState = (location.state as any)?.model;
@@ -616,6 +832,17 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
               },
             ]);
           }
+          if (event === 'tool_permission_request' && data) {
+            setPermissionQueue((current) => [
+              ...current,
+              {
+                request_id: data.request_id,
+                tool_use_id: data.tool_use_id,
+                tool_name: data.tool_name,
+                tool_input: data.tool_input || {},
+              },
+            ]);
+          }
         },
         (toolEvent: any) => {
           updateLastAssistant((message) => {
@@ -628,6 +855,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
                 input: toolEvent.tool_input,
                 status: 'running',
                 textBefore: toolEvent.textBefore,
+                startedAt: Date.now(),
               };
               if (index >= 0) toolCalls[index] = { ...toolCalls[index], ...nextTool };
               else toolCalls.push(nextTool);
@@ -640,6 +868,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
                 ...toolCalls[index],
                 content: toolEvent.content,
                 status: toolEvent.is_error ? 'error' : 'done',
+                endedAt: Date.now(),
               };
             }
             return { ...message, toolCalls };
@@ -685,6 +914,78 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
     const text = (textOverride ?? inputText).trim();
     if (!text) return;
 
+    const slashMatch = /^\/(\w+)(?:\s+(.*))?$/s.exec(text);
+    if (slashMatch && !textOverride) {
+      const command = slashMatch[1];
+      const rest = (slashMatch[2] || '').trim();
+      if (command === 'clear') {
+        setInputText('');
+        setError(null);
+        setMessages([]);
+        return;
+      }
+      if (command === 'cwd') {
+        setInputText('');
+        setError(null);
+        setMessages((current) => [
+          ...current,
+          {
+            id: `system-${Date.now()}`,
+            role: 'system',
+            content: `cwd: ${conversation?.code_cwd || '(none)'}`,
+            created_at: new Date().toISOString(),
+            is_local_notice: true,
+          },
+        ]);
+        return;
+      }
+      if (command === 'help') {
+        setInputText('');
+        setError(null);
+        setMessages((current) => [
+          ...current,
+          {
+            id: `system-${Date.now()}`,
+            role: 'system',
+            content: 'Slash commands: /clear, /compact [instruction], /cwd, /help',
+            created_at: new Date().toISOString(),
+            is_local_notice: true,
+          },
+        ]);
+        return;
+      }
+      if (command === 'compact') {
+        setInputText('');
+        setError(null);
+        try {
+          const result = await compactConversation(id, rest || undefined);
+          setMessages((current) => [
+            ...current,
+            {
+              id: `system-${Date.now()}`,
+              role: 'system',
+              content: `Context compacted (${result.messagesCompacted} messages, ~${result.tokensSaved} tokens saved).`,
+              created_at: new Date().toISOString(),
+              is_local_notice: true,
+            },
+          ]);
+          await loadConversation({ silent: true });
+        } catch (err: any) {
+          setError(err?.message || 'Compaction failed');
+        }
+        return;
+      }
+    }
+
+    const pendingAttachments = attachments.filter((attachment) => !attachment.uploading && !attachment.error);
+    const apiAttachments = pendingAttachments.length
+      ? pendingAttachments.map((attachment) => ({
+          fileId: attachment.fileId,
+          fileName: attachment.fileName,
+          fileType: attachment.fileType,
+        }))
+      : null;
+
     const userMessage: CodeMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -694,6 +995,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
     const assistantMessage = createAssistantPlaceholder();
 
     setInputText('');
+    setAttachments([]);
     setError(null);
     setLoading(true);
     setMessages((current) => [...current, userMessage, assistantMessage]);
@@ -706,7 +1008,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
     await sendMessage(
       id,
       text,
-      null,
+      apiAttachments,
       (_delta, full) => {
         updateLastAssistant((message) => ({ ...message, content: full }), runId);
       },
@@ -746,6 +1048,17 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
             },
           ]);
         }
+        if (event === 'tool_permission_request' && data) {
+          setPermissionQueue((current) => [
+            ...current,
+            {
+              request_id: data.request_id,
+              tool_use_id: data.tool_use_id,
+              tool_name: data.tool_name,
+              tool_input: data.tool_input || {},
+            },
+          ]);
+        }
       },
       undefined,
       undefined,
@@ -762,6 +1075,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
               input: toolEvent.tool_input,
               status: 'running',
               textBefore: toolEvent.textBefore,
+              startedAt: Date.now(),
             };
             if (index >= 0) toolCalls[index] = { ...toolCalls[index], ...nextTool };
             else toolCalls.push(nextTool);
@@ -774,6 +1088,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
               ...toolCalls[index],
               content: toolEvent.content,
               status: toolEvent.is_error ? 'error' : 'done',
+              endedAt: Date.now(),
             };
           }
           return { ...message, toolCalls };
@@ -781,7 +1096,7 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
       },
       controller.signal,
     );
-  }, [beginRun, conversation?.code_cwd, finishRun, id, inputText, isActiveRun, loadConversation, loaded, loading, pollConversationTitle, updateLastAssistant]);
+  }, [attachments, beginRun, conversation?.code_cwd, finishRun, id, inputText, isActiveRun, loadConversation, loaded, loading, pollConversationTitle, updateLastAssistant]);
 
   useEffect(() => {
     if (!id || !loaded || !initialMessage) return;
@@ -852,6 +1167,53 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
     [messages, transcriptMode],
   );
 
+  const handlePermissionDecision = useCallback(async (decision: 'allow' | 'deny') => {
+    if (!id) return;
+    const next = permissionQueue[0];
+    if (!next) return;
+    try {
+      await decideToolPermission(id, next.request_id, next.tool_use_id, decision);
+    } catch (err: any) {
+      setError(err?.message || '提交权限决定失败。');
+    } finally {
+      setPermissionQueue((current) => current.slice(1));
+    }
+  }, [id, permissionQueue]);
+
+  const handlePickFiles = useCallback((files: FileList) => {
+    if (!id) return;
+    const list = Array.from(files);
+    list.forEach((file) => {
+      const placeholderId = `pending-${Date.now()}-${file.name}`;
+      const placeholder: ComposerAttachment = {
+        fileId: placeholderId,
+        fileName: file.name,
+        fileType: file.type.startsWith('image/') ? 'image' : 'document',
+        uploading: true,
+      };
+      setAttachments((current) => [...current, placeholder]);
+      uploadFile(file, undefined, id)
+        .then((result: UploadResult) => {
+          setAttachments((current) => current.map((attachment) =>
+            attachment.fileId === placeholderId
+              ? { fileId: result.fileId, fileName: result.fileName, fileType: result.fileType, uploading: false }
+              : attachment,
+          ));
+        })
+        .catch((err) => {
+          setAttachments((current) => current.map((attachment) =>
+            attachment.fileId === placeholderId
+              ? { ...attachment, uploading: false, error: err?.message || 'upload failed' }
+              : attachment,
+          ));
+        });
+    });
+  }, [id]);
+
+  const handleRemoveAttachment = useCallback((fileId: string) => {
+    setAttachments((current) => current.filter((attachment) => attachment.fileId !== fileId));
+  }, []);
+
   return (
     <main className="epitaxy-root epitaxy-code-page epitaxy-code-session select-none h-full w-full flex flex-col">
       <div className="flex-1 min-h-0 flex">
@@ -895,21 +1257,36 @@ export default function CodeSessionPage({ onConversationUpdated }: { onConversat
           disabled={!!blocksLocalCodeSession}
           effort={effort}
           cwd={conversation?.code_cwd}
+          environment={environment}
           modelLabel={modelLabel}
           modelOptions={modelOptions}
           permissionMode={permissionMode}
           value={inputText}
           error={error}
+          attachments={attachments}
           onChange={(value) => {
             setInputText(value);
             if (error) setError(null);
           }}
+          onEnvironmentChange={(next) => {
+            setEnvironment(next);
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem('code_default_environment', next);
+            }
+            if (next === 'local') setError(null);
+          }}
           onModelEffortChange={handleModelEffortChange}
           onPermissionModeChange={handlePermissionModeChange}
+          onPickFiles={handlePickFiles}
+          onRemoveAttachment={handleRemoveAttachment}
           onSubmit={() => submitMessage()}
           onStop={stop}
         />
       </div>
+      <CodeToolPermissionModal
+        request={permissionQueue[0] || null}
+        onDecision={handlePermissionDecision}
+      />
     </main>
   );
 }

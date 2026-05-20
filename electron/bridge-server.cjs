@@ -470,6 +470,10 @@ function initServer(mainWindow) {
     // Stash original AskUserQuestion input per conversation so /answer can merge user answers into updatedInput
     const askUserPendingInputs = new Map();
 
+    // Pending tool-permission requests awaiting user allow/deny.
+    // key: convId -> { request_id, tool_use_id, tool_name, input }
+    const pendingPermissionRequests = new Map();
+
     // Per-conversation stream state: buffer events so frontend can reconnect mid-stream
     // Key: conversationId, Value: { events: [], listeners: Set<res>, done: boolean }
     const activeStreams = new Map();
@@ -2096,6 +2100,14 @@ function initServer(mainWindow) {
             if (mode) conv.code_permission_mode = mode;
             else delete conv.code_permission_mode;
         }
+        if ('is_starred' in req.body) {
+            if (req.body.is_starred) conv.is_starred = true;
+            else delete conv.is_starred;
+        }
+        if ('is_archived' in req.body) {
+            if (req.body.is_archived) conv.is_archived = true;
+            else delete conv.is_archived;
+        }
         if (conv.code_cwd) {
             conv.research_mode = false;
             conv.code_effort = normalizeCodeEffort(conv.code_effort) || 'medium';
@@ -2530,7 +2542,52 @@ function initServer(mainWindow) {
         }
     });
 
-    // Stream status 鈥?check if a conversation has an active engine stream
+    // Tool permission decision — receive user's allow/deny for a can_use_tool request.
+    server.post('/api/conversations/:id/tool-permission', (req, res) => {
+        const { request_id, tool_use_id, decision, updated_input } = req.body || {};
+        const convId = req.params.id;
+        const child = activeChildren.get(convId);
+        if (!child) return res.status(404).json({ error: 'No active engine process' });
+        if (!request_id) return res.status(400).json({ error: 'Missing request_id' });
+        if (decision !== 'allow' && decision !== 'deny') return res.status(400).json({ error: 'Invalid decision. Expected "allow" or "deny".' });
+
+        const pending = pendingPermissionRequests.get(convId);
+        if (pending && pending.request_id === request_id) pendingPermissionRequests.delete(convId);
+        const originalInput = (pending && pending.input) || {};
+
+        const responsePayload = decision === 'allow'
+            ? {
+                subtype: 'success',
+                request_id,
+                response: {
+                    toolUseID: tool_use_id || (pending && pending.tool_use_id) || '',
+                    behavior: 'allow',
+                    updatedInput: { ...originalInput, ...(updated_input && typeof updated_input === 'object' ? updated_input : {}) },
+                },
+            }
+            : {
+                subtype: 'success',
+                request_id,
+                response: {
+                    toolUseID: tool_use_id || (pending && pending.tool_use_id) || '',
+                    behavior: 'deny',
+                    message: 'Denied by user.',
+                },
+            };
+
+        const controlResponse = JSON.stringify({ type: 'control_response', response: responsePayload }) + '\n';
+
+        try {
+            child.stdin.write(controlResponse);
+            console.log('[ToolPermission] ' + decision + ' request_id=' + request_id + ' tool=' + (pending && pending.tool_name));
+            res.json({ ok: true });
+        } catch (err) {
+            console.error('[ToolPermission] Write error:', err.message);
+            res.status(500).json({ error: 'Failed to write to engine stdin' });
+        }
+    });
+
+    // Stream status — check if a conversation has an active engine stream
     server.get('/api/conversations/:id/stream-status', (req, res) => {
         const stream = activeStreams.get(req.params.id);
         res.json({ active: !!(stream && !stream.done), eventCount: stream ? stream.events.length : 0 });
@@ -4489,6 +4546,9 @@ You have the following skills available. When a user's request matches a skill's
             if (req2.subtype === 'can_use_tool' && req2.tool_name === 'AskUserQuestion') {
                 askUserPendingInputs.set(convId, req2.input || {});
                 sendSSE({ type: 'ask_user', request_id: evt.request_id, tool_use_id: req2.tool_use_id, questions: (req2.input && req2.input.questions) || [] });
+            } else if (req2.subtype === 'can_use_tool') {
+                pendingPermissionRequests.set(convId, { request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, input: req2.input || {} });
+                sendSSE({ type: 'tool_permission_request', request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, tool_input: req2.input || {} });
             } else {
                 var ar = JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: evt.request_id, response: { toolUseID: req2.tool_use_id, behavior: 'allow', updatedInput: req2.input || {} } } }) + '\n';
                 try { engine.child.stdin.write(ar); } catch (_) {}

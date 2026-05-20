@@ -25,6 +25,7 @@ try {
 } catch (_) {}
 
 const { initServer, enableNodeModeForChildProcesses } = require('./bridge-server.cjs');
+const { attachPtyWebSocket } = require('./pty-service.cjs');
 const { getGlobalConfigFilePath } = require('./connector-mcp-config.cjs');
 
 // Fix Chinese garbled text in Windows console by switching to UTF-8 code page
@@ -193,6 +194,7 @@ function startBridgeServer() {
         bridgeHttpServer = httpServer;
         console.log('Bridge Server running on http://127.0.0.1:30080');
     });
+    attachPtyWebSocket(httpServer);
 
     httpServer.on('error', (error) => {
         console.error('[Bridge] Server error:', error && (error.stack || error.message || error));

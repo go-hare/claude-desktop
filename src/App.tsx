@@ -648,9 +648,10 @@ const CodeSessionTopActions = ({
 
   return (
     <div
-      className="absolute top-0 right-[18px] z-[2] flex items-center gap-[6px]"
+      className="absolute top-0 z-[2] flex items-center gap-[6px]"
       style={{
         height: `${titleBarHeight}px`,
+        right: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac') ? '18px' : '156px',
         WebkitAppRegion: 'no-drag',
         pointerEvents: 'auto',
       } as React.CSSProperties}
