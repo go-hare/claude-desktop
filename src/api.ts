@@ -1,4 +1,16 @@
-const API_BASE = 'http://127.0.0.1:30080/api';
+import { bridgeApiBase, initBridgePort } from './bridgeConfig';
+
+// Bridge runs locally on a port chosen at startup (defaults to 30080, falls
+// back to a free port on collision). `bridgeApiBase()` always returns the
+// current value; we cache it here so existing `${API_BASE}/path` template
+// literals keep working without rewriting every call site.
+let API_BASE = bridgeApiBase();
+initBridgePort().then(() => { API_BASE = bridgeApiBase(); });
+const refreshApiBase = () => { API_BASE = bridgeApiBase(); };
+const electronApi: any = (typeof window !== 'undefined' ? (window as any).electronAPI : null);
+if (electronApi?.onBridgePort) {
+  try { electronApi.onBridgePort(refreshApiBase); } catch {}
+}
 const GATEWAY_BASE = 'https://api-cn.jiazhuang.cloud';
 const CHENGDU_API = 'https://clawparrot.com/api';
 
@@ -624,6 +636,7 @@ export async function stopGeneration(conversationId: string) {
 // 获取对话上下文大小
 export async function getContextSize(conversationId: string): Promise<{ tokens: number; limit: number }> {
   const res = await request(`/conversations/${conversationId}/context-size`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
@@ -661,6 +674,7 @@ export async function decideToolPermission(
   toolUseId: string,
   decision: 'allow' | 'deny',
   updatedInput?: Record<string, unknown>,
+  remember?: boolean | string,
 ): Promise<{ ok: boolean }> {
   const res = await request(`/conversations/${conversationId}/tool-permission`, {
     method: 'POST',
@@ -669,8 +683,88 @@ export async function decideToolPermission(
       tool_use_id: toolUseId,
       decision,
       ...(updatedInput ? { updated_input: updatedInput } : {}),
+      ...(remember ? { remember } : {}),
     }),
   });
+  return res.json();
+}
+
+export async function getToolAllowlist(conversationId: string): Promise<{ tools: string[] }> {
+  const res = await request(`/conversations/${conversationId}/tool-allowlist`);
+  return res.json();
+}
+
+export async function revokeToolAllowlist(conversationId: string, tool: string): Promise<{ ok: boolean }> {
+  const res = await request(`/conversations/${conversationId}/tool-allowlist/${encodeURIComponent(tool)}`, { method: 'DELETE' });
+  return res.json();
+}
+
+export type CustomSlashCommand = {
+  name: string;
+  description: string;
+  body: string;
+  source: 'project' | 'user' | 'bundled';
+};
+
+export async function listSlashCommands(cwd?: string | null): Promise<{ commands: CustomSlashCommand[] }> {
+  const qs = cwd ? `?cwd=${encodeURIComponent(cwd)}` : '';
+  const res = await request(`/slash-commands${qs}`);
+  if (!res.ok) return { commands: [] };
+  return res.json();
+}
+
+export type EffectiveConfig = {
+  mcp: Record<string, { command: string | null; url: string | null; envKeys: string[] }>;
+  agents: Record<string, { description: string; model: string | null; tools: string[] | null }>;
+  hooks: Record<string, number>;
+};
+
+export async function getEffectiveConfig(cwd?: string | null): Promise<EffectiveConfig> {
+  const qs = cwd ? `?cwd=${encodeURIComponent(cwd)}` : '';
+  const res = await request(`/effective-config${qs}`);
+  if (!res.ok) return { mcp: {}, agents: {}, hooks: {} };
+  return res.json();
+}
+
+export type GitInfo = { isRepo: boolean; branch?: string | null; dirty?: boolean; topLevel?: string };
+
+export async function getGitInfo(cwd?: string | null): Promise<GitInfo> {
+  if (!cwd) return { isRepo: false };
+  const res = await request(`/git-info?cwd=${encodeURIComponent(cwd)}`);
+  if (!res.ok) return { isRepo: false };
+  return res.json();
+}
+
+export type SubagentDef = {
+  description: string;
+  prompt: string;
+  model?: string;
+  tools?: string[];
+};
+
+export async function getSubagents(cwd?: string | null): Promise<{ user: Record<string, SubagentDef>; project: Record<string, SubagentDef> }> {
+  const qs = cwd ? `?cwd=${encodeURIComponent(cwd)}` : '';
+  const res = await request(`/subagents${qs}`);
+  if (!res.ok) return { user: {}, project: {} };
+  return res.json();
+}
+
+export async function saveSubagent(name: string, def: SubagentDef): Promise<{ ok: boolean; agent?: SubagentDef; error?: string }> {
+  const res = await request(`/subagents/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(def),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, error: data.error || `HTTP ${res.status}` };
+  }
+  return res.json();
+}
+
+export async function deleteSubagent(name: string): Promise<{ ok: boolean }> {
+  const res = await request(`/subagents/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  if (!res.ok) return { ok: false };
   return res.json();
 }
 
@@ -1564,6 +1658,30 @@ export async function sendMessage(
             continue;
           }
 
+          // Hook decided to block a tool call before it ever ran.
+          if (parsed.type === 'tool_permission_blocked') {
+            if (onSystem) {
+              onSystem('tool_permission_blocked', '', parsed);
+            }
+            continue;
+          }
+
+          // Engine wants to exit plan mode — surface the plan to the user for approval.
+          if (parsed.type === 'plan_approval_request') {
+            if (onSystem) {
+              onSystem('plan_approval_request', '', parsed);
+            }
+            continue;
+          }
+
+          // MCP server hit an error during startup or runtime.
+          if (parsed.type === 'mcp_server_error') {
+            if (onSystem) {
+              onSystem('mcp_server_error', '', parsed);
+            }
+            continue;
+          }
+
           // Handle task/agent progress events
           if (parsed.type === 'task_event') {
             if (onSystem) {
@@ -1598,6 +1716,10 @@ export async function sendMessage(
           // Track text offset where tool work ends and final response begins
           if (parsed.type === 'tool_text_offset' && onSystem) {
             onSystem('tool_text_offset', '', parsed);
+          }
+
+          if (parsed.type === 'usage' && onSystem) {
+            onSystem('usage', '', parsed);
           }
 
           if (parsed.type === 'message_stop') {

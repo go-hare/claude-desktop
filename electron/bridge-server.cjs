@@ -474,6 +474,11 @@ function initServer(mainWindow) {
     // key: convId -> { request_id, tool_use_id, tool_name, input }
     const pendingPermissionRequests = new Map();
 
+    // Per-conversation tool allowlist for the lifetime of this bridge process.
+    // key: convId -> Set<tool_name>. Tools in the set bypass the modal and are
+    // auto-allowed when engine asks. Cleared on bridge restart.
+    const toolAllowlists = new Map();
+
     // Per-conversation stream state: buffer events so frontend can reconnect mid-stream
     // Key: conversationId, Value: { events: [], listeners: Set<res>, done: boolean }
     const activeStreams = new Map();
@@ -2544,7 +2549,7 @@ function initServer(mainWindow) {
 
     // Tool permission decision — receive user's allow/deny for a can_use_tool request.
     server.post('/api/conversations/:id/tool-permission', (req, res) => {
-        const { request_id, tool_use_id, decision, updated_input } = req.body || {};
+        const { request_id, tool_use_id, decision, updated_input, remember } = req.body || {};
         const convId = req.params.id;
         const child = activeChildren.get(convId);
         if (!child) return res.status(404).json({ error: 'No active engine process' });
@@ -2554,6 +2559,72 @@ function initServer(mainWindow) {
         const pending = pendingPermissionRequests.get(convId);
         if (pending && pending.request_id === request_id) pendingPermissionRequests.delete(convId);
         const originalInput = (pending && pending.input) || {};
+        const toolName = pending && pending.tool_name;
+
+        if (decision === 'allow' && remember && toolName) {
+            // remember can be: true / "session" / "project" / "project-local" / "user".
+            // - session (default): kept in-memory only, dies with bridge restart.
+            // - project: writes to <cwd>/.claude/settings.json
+            // - project-local: writes to <cwd>/.claude/settings.local.json
+            // - user: writes to ~/.claude/settings.json
+            const scope = remember === true ? 'session' : String(remember);
+            let allowSet = toolAllowlists.get(convId);
+            if (!allowSet) { allowSet = new Set(); toolAllowlists.set(convId, allowSet); }
+            allowSet.add(toolName);
+            console.log('[ToolPermission] Allowlisted ' + toolName + ' for conv ' + convId + ' scope=' + scope);
+
+            if (scope !== 'session') {
+                const conv = db.conversations.find((c) => c.id === convId);
+                let target = null;
+                if (scope === 'project' && conv?.code_cwd) target = path.join(conv.code_cwd, '.claude', 'settings.json');
+                else if (scope === 'project-local' && conv?.code_cwd) target = path.join(conv.code_cwd, '.claude', 'settings.local.json');
+                else if (scope === 'user') target = path.join(os.homedir(), '.claude', 'settings.json');
+                if (target) {
+                    try {
+                        fs.mkdirSync(path.dirname(target), { recursive: true });
+                        let settings = {};
+                        try { settings = JSON.parse(fs.readFileSync(target, 'utf8')); } catch {}
+                        if (!settings.permissions || typeof settings.permissions !== 'object') settings.permissions = {};
+                        if (!Array.isArray(settings.permissions.allow)) settings.permissions.allow = [];
+                        if (!settings.permissions.allow.includes(toolName)) {
+                            settings.permissions.allow.push(toolName);
+                            const tmp = target + '.tmp';
+                            fs.writeFileSync(tmp, JSON.stringify(settings, null, 2), 'utf8');
+                            fs.renameSync(tmp, target);
+                            console.log('[ToolPermission] Wrote ' + toolName + ' to ' + target);
+                        }
+                    } catch (err) {
+                        console.warn('[ToolPermission] Failed to persist scope=' + scope + ' to ' + target + ':', err && err.message);
+                    }
+                }
+            }
+        }
+
+        // Plan approval: when the user accepts the engine's plan, flip the
+        // conversation's permission_mode to acceptEdits so the engine doesn't
+        // immediately fall back into plan mode after ExitPlanMode succeeds.
+        // Reject keeps the conversation in plan mode untouched.
+        if (pending && pending.isPlanApproval) {
+            const conv = db.conversations.find((c) => c.id === convId);
+            if (conv && decision === 'allow') {
+                conv.code_permission_mode = 'acceptEdits';
+                // Stash the approved plan so the next system-prompt build
+                // restates it explicitly. Belt-and-suspenders: the plan is
+                // already in the resumed transcript, but the engine sometimes
+                // forgets it after a mode switch.
+                conv.pendingPlanContext = (pending.input && pending.input.plan) || '';
+                saveDb();
+                console.log('[PlanApproval] Conv', convId, 'switched to acceptEdits');
+                // The currently-running engine was spawned with --permission-mode=plan.
+                // Mark it for replacement so the next turn spawns fresh under
+                // acceptEdits. We can't kill it mid-turn (the SDK is still
+                // waiting for the control_response we're about to send), so
+                // tag it instead and let finishTurn / the next sendMessage
+                // recycle it.
+                const eng = enginePool.get(convId);
+                if (eng) eng.recyclePending = true;
+            }
+        }
 
         const responsePayload = decision === 'allow'
             ? {
@@ -2585,6 +2656,427 @@ function initServer(mainWindow) {
             console.error('[ToolPermission] Write error:', err.message);
             res.status(500).json({ error: 'Failed to write to engine stdin' });
         }
+    });
+
+    server.get('/api/conversations/:id/tool-allowlist', (req, res) => {
+        const set = toolAllowlists.get(req.params.id);
+        res.json({ tools: set ? Array.from(set) : [] });
+    });
+
+    server.delete('/api/conversations/:id/tool-allowlist/:tool', (req, res) => {
+        const set = toolAllowlists.get(req.params.id);
+        if (set) set.delete(req.params.tool);
+        res.json({ ok: true });
+    });
+
+    // Discover custom slash commands. Looks in <cwd>/.claude/commands and
+    // ~/.claude/commands for *.md files. Each file becomes a command whose
+    // name is the filename (slashes preserved as folder separators).
+    // Optional YAML frontmatter:
+    //   ---
+    //   description: short one-liner shown in the menu
+    //   ---
+    //   <prompt body — $ARGUMENTS is substituted at runtime>
+    function parseCommandFile(filePath, name, source) {
+        let raw;
+        try { raw = fs.readFileSync(filePath, 'utf8'); } catch { return null; }
+        let description = '';
+        let body = raw;
+        const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+        if (fm) {
+            const head = fm[1];
+            body = fm[2];
+            const descMatch = head.match(/^description:\s*(.+)$/m);
+            if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, '');
+        }
+        return { name, description, body: body.trim(), source };
+    }
+
+    function listCommandsIn(rootDir, source) {
+        const out = [];
+        const walk = (dir, prefix) => {
+            let entries;
+            try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+            for (const entry of entries) {
+                if (entry.name.startsWith('.')) continue;
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(full, prefix ? `${prefix}/${entry.name}` : entry.name);
+                } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+                    const base = entry.name.slice(0, -3);
+                    const name = prefix ? `${prefix}/${base}` : base;
+                    const parsed = parseCommandFile(full, name, source);
+                    if (parsed) out.push(parsed);
+                }
+            }
+        };
+        walk(rootDir, '');
+        return out;
+    }
+
+    server.get('/api/slash-commands', (req, res) => {
+        const cwd = typeof req.query.cwd === 'string' ? req.query.cwd : '';
+        const projectCmds = cwd ? listCommandsIn(path.join(cwd, '.claude', 'commands'), 'project') : [];
+        const userCmds = listCommandsIn(path.join(os.homedir(), '.claude', 'commands'), 'user');
+        // Project commands win on name conflict.
+        const seen = new Set(projectCmds.map((c) => c.name));
+        const merged = [...projectCmds, ...userCmds.filter((c) => !seen.has(c.name))];
+
+        // Skills surface in the / menu but have no body — invoking /name sends
+        // it as-is to the engine, which loads the matching SKILL.md.
+        try {
+            const seenAll = new Set(merged.map((c) => c.name));
+            const skillSources = [
+                { dir: cwd ? path.join(cwd, '.claude', 'skills') : null, source: 'project' },
+                { dir: path.join(os.homedir(), '.claude', 'skills'), source: 'user' },
+                { dir: bundledSkillsDir, source: 'bundled' },
+            ];
+            for (const { dir, source } of skillSources) {
+                if (!dir || !fs.existsSync(dir)) continue;
+                let entries;
+                try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+                for (const entry of entries) {
+                    if (!entry.isDirectory()) continue;
+                    const mdPath = path.join(dir, entry.name, 'SKILL.md');
+                    if (!fs.existsSync(mdPath)) continue;
+                    if (seenAll.has(entry.name)) continue;
+                    seenAll.add(entry.name);
+                    let description = '';
+                    try {
+                        const raw = fs.readFileSync(mdPath, 'utf8');
+                        const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+                        if (fm) {
+                            const m = fm[1].match(/^description:\s*(.+)$/m);
+                            if (m) description = m[1].trim().replace(/^["']|["']$/g, '');
+                        }
+                    } catch {}
+                    merged.push({ name: entry.name, description: description || `Skill (${source})`, body: '', source: source });
+                }
+            }
+        } catch (err) {
+            console.warn('[Skills] enumeration failed', err && err.message);
+        }
+
+        res.json({ commands: merged });
+    });
+
+    // Effective MCP servers + agents config for the conversation. Inspecting
+    // these lets the UI surface "which MCP / subagents are wired up".
+    server.get('/api/effective-config', (req, res) => {
+        const cwd = typeof req.query.cwd === 'string' ? req.query.cwd : '';
+        const layers = [];
+        if (cwd) {
+            layers.push(readSettingsFile(path.join(cwd, '.claude', 'settings.json')));
+            layers.push(readSettingsFile(path.join(cwd, '.claude', 'settings.local.json')));
+        }
+        layers.push(readSettingsFile(path.join(os.homedir(), '.claude', 'settings.json')));
+        const mcpServers = {};
+        const agents = {};
+        const hooks = {};
+        for (const layer of layers.reverse()) {
+            if (!layer) continue;
+            if (layer.mcpServers && typeof layer.mcpServers === 'object') Object.assign(mcpServers, layer.mcpServers);
+            if (layer.agents && typeof layer.agents === 'object') Object.assign(agents, layer.agents);
+            if (layer.hooks && typeof layer.hooks === 'object') {
+                for (const [event, list] of Object.entries(layer.hooks)) {
+                    if (!Array.isArray(list)) continue;
+                    if (!hooks[event]) hooks[event] = [];
+                    hooks[event].push(...list);
+                }
+            }
+        }
+        // Strip secrets — env values may contain API keys; show keys only.
+        const mcpSummary = Object.fromEntries(Object.entries(mcpServers).map(([name, def]) => [name, {
+            command: def?.command || null,
+            url: def?.url || null,
+            envKeys: def?.env ? Object.keys(def.env) : [],
+        }]));
+        const agentsSummary = Object.fromEntries(Object.entries(agents).map(([name, def]) => [name, {
+            description: def?.description || '',
+            model: def?.model || null,
+            tools: Array.isArray(def?.tools) ? def.tools : null,
+        }]));
+        const hooksSummary = Object.fromEntries(Object.entries(hooks).map(([event, list]) => [event, list.length]));
+        res.json({ mcp: mcpSummary, agents: agentsSummary, hooks: hooksSummary });
+    });
+
+    // Quick git status for a cwd — current branch + working-tree dirty bit.
+    // The home-page composer chip uses this; no listing of files, no fetch.
+    server.get('/api/git-info', (req, res) => {
+        const cwd = typeof req.query.cwd === 'string' ? req.query.cwd : '';
+        if (!cwd || !fs.existsSync(cwd)) return res.json({ isRepo: false });
+        const { spawnSync } = require('child_process');
+        const run = (args) => {
+            const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 3000, windowsHide: true });
+            return r.status === 0 ? (r.stdout || '').trim() : null;
+        };
+        const top = run(['rev-parse', '--show-toplevel']);
+        if (!top) return res.json({ isRepo: false });
+        const branch = run(['rev-parse', '--abbrev-ref', 'HEAD']);
+        const status = run(['status', '--porcelain']);
+        const dirty = !!(status && status.length > 0);
+        res.json({ isRepo: true, branch: branch || null, dirty, topLevel: top });
+    });
+
+    // ─── Subagent CRUD (writes to ~/.claude/settings.json `agents`) ────
+    // We only edit the user-level file; project-level subagents must be
+    // committed to the repo manually. Operations are atomic (read → mutate
+    // → temp-write → rename).
+    function userSettingsPath() {
+        return path.join(os.homedir(), '.claude', 'settings.json');
+    }
+    function readUserSettings() {
+        const p = userSettingsPath();
+        try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return {}; }
+    }
+    function writeUserSettings(obj) {
+        const p = userSettingsPath();
+        try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch (_) {}
+        const tmp = p + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(obj, null, 2), 'utf8');
+        fs.renameSync(tmp, p);
+    }
+
+    server.get('/api/subagents', (req, res) => {
+        const settings = readUserSettings();
+        const userAgents = settings.agents && typeof settings.agents === 'object' ? settings.agents : {};
+        // Project agents are read-only here — surface them so the UI can show "live" set.
+        const cwd = typeof req.query.cwd === 'string' ? req.query.cwd : '';
+        const projectSettings = cwd ? readSettingsFile(path.join(cwd, '.claude', 'settings.json')) : null;
+        const projectAgents = projectSettings && projectSettings.agents && typeof projectSettings.agents === 'object' ? projectSettings.agents : {};
+        res.json({ user: userAgents, project: projectAgents });
+    });
+
+    server.put('/api/subagents/:name', express.json(), (req, res) => {
+        const name = req.params.name;
+        if (!/^[a-z0-9_-]+$/i.test(name)) return res.status(400).json({ error: 'Invalid name. Use letters, digits, underscores, dashes.' });
+        const def = req.body || {};
+        const cleaned = {};
+        if (typeof def.description === 'string') cleaned.description = def.description.trim();
+        if (typeof def.prompt === 'string') cleaned.prompt = def.prompt;
+        if (typeof def.model === 'string' && def.model.trim()) cleaned.model = def.model.trim();
+        if (Array.isArray(def.tools)) cleaned.tools = def.tools.map((t) => String(t)).filter(Boolean);
+        if (!cleaned.description || !cleaned.prompt) return res.status(400).json({ error: 'description and prompt are required' });
+        const settings = readUserSettings();
+        if (!settings.agents || typeof settings.agents !== 'object') settings.agents = {};
+        settings.agents[name] = cleaned;
+        try { writeUserSettings(settings); } catch (err) { return res.status(500).json({ error: err.message }); }
+        res.json({ ok: true, agent: cleaned });
+    });
+
+    server.delete('/api/subagents/:name', (req, res) => {
+        const name = req.params.name;
+        const settings = readUserSettings();
+        if (settings.agents && typeof settings.agents === 'object') {
+            delete settings.agents[name];
+            try { writeUserSettings(settings); } catch (err) { return res.status(500).json({ error: err.message }); }
+        }
+        res.json({ ok: true });
+    });
+
+    // ─── Hooks (settings.json) ──────────────────────────────────────────
+    // Reads hooks from <cwd>/.claude/settings.json, settings.local.json, and
+    // ~/.claude/settings.json. Project hooks run before user hooks. Schema:
+    //   { "hooks": { "PreToolUse": [ { "matcher": "Bash", "command": "..." } ],
+    //                 "Stop": [ { "command": "..." } ] } }
+    // - matcher: optional tool name filter for PreToolUse (e.g. "Bash"). Omit
+    //   to match every tool. Glob "*" matches anything; comma list is OR.
+    // - command: shell command. Receives a JSON payload on stdin describing
+    //   the tool call (PreToolUse) or turn (Stop). Stdout JSON `{"decision":
+    //   "block", "reason": "..."}` blocks PreToolUse; anything else is
+    //   informational. Errors are logged and treated as no-op.
+    function readSettingsFile(filePath) {
+        try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
+    }
+    function loadHooks(cwd) {
+        const layers = [];
+        if (cwd) {
+            const proj = readSettingsFile(path.join(cwd, '.claude', 'settings.json'));
+            const projLocal = readSettingsFile(path.join(cwd, '.claude', 'settings.local.json'));
+            if (proj?.hooks) layers.push(proj.hooks);
+            if (projLocal?.hooks) layers.push(projLocal.hooks);
+        }
+        const user = readSettingsFile(path.join(os.homedir(), '.claude', 'settings.json'));
+        if (user?.hooks) layers.push(user.hooks);
+        const merged = {};
+        for (const layer of layers) {
+            for (const [event, list] of Object.entries(layer)) {
+                if (!Array.isArray(list)) continue;
+                if (!merged[event]) merged[event] = [];
+                merged[event].push(...list);
+            }
+        }
+        return merged;
+    }
+    function matcherMatches(matcher, toolName) {
+        if (!matcher || matcher === '*') return true;
+        const parts = String(matcher).split(',').map((s) => s.trim()).filter(Boolean);
+        return parts.some((p) => p === toolName || p === '*');
+    }
+    function runHookCommand(command, payload, cwd) {
+        const { spawn } = require('child_process');
+        const isWin = process.platform === 'win32';
+        const child = spawn(isWin ? 'cmd' : 'sh', isWin ? ['/c', command] : ['-c', command], {
+            cwd: cwd || undefined,
+            env: { ...process.env, HOOK_PAYLOAD: JSON.stringify(payload) },
+            timeout: 10_000,
+        });
+        let stdout = ''; let stderr = '';
+        child.stdout.on('data', (chunk) => { stdout += chunk.toString('utf8'); if (stdout.length > 64 * 1024) stdout = stdout.slice(-64 * 1024); });
+        child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); if (stderr.length > 16 * 1024) stderr = stderr.slice(-16 * 1024); });
+        try { child.stdin.write(JSON.stringify(payload)); child.stdin.end(); } catch (_) {}
+        return new Promise((resolve) => {
+            child.on('close', (code) => resolve({ code: code == null ? -1 : code, stdout, stderr }));
+            child.on('error', (err) => resolve({ code: -1, stdout, stderr: stderr + (err && err.message ? err.message : String(err)) }));
+        });
+    }
+    // Run all PreToolUse hooks matching the tool. Returns { block, reason }
+    // — block is true if any hook returned {"decision":"block"}.
+    async function runPreToolUseHooks(cwd, toolName, toolInput, toolUseId) {
+        const hooks = loadHooks(cwd);
+        const list = hooks.PreToolUse || [];
+        for (const entry of list) {
+            if (!entry || !entry.command) continue;
+            if (!matcherMatches(entry.matcher, toolName)) continue;
+            const payload = { event: 'PreToolUse', tool_name: toolName, tool_input: toolInput, tool_use_id: toolUseId, cwd };
+            const result = await runHookCommand(entry.command, payload, cwd);
+            if (result.stderr) console.warn('[Hook PreToolUse]', toolName, '| stderr:', result.stderr.slice(0, 300));
+            const trimmed = (result.stdout || '').trim();
+            if (trimmed.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (parsed && parsed.decision === 'block') {
+                        return { block: true, reason: parsed.reason || 'Blocked by PreToolUse hook' };
+                    }
+                } catch { /* informational only */ }
+            }
+        }
+        return { block: false };
+    }
+    async function runStopHooks(cwd, convId, summary) {
+        const hooks = loadHooks(cwd);
+        const list = hooks.Stop || [];
+        for (const entry of list) {
+            if (!entry || !entry.command) continue;
+            const payload = { event: 'Stop', conversation_id: convId, summary, cwd };
+            const result = await runHookCommand(entry.command, payload, cwd);
+            if (result.stderr) console.warn('[Hook Stop]', '| stderr:', result.stderr.slice(0, 300));
+        }
+    }
+
+    // Fires after a tool finishes. Informational only — no decision protocol.
+    async function runPostToolUseHooks(cwd, toolName, toolInput, toolUseId, toolResult, isError) {
+        const hooks = loadHooks(cwd);
+        const list = hooks.PostToolUse || [];
+        for (const entry of list) {
+            if (!entry || !entry.command) continue;
+            if (!matcherMatches(entry.matcher, toolName)) continue;
+            const payload = {
+                event: 'PostToolUse',
+                tool_name: toolName,
+                tool_input: toolInput,
+                tool_use_id: toolUseId,
+                tool_result: typeof toolResult === 'string' ? toolResult.slice(0, 32_000) : toolResult,
+                is_error: !!isError,
+                cwd,
+            };
+            const result = await runHookCommand(entry.command, payload, cwd);
+            if (result.stderr) console.warn('[Hook PostToolUse]', toolName, '| stderr:', result.stderr.slice(0, 300));
+        }
+    }
+
+    // Fires when an Agent (subagent) finishes. We piggyback on the engine's
+    // task_notification event with status === 'completed' / 'failed'.
+    async function runSubagentStopHooks(cwd, payload) {
+        const hooks = loadHooks(cwd);
+        const list = hooks.SubagentStop || [];
+        for (const entry of list) {
+            if (!entry || !entry.command) continue;
+            const result = await runHookCommand(entry.command, { event: 'SubagentStop', cwd, ...payload }, cwd);
+            if (result.stderr) console.warn('[Hook SubagentStop]', '| stderr:', result.stderr.slice(0, 300));
+        }
+    }
+
+    // Fires on engine notifications (idle warnings, permission prompts, etc).
+    async function runNotificationHooks(cwd, payload) {
+        const hooks = loadHooks(cwd);
+        const list = hooks.Notification || [];
+        for (const entry of list) {
+            if (!entry || !entry.command) continue;
+            const result = await runHookCommand(entry.command, { event: 'Notification', cwd, ...payload }, cwd);
+            if (result.stderr) console.warn('[Hook Notification]', '| stderr:', result.stderr.slice(0, 300));
+        }
+    }
+
+    // Fires when the user submits a prompt. Stdout JSON `{"decision":"block","reason":"..."}` rejects
+    // the submission; `{"prompt": "..."}` rewrites the user-facing prompt before it reaches the engine.
+    async function runUserPromptSubmitHooks(cwd, convId, prompt) {
+        const hooks = loadHooks(cwd);
+        const list = hooks.UserPromptSubmit || [];
+        let currentPrompt = prompt;
+        for (const entry of list) {
+            if (!entry || !entry.command) continue;
+            const payload = { event: 'UserPromptSubmit', conversation_id: convId, prompt: currentPrompt, cwd };
+            const result = await runHookCommand(entry.command, payload, cwd);
+            if (result.stderr) console.warn('[Hook UserPromptSubmit]', '| stderr:', result.stderr.slice(0, 300));
+            const trimmed = (result.stdout || '').trim();
+            if (trimmed.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (parsed && parsed.decision === 'block') {
+                        return { block: true, reason: parsed.reason || 'Blocked by UserPromptSubmit hook', prompt: currentPrompt };
+                    }
+                    if (parsed && typeof parsed.prompt === 'string') {
+                        currentPrompt = parsed.prompt;
+                    }
+                } catch { /* informational only */ }
+            }
+        }
+        return { block: false, prompt: currentPrompt };
+    }
+
+    server.get('/api/conversations/:id/context-size', (req, res) => {
+        const convId = req.params.id;
+        const conv = db.conversations.find((c) => c.id === convId);
+        if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+        // Find the most recent assistant message with a usage record. SDK sends
+        // the full history as input on every turn, so usage.input_tokens is the
+        // most accurate measurement of "how big is the context right now".
+        const msgs = db.messages.filter((m) => m.conversation_id === convId);
+        let tokens = 0;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+            const u = msgs[i].usage;
+            if (msgs[i].role === 'assistant' && u && (u.input_tokens || u.cache_read_input_tokens)) {
+                tokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.output_tokens || 0);
+                break;
+            }
+        }
+        // Fallback: rough char/4 estimate if no usage event has been recorded yet.
+        if (!tokens) {
+            let chars = 0;
+            for (const m of msgs) {
+                if (typeof m.content === 'string') chars += m.content.length;
+                if (typeof m.thinking === 'string') chars += m.thinking.length;
+                if (Array.isArray(m.toolCalls)) {
+                    for (const t of m.toolCalls) {
+                        if (typeof t.content === 'string') chars += t.content.length;
+                    }
+                }
+            }
+            tokens = Math.ceil(chars / 4);
+        }
+        const model = String(conv.model || '').toLowerCase();
+        // Anthropic models default to 200k; bump explicitly known long-context
+        // variants. Anything we don't recognize falls back to 200k as the safe
+        // public limit.
+        let limit = 200_000;
+        if (model.includes('haiku-3')) limit = 200_000;
+        if (model.includes('claude-2')) limit = 100_000;
+        if (model.includes('gpt-4o')) limit = 128_000;
+        if (model.includes('gpt-4-turbo')) limit = 128_000;
+        if (model.includes('gpt-3.5')) limit = 16_000;
+        res.json({ tokens, limit });
     });
 
     // Stream status — check if a conversation has an active engine stream
@@ -3404,12 +3896,28 @@ function initServer(mainWindow) {
 
         // 1) Bundled example skills
         const bundled = scanSkillsDir(bundledSkillsDir, 'bundled');
-        // 2) Local ~/.agents/skills/
+        // 2) Legacy local ~/.agents/skills/
         const local = scanSkillsDir(localSkillsDir, 'local');
-        // Combine examples, deduplicate by name (bundled takes priority)
+        // 3) Standard user skills ~/.claude/skills/
+        const claudeUserSkills = scanSkillsDir(path.join(os.homedir(), '.claude', 'skills'), 'user');
+        // 4) Project-level skills <cwd>/.claude/skills/ (only when cwd is provided)
+        const cwdParam = typeof req.query.cwd === 'string' ? req.query.cwd : '';
+        const projectSkills = cwdParam ? scanSkillsDir(path.join(cwdParam, '.claude', 'skills'), 'project') : [];
+
+        // Combine examples, deduplicate by name (precedence: project > user > bundled > local)
         const seenNames = new Set();
         const allExamples = [];
+        for (const s of projectSkills) {
+            seenNames.add(s.name);
+            allExamples.push({ ...s, enabled: prefs[s.id] !== undefined ? prefs[s.id] : true });
+        }
+        for (const s of claudeUserSkills) {
+            if (seenNames.has(s.name)) continue;
+            seenNames.add(s.name);
+            allExamples.push({ ...s, enabled: prefs[s.id] !== undefined ? prefs[s.id] : true });
+        }
         for (const s of bundled) {
+            if (seenNames.has(s.name)) continue;
             seenNames.add(s.name);
             allExamples.push({ ...s, enabled: prefs[s.id] !== undefined ? prefs[s.id] : true });
         }
@@ -4399,6 +4907,90 @@ You have the following skills available. When a user's request matches a skill's
                 }
             }
         }
+        // Inject CLAUDE.md so the engine sees project conventions on every
+        // turn. Looks at <cwd>/CLAUDE.md, <cwd>/.claude/CLAUDE.md, and
+        // ~/.claude/CLAUDE.md (in that order; project entries first). Caps the
+        // total injected text at 32k chars so a giant file can't blow the
+        // context window — long files are truncated with a note.
+        try {
+            const claudeMdSources = [];
+            const cwd = conv.code_cwd;
+            if (cwd) {
+                const cwdMd = path.join(cwd, 'CLAUDE.md');
+                if (fs.existsSync(cwdMd)) claudeMdSources.push({ label: 'project CLAUDE.md', path: cwdMd });
+                const dotClaudeMd = path.join(cwd, '.claude', 'CLAUDE.md');
+                if (fs.existsSync(dotClaudeMd)) claudeMdSources.push({ label: 'project .claude/CLAUDE.md', path: dotClaudeMd });
+            }
+            const userMd = path.join(os.homedir(), '.claude', 'CLAUDE.md');
+            if (fs.existsSync(userMd)) claudeMdSources.push({ label: 'user CLAUDE.md', path: userMd });
+            // Auto-memory: per-project MEMORY.md index. Path mirrors what
+            // memory_skill writes — sanitized cwd inside ~/.claude/projects/.
+            if (cwd) {
+                const sanitized = cwd.replace(/[\\/:]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                const memIndex = path.join(os.homedir(), '.claude', 'projects', sanitized, 'memory', 'MEMORY.md');
+                if (fs.existsSync(memIndex)) claudeMdSources.push({ label: 'auto-memory index', path: memIndex });
+            }
+            if (claudeMdSources.length > 0) {
+                const PER_FILE_CAP = 16_000;
+                const TOTAL_CAP = 32_000;
+                let injected = '';
+                let total = 0;
+                const truncated = []; // { path, originalLen, includedLen }
+                const skipped = [];   // sources that hit the total cap before any bytes
+                for (const src of claudeMdSources) {
+                    let body;
+                    try { body = fs.readFileSync(src.path, 'utf8'); } catch { continue; }
+                    const originalLen = body.length;
+                    if (total >= TOTAL_CAP) { skipped.push(src.path); continue; }
+                    let perFileTruncated = false;
+                    if (body.length > PER_FILE_CAP) { body = body.slice(0, PER_FILE_CAP); perFileTruncated = true; }
+                    if (total + body.length > TOTAL_CAP) { body = body.slice(0, Math.max(0, TOTAL_CAP - total)); perFileTruncated = true; }
+                    const includedLen = body.length;
+                    if (perFileTruncated) body += `\n\n…(truncated; full file is ${originalLen} chars at ${src.path}, read it directly if you need the rest)`;
+                    if (perFileTruncated) truncated.push({ path: src.path, originalLen, includedLen });
+                    injected += `\n\n<file path="${src.path}" source="${src.label}">\n${body}\n</file>`;
+                    total += includedLen;
+                }
+                // Also surface any other memory-dir files that weren't part of the
+                // index — the engine can Read them on demand instead of guessing.
+                const extraMemoryFiles = [];
+                if (cwd) {
+                    const sanitized = cwd.replace(/[\\/:]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                    const memDir = path.join(os.homedir(), '.claude', 'projects', sanitized, 'memory');
+                    if (fs.existsSync(memDir)) {
+                        try {
+                            for (const entry of fs.readdirSync(memDir)) {
+                                if (entry === 'MEMORY.md') continue;
+                                if (!entry.toLowerCase().endsWith('.md')) continue;
+                                extraMemoryFiles.push(path.join(memDir, entry));
+                            }
+                        } catch (_) {}
+                    }
+                }
+                if (injected) {
+                    let footer = '';
+                    if (truncated.length || skipped.length || extraMemoryFiles.length) {
+                        footer = '\n\n<truncation_notice>';
+                        if (truncated.length) footer += '\nTruncated for length:\n' + truncated.map((t) => `  - ${t.path} (${t.includedLen}/${t.originalLen} chars)`).join('\n');
+                        if (skipped.length) footer += '\nSkipped entirely (total cap reached):\n' + skipped.map((p) => `  - ${p}`).join('\n');
+                        if (extraMemoryFiles.length) footer += '\nOther memory files in this project (not auto-injected, Read them if relevant):\n' + extraMemoryFiles.map((p) => `  - ${p}`).join('\n');
+                        footer += '\n</truncation_notice>';
+                    }
+                    sysPrompt += '\n\n<claude_md>' + injected + footer + '\n</claude_md>';
+                }
+            }
+        } catch (err) {
+            console.warn('[ClaudeMd] inject failed:', err && err.message);
+        }
+        // After the user approved an ExitPlanMode call we stash the plan on
+        // the conv. Inject it into the next system prompt so the engine
+        // doesn't lose track of what was agreed when it spawns under the new
+        // permission mode. Cleared after one use.
+        if (conv.pendingPlanContext) {
+            sysPrompt += '\n\n<approved_plan>\nThe user approved this plan. Execute it now in acceptEdits mode without asking for re-approval; do not write a new plan unless the user explicitly asks.\n\n' + conv.pendingPlanContext + '\n</approved_plan>';
+            conv.pendingPlanContext = '';
+            saveDb();
+        }
         return sysPrompt;
     }
     function resolveChatConfig(conv) {
@@ -4528,6 +5120,8 @@ You have the following skills available. When a user's request matches a skill's
                 sendSSE({ type: 'tool_text_offset', offset: turn.lastToolDoneTextLen });
                 if (tn === 'WebSearch' && trText) { try { var wsQ = ''; var qM = trText.match(/query:\s*"([^"]+)"/); if (qM) wsQ = qM[1]; var wsS = []; var lM = trText.match(/Links:\s*(\[[\s\S]*?\])\s*\n/); if (lM) { try { var lnk = JSON.parse(lM[1]); if (Array.isArray(lnk)) wsS = lnk.filter(function(l){return l.url;}).map(function(l){return {url:l.url,title:l.title||''};}); } catch(_){} } if (wsS.length>0&&wsQ) { sendSSE({type:'search_sources',sources:wsS,query:wsQ}); turn.searchLogs.push({query:wsQ,results:wsS}); } } catch(_){} }
                 if (!HIDDEN_TOOLS.has(tn)) { ensureStart(cb.tool_use_id); sendSSE({ type: 'tool_use_done', tool_use_id: cb.tool_use_id, content: trText.slice(0, 50000), is_error: cb.is_error || false }); }
+                runPostToolUseHooks(conv && conv.code_cwd, tn, tc3 && tc3.input, cb.tool_use_id, trText, cb.is_error)
+                    .catch((err) => console.warn('[Hook PostToolUse] failed', err && err.message));
             }
         }
         else if (evt.type === 'tool') {
@@ -4540,15 +5134,56 @@ You have the following skills available. When a user's request matches a skill's
             if (toolName === 'WebSearch' && resultText) { try { var qm2=resultText.match(/query:\s*"([^"]+)"/); var lm2=resultText.match(/Links:\s*(\[[\s\S]*?\])\s*\n/); if(qm2&&lm2){var lk2=JSON.parse(lm2[1]); var sr=lk2.filter(function(l){return l.url;}).map(function(l){return{url:l.url,title:l.title||''};});if(sr.length>0)sendSSE({type:'search_sources',sources:sr,query:qm2[1]});} } catch(_){} }
             if (toolName === 'Write' && tc2 && tc2.input && tc2.input.file_path) { var prevId = turn.writtenFiles.get(tc2.input.file_path); if (prevId) turn.toolCalls.delete(prevId); turn.writtenFiles.set(tc2.input.file_path, evt.tool_use_id); }
             if (!HIDDEN_TOOLS.has(toolName)) { ensureStart(evt.tool_use_id); sendSSE({ type: 'tool_use_done', tool_use_id: evt.tool_use_id, content: resultText.slice(0, 50000), is_error: evt.is_error || false }); }
+            runPostToolUseHooks(conv && conv.code_cwd, toolName, tc2 && tc2.input, evt.tool_use_id, resultText, evt.is_error)
+                .catch((err) => console.warn('[Hook PostToolUse] failed', err && err.message));
         }
         else if (evt.type === 'control_request' && evt.request) {
             var req2 = evt.request;
             if (req2.subtype === 'can_use_tool' && req2.tool_name === 'AskUserQuestion') {
                 askUserPendingInputs.set(convId, req2.input || {});
                 sendSSE({ type: 'ask_user', request_id: evt.request_id, tool_use_id: req2.tool_use_id, questions: (req2.input && req2.input.questions) || [] });
+            } else if (req2.subtype === 'can_use_tool' && req2.tool_name === 'ExitPlanMode') {
+                // Plan-mode approval: surface the proposed plan to the user and
+                // wait for an explicit accept/reject. Approval also flips the
+                // conversation back into acceptEdits so the engine can carry
+                // out the plan instead of bouncing back into plan mode.
+                pendingPermissionRequests.set(convId, { request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, input: req2.input || {}, isPlanApproval: true });
+                sendSSE({ type: 'plan_approval_request', request_id: evt.request_id, tool_use_id: req2.tool_use_id, plan: (req2.input && req2.input.plan) || '' });
             } else if (req2.subtype === 'can_use_tool') {
-                pendingPermissionRequests.set(convId, { request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, input: req2.input || {} });
-                sendSSE({ type: 'tool_permission_request', request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, tool_input: req2.input || {} });
+                // PreToolUse hooks may block the call before allowlist/user prompt.
+                runPreToolUseHooks(conv && conv.code_cwd, req2.tool_name, req2.input || {}, req2.tool_use_id)
+                    .then((hookResult) => {
+                        if (hookResult.block) {
+                            const denied = JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: evt.request_id, response: { toolUseID: req2.tool_use_id, behavior: 'deny', message: hookResult.reason } } }) + '\n';
+                            try { engine.child.stdin.write(denied); } catch (_) {}
+                            sendSSE({ type: 'tool_permission_blocked', tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, reason: hookResult.reason });
+                            return;
+                        }
+                        var allowSet = toolAllowlists.get(convId);
+                        if (allowSet && allowSet.has(req2.tool_name)) {
+                            console.log('[ToolPermission] Allowlist HIT — auto-allow ' + req2.tool_name + ' for conv ' + convId);
+                            var ar2 = JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: evt.request_id, response: { toolUseID: req2.tool_use_id, behavior: 'allow', updatedInput: req2.input || {} } } }) + '\n';
+                            try { engine.child.stdin.write(ar2); } catch (_) {}
+                        } else {
+                            console.log('[ToolPermission] Prompting user for ' + req2.tool_name + ' (allowlist=' + (allowSet ? Array.from(allowSet).join(',') : 'empty') + ')');
+                            pendingPermissionRequests.set(convId, { request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, input: req2.input || {} });
+                            sendSSE({ type: 'tool_permission_request', request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, tool_input: req2.input || {} });
+                        }
+                    })
+                    .catch((err) => {
+                        console.warn('[Hook PreToolUse] failed for', req2.tool_name, '|', err && err.message);
+                        // Treat hook errors as no-op — fall through to normal flow.
+                        var allowSet = toolAllowlists.get(convId);
+                        if (allowSet && allowSet.has(req2.tool_name)) {
+                            console.log('[ToolPermission] Allowlist HIT — auto-allow ' + req2.tool_name + ' for conv ' + convId);
+                            var ar2 = JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: evt.request_id, response: { toolUseID: req2.tool_use_id, behavior: 'allow', updatedInput: req2.input || {} } } }) + '\n';
+                            try { engine.child.stdin.write(ar2); } catch (_) {}
+                        } else {
+                            console.log('[ToolPermission] Prompting user for ' + req2.tool_name + ' (allowlist=' + (allowSet ? Array.from(allowSet).join(',') : 'empty') + ')');
+                            pendingPermissionRequests.set(convId, { request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, input: req2.input || {} });
+                            sendSSE({ type: 'tool_permission_request', request_id: evt.request_id, tool_use_id: req2.tool_use_id, tool_name: req2.tool_name, tool_input: req2.input || {} });
+                        }
+                    });
             } else {
                 var ar = JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: evt.request_id, response: { toolUseID: req2.tool_use_id, behavior: 'allow', updatedInput: req2.input || {} } } }) + '\n';
                 try { engine.child.stdin.write(ar); } catch (_) {}
@@ -4556,6 +5191,29 @@ You have the following skills available. When a user's request matches a skill's
         }
         else if (evt.type === 'system' && (evt.subtype === 'task_started' || evt.subtype === 'task_progress' || evt.subtype === 'task_notification')) {
             sendSSE({ type: 'task_event', subtype: evt.subtype, task_id: evt.task_id, description: evt.description, status: evt.status, summary: evt.summary, usage: evt.usage, last_tool_name: evt.last_tool_name });
+            // SubagentStop fires when an Agent sub-task ends; the engine emits
+            // task_notification with status === completed/failed at that point.
+            if (evt.subtype === 'task_notification' && (evt.status === 'completed' || evt.status === 'failed')) {
+                runSubagentStopHooks(conv && conv.code_cwd, {
+                    conversation_id: convId,
+                    task_id: evt.task_id,
+                    status: evt.status,
+                    description: evt.description,
+                    summary: evt.summary,
+                    usage: evt.usage,
+                }).catch((err) => console.warn('[Hook SubagentStop] failed', err && err.message));
+            }
+            // Notification hook fires for every task_notification event (including
+            // attention-required ones); useful for desktop notifications etc.
+            if (evt.subtype === 'task_notification') {
+                runNotificationHooks(conv && conv.code_cwd, {
+                    conversation_id: convId,
+                    task_id: evt.task_id,
+                    status: evt.status,
+                    description: evt.description,
+                    summary: evt.summary,
+                }).catch((err) => console.warn('[Hook Notification] failed', err && err.message));
+            }
         }
         else if (evt.type === 'system' && evt.subtype === 'compact_boundary') {
             var meta = evt.compact_metadata || {}; sendSSE({ type: 'compact_boundary', compact_metadata: meta });
@@ -4570,15 +5228,26 @@ You have the following skills available. When a user's request matches a skill's
         if (turn.maxTimeoutId) clearTimeout(turn.maxTimeoutId);
         engine.turn = null; engine.state = 'idle';
         if (turn.assistantText || turn.thinkingText || turn.toolCalls.size > 0) {
-            db.messages.push({ id: turn.assistantUuid || uuidv4(), conversation_id: convId, role: 'assistant', content: JSON.stringify([{ type: 'text', text: turn.assistantText }]), created_at: new Date().toISOString(), model: conv.model, engineUuidSynced: !!turn.assistantUuid, thinking: turn.thinkingText || undefined, toolCalls: turn.toolCalls.size > 0 ? turn.toolCallOrder.map(id => turn.toolCalls.get(id)).filter(Boolean) : undefined, toolTextEndOffset: (turn.toolCalls.size > 0 && turn.lastToolDoneTextLen > 0) ? turn.lastToolDoneTextLen : undefined, searchLogs: turn.searchLogs.length > 0 ? turn.searchLogs : undefined });
+            db.messages.push({ id: turn.assistantUuid || uuidv4(), conversation_id: convId, role: 'assistant', content: JSON.stringify([{ type: 'text', text: turn.assistantText }]), created_at: new Date().toISOString(), model: conv.model, engineUuidSynced: !!turn.assistantUuid, thinking: turn.thinkingText || undefined, toolCalls: turn.toolCalls.size > 0 ? turn.toolCallOrder.map(id => turn.toolCalls.get(id)).filter(Boolean) : undefined, toolTextEndOffset: (turn.toolCalls.size > 0 && turn.lastToolDoneTextLen > 0) ? turn.lastToolDoneTextLen : undefined, searchLogs: turn.searchLogs.length > 0 ? turn.searchLogs : undefined, usage: turn.usage || undefined });
             saveDb();
             generateTitleAsync(convId, turn.message.slice(0, 300), turn.assistantText.slice(0, 300), turn.apiKey, turn.baseUrl, conv.model, turn.apiFormat);
         }
         if (turn.toolCalls.size > 0 && turn.lastToolDoneTextLen > 0) turn.sendSSE({ type: 'tool_text_offset', offset: turn.lastToolDoneTextLen });
+        if (turn.usage) turn.sendSSE({ type: 'usage', usage: turn.usage });
         pendingImageBlocks.delete(convId);
         turn.sendSSE({ type: 'message_stop' });
         endStream(convId);
         if (turn.resolve) turn.resolve();
+        // Fire Stop hooks fire-and-forget so the user response isn't blocked.
+        runStopHooks(conv && conv.code_cwd, convId, { assistantTextLen: (turn.assistantText || '').length, toolCalls: turn.toolCalls.size })
+            .catch((err) => console.warn('[Hook Stop] failed', err && err.message));
+        // Plan approval flipped permission_mode mid-turn — the engine was
+        // spawned under the old mode, so recycle it now that the turn is done.
+        // Next sendMessage will spawn a fresh engine with the new mode.
+        if (engine.recyclePending) {
+            engine.recyclePending = false;
+            killEngine(convId, 'plan_approval_mode_change');
+        }
     }
     function failTurnAndRecycleEngine(engine, convId, conv, reason, userError, extra) {
         const turn = engine && engine.turn;
@@ -4635,7 +5304,47 @@ You have the following skills available. When a user's request matches a skill's
         evictOldestEngine();
         const claudeDir = claudeConfigDir;
         const resolvedPermissionMode = normalizeCodePermissionMode(permissionMode) || 'bypassPermissions';
+        // Ensure auto-memory dir exists for this project, and allow the engine
+        // to read/write inside it (so the memory skill can persist files).
+        let memoryDir = null;
+        if (conv.code_cwd) {
+            const sanitized = conv.code_cwd.replace(/[\\/:]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+            memoryDir = path.join(os.homedir(), '.claude', 'projects', sanitized, 'memory');
+            try { fs.mkdirSync(memoryDir, { recursive: true }); } catch (_) {}
+        }
+        // Collect mcpServers / agents from project + user settings; the SDK
+        // accepts these via --mcp-config and --agents respectively. Project
+        // settings beat user settings on key conflict.
+        const mcpServers = {};
+        const agents = {};
+        const layers = [];
+        if (conv.code_cwd) {
+            layers.push(readSettingsFile(path.join(conv.code_cwd, '.claude', 'settings.json')));
+            layers.push(readSettingsFile(path.join(conv.code_cwd, '.claude', 'settings.local.json')));
+        }
+        layers.push(readSettingsFile(path.join(os.homedir(), '.claude', 'settings.json')));
+        // Project layers come first; merge in reverse so project keys overwrite user.
+        for (const layer of layers.reverse()) {
+            if (!layer) continue;
+            if (layer.mcpServers && typeof layer.mcpServers === 'object') Object.assign(mcpServers, layer.mcpServers);
+            if (layer.agents && typeof layer.agents === 'object') Object.assign(agents, layer.agents);
+        }
         const cliArgs = createEngineCliArgs(['--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--permission-mode', resolvedPermissionMode, '--permission-prompt-tool', 'stdio', '--setting-sources', 'user,project,local', '--settings', '{}', '--add-dir', claudeDir, '--model', modelId]);
+        if (memoryDir) cliArgs.push('--add-dir', memoryDir);
+        if (Object.keys(mcpServers).length > 0) {
+            try {
+                const mcpTmp = path.join(os.tmpdir(), `cd-mcp-${convId}.json`);
+                fs.writeFileSync(mcpTmp, JSON.stringify({ mcpServers }, null, 2), 'utf8');
+                cliArgs.push('--mcp-config', mcpTmp);
+                console.log('[MCP] Loaded', Object.keys(mcpServers).length, 'server(s) for conv', convId);
+            } catch (err) { console.warn('[MCP] write config failed', err && err.message); }
+        }
+        if (Object.keys(agents).length > 0) {
+            try {
+                cliArgs.push('--agents', JSON.stringify(agents));
+                console.log('[Subagents] Loaded', Object.keys(agents).join(','), 'for conv', convId);
+            } catch (err) { console.warn('[Subagents] inject failed', err && err.message); }
+        }
         if (effort) {
             cliArgs.push('--thinking', 'adaptive', '--effort', effort);
         } else {
@@ -4728,6 +5437,9 @@ You have the following skills available. When a user's request matches a skill's
                     if (!engine.turn.assistantText && evt.result) {
                         engine.turn.assistantText = typeof evt.result === 'string' ? evt.result : '';
                     }
+                    if (evt.usage && typeof evt.usage === 'object') {
+                        engine.turn.usage = evt.usage;
+                    }
                     if (!engine.turn.assistantText && !engine.turn.thinkingText && engine.turn.toolCalls.size === 0) {
                         try {
                             engine.turn.sendSSE({
@@ -4749,7 +5461,35 @@ You have the following skills available. When a user's request matches a skill's
             for (const line of lines) handleEngineStdoutLine(line);
         });
         let stderrBuf = '';
-        child.stderr.on('data', (c) => { stderrBuf += c.toString('utf8'); });
+        // Watch stderr for MCP server errors and surface them to the UI.
+        // The SDK logs lines like "[MCP server: foo] connection failed: ..."
+        // or "MCP server foo failed to start: spawn ENOENT". We don't have a
+        // formal protocol; pattern-match conservatively.
+        const reportedMcpErrors = new Set();
+        child.stderr.on('data', (c) => {
+            const text = c.toString('utf8');
+            stderrBuf += text;
+            const lines = text.split('\n');
+            for (const line of lines) {
+                if (!line) continue;
+                // Match a few common shapes: bracketed server tag, "MCP server <name>",
+                // or "mcp:<name>" prefixes followed by failure language.
+                const match = line.match(/(?:\[MCP[^\]]*\]|MCP server\s+["']?([\w.\-:/]+)["']?|mcp:([\w.\-:/]+))[\s:].*?(failed|error|ENOENT|EACCES|timeout|refused|disconnect)/i);
+                if (!match) continue;
+                const server = match[1] || match[2] || 'unknown';
+                const key = server + '|' + line.slice(0, 120);
+                if (reportedMcpErrors.has(key)) continue;
+                reportedMcpErrors.add(key);
+                console.warn('[MCP] error for', server, '|', line.slice(0, 300));
+                // Forward to whichever turn is currently streaming so the
+                // user sees it. If no turn is active, the message is logged
+                // and dropped — they'll still see it in the next turn via
+                // the engine's own error reporting.
+                if (engine.turn && engine.turn.sendSSE) {
+                    try { engine.turn.sendSSE({ type: 'mcp_server_error', server, message: line.slice(0, 500) }); } catch (_) {}
+                }
+            }
+        });
         child.on('close', (code) => {
             if (engine.buf && engine.buf.trim()) {
                 handleEngineStdoutLine(engine.buf);
@@ -4814,7 +5554,8 @@ You have the following skills available. When a user's request matches a skill's
 
     // Chat endpoint (persistent engine)
     server.post('/api/chat', async (req, res) => {
-        const { conversation_id, message, attachments, user_profile } = req.body;
+        const { conversation_id, attachments, user_profile } = req.body;
+        let { message } = req.body;
         const conv = db.conversations.find(c => c.id === conversation_id);
         if (!conv) return res.status(404).json({ error: 'Conversation not found' });
         console.log('[Chat] Incoming request',
@@ -4831,6 +5572,28 @@ You have the following skills available. When a user's request matches a skill's
         const sendSSE = (data) => { var stream = activeStreams.get(conversation_id); if (stream) { stream.events.push(data); var line = 'data: ' + JSON.stringify(data) + '\n\n'; var arr = Array.from(stream.listeners); for (var i = 0; i < arr.length; i++) { try { arr[i].write(line); } catch (_) { stream.listeners.delete(arr[i]); } } } try { res.write('data: ' + JSON.stringify(data) + '\n\n'); } catch (_) {} };
 
         try {
+            // UserPromptSubmit hook gets a chance to either reject the prompt
+            // or rewrite it before the engine sees anything. Returning
+            // {"decision":"block","reason":"..."} aborts the turn and surfaces
+            // the reason as a system error; returning {"prompt":"..."} swaps
+            // the user-facing text. No-op if no UserPromptSubmit hooks are configured.
+            try {
+                const hookOutcome = await runUserPromptSubmitHooks(conv.code_cwd, conversation_id, message);
+                if (hookOutcome.block) {
+                    sendSSE({ type: 'error', error: hookOutcome.reason || 'Blocked by UserPromptSubmit hook' });
+                    sendSSE({ type: 'message_stop' });
+                    endStream(conversation_id);
+                    res.end();
+                    return;
+                }
+                if (hookOutcome.prompt && hookOutcome.prompt !== message) {
+                    message = hookOutcome.prompt;
+                    req.body.message = hookOutcome.prompt;
+                }
+            } catch (err) {
+                console.warn('[Hook UserPromptSubmit] failed', err && err.message);
+            }
+
             // /skill-name is passed as-is to the engine 鈥?the engine handles
             // slash commands internally (injects SKILL.md content into context).
             // Send a synthetic tool event so the frontend shows "Reading SKILL.md"
