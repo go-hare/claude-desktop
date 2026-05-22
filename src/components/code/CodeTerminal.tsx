@@ -2,12 +2,11 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import { bridgePtyUrl } from '../../bridgeConfig';
 
 type Props = {
   cwd?: string | null;
 };
-
-const PTY_WS_URL = 'ws://127.0.0.1:30080/api/pty';
 
 export default function CodeTerminal({ cwd }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +60,7 @@ export default function CodeTerminal({ cwd }: Props) {
     termRef.current = term;
     fitRef.current = fit;
 
-    const ws = new WebSocket(PTY_WS_URL);
+    const ws = new WebSocket(bridgePtyUrl());
     wsRef.current = ws;
 
     let opened = false;

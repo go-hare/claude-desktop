@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import starSparkleImg from '../assets/figma-exports/cowork-icons/star-sparkle.png';
-import { createConversation, getCodeStats, getConversations, updateConversation } from '../api';
+import { createConversation, deleteConversation, getCodeStats, getConversations, updateConversation } from '../api';
 import CodeActionCenter, { type CodeConversationSummary } from './code/CodeActionCenter';
 import CodeComposer from './code/CodeComposer';
 import type { CodeEnvironmentKind } from './code/CodeEnvironmentSelector';
@@ -16,7 +16,6 @@ const ENVIRONMENT_KEY = 'code_default_environment';
 const PERMISSION_MODES: ReadonlySet<CodePermissionMode> = new Set([
   'default',
   'acceptEdits',
-  'auto',
   'bypassPermissions',
   'plan',
 ]);
@@ -24,6 +23,13 @@ const PERMISSION_MODES: ReadonlySet<CodePermissionMode> = new Set([
 function getDefaultPermissionMode(): CodePermissionMode {
   if (typeof window === 'undefined') return 'default';
   const saved = localStorage.getItem(PERMISSION_MODE_KEY) as CodePermissionMode | null;
+  // 'auto' was a legacy mode that no longer ships in the SDK menu — migrate it
+  // back to the closest non-destructive default so users don't get stuck on a
+  // mode the UI can't represent.
+  if (saved === ('auto' as CodePermissionMode)) {
+    localStorage.setItem(PERMISSION_MODE_KEY, 'acceptEdits');
+    return 'acceptEdits';
+  }
   return saved && PERMISSION_MODES.has(saved) ? saved : 'default';
 }
 
@@ -106,10 +112,9 @@ export default function CodePage() {
           setStats(statsResult.value as RawCodeStats);
         }
         if (conversationsResult.status === 'fulfilled' && Array.isArray(conversationsResult.value)) {
+          const live = conversationsResult.value.filter((conversation: any) => conversation?.code_cwd);
           setCodeSessions(
-            conversationsResult.value
-              .filter((conversation: any) => conversation?.code_cwd)
-              .map((conversation: any) => ({
+            live.map((conversation: any) => ({
                 id: conversation.id,
                 title: conversation.title,
                 code_cwd: conversation.code_cwd,
@@ -128,6 +133,19 @@ export default function CodePage() {
                 _originalSession: conversation._originalSession,
               }))
           );
+          // Sweep stale code-draft:* entries left over from deleted conversations.
+          try {
+            const liveIds = new Set(live.map((c: any) => c.id));
+            const stale: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith('code-draft:')) {
+                const convId = key.slice('code-draft:'.length);
+                if (!liveIds.has(convId)) stale.push(key);
+              }
+            }
+            for (const key of stale) localStorage.removeItem(key);
+          } catch {}
         }
       })
       .catch(() => {
@@ -159,6 +177,23 @@ export default function CodePage() {
     setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, is_archived: next ? 1 : 0, isArchived: next } : session));
     updateConversation(id, { is_archived: !!next }).catch(() => {
       setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, is_archived: !next ? 1 : 0, isArchived: !next } : session));
+    });
+  };
+
+  const renameSession = (id: string, title: string) => {
+    const previous = codeSessions.find((session) => session.id === id);
+    setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, title } : session));
+    updateConversation(id, { title }).catch(() => {
+      setCodeSessions((current) => current.map((session) => session.id === id ? { ...session, title: previous?.title } : session));
+    });
+  };
+
+  const removeSession = (id: string) => {
+    const previous = codeSessions;
+    setCodeSessions((current) => current.filter((session) => session.id !== id));
+    try { localStorage.removeItem(`code-draft:${id}`); } catch {}
+    deleteConversation(id).catch(() => {
+      setCodeSessions(previous);
     });
   };
 
@@ -243,6 +278,8 @@ export default function CodePage() {
               onOpenSession={openCodeSession}
               onToggleStar={toggleStar}
               onToggleArchive={toggleArchive}
+              onRename={renameSession}
+              onDelete={removeSession}
             />
           </div>
         </div>

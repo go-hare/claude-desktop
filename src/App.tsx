@@ -25,6 +25,7 @@ import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import { IconSidebarToggle } from './components/Icons';
 import { updateConversation, deleteConversation, exportConversation, getUnreadAnnouncements, markAnnouncementRead, getSystemStatus, getConversation, isLocalBridgeApp } from './api';
+import { bridgeApiBase } from './bridgeConfig';
 import GitBashRequiredModal from './components/GitBashRequiredModal';
 import Auth from './components/Auth';
 import Onboarding from './components/Onboarding';
@@ -240,7 +241,7 @@ const ChatHeader = ({
           onClick={async () => {
             if (!id) return;
             try {
-              const res = await fetch(`http://127.0.0.1:30080/api/conversations/${id}`);
+              const res = await fetch(`${bridgeApiBase()}/conversations/${id}`);
               if (!res.ok) return;
               const data = await res.json();
               if (data.workspace_path && (window as any).electronAPI?.openFolder) {

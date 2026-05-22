@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Archive, ArchiveRestore, ChevronRight, Search, Star } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronRight, Pencil, Star, Trash2 } from 'lucide-react';
 import CodeStatsCard, { CodeStatsSkeleton, type RawCodeStats } from './CodeStatsCard';
 
 export type CodeConversationSummary = {
@@ -46,6 +46,8 @@ type CodeActionCenterProps = {
   onOpenSession: (id: string) => void;
   onToggleStar: (id: string, next: boolean) => void;
   onToggleArchive: (id: string, next: boolean) => void;
+  onRename: (id: string, title: string) => void;
+  onDelete: (id: string) => void;
 };
 
 const COLLAPSED_LIMIT = 5;
@@ -127,12 +129,16 @@ function CodeSessionRow({
   onOpen,
   onToggleStar,
   onToggleArchive,
+  onRename,
+  onDelete,
 }: {
   session: CodeConversationSummary;
   kind: AttentionKind | null;
   onOpen: (id: string) => void;
   onToggleStar: (id: string, next: boolean) => void;
   onToggleArchive: (id: string, next: boolean) => void;
+  onRename: (id: string, title: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const title = session.title || 'Untitled session';
   const cwd = folderName(session.code_cwd);
@@ -194,6 +200,33 @@ function CodeSessionRow({
         >
           {archived ? <ArchiveRestore size={14} strokeWidth={1.7} /> : <Archive size={14} strokeWidth={1.7} />}
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = window.prompt('重命名会话', title);
+            if (next === null) return;
+            const trimmed = next.trim();
+            if (!trimmed || trimmed === title) return;
+            onRename(session.id, trimmed);
+          }}
+          aria-label="重命名"
+          title="重命名"
+          className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t6 hover:bg-t3 hover:text-t8"
+        >
+          <Pencil size={14} strokeWidth={1.7} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!window.confirm(`删除会话 "${title}"？此操作不可撤销。`)) return;
+            onDelete(session.id);
+          }}
+          aria-label="删除"
+          title="删除"
+          className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t6 hover:bg-t3 hover:text-extended-pink"
+        >
+          <Trash2 size={14} strokeWidth={1.7} />
+        </button>
       </span>
       <ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" className="text-t6 group-hover:text-t7 shrink-0" />
     </li>
@@ -208,6 +241,8 @@ export default function CodeActionCenter({
   onOpenSession,
   onToggleStar,
   onToggleArchive,
+  onRename,
+  onDelete,
 }: CodeActionCenterProps) {
   const [expanded, setExpanded] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -262,102 +297,6 @@ export default function CodeActionCenter({
     <div className="min-h-full flex flex-col">
       <div className="epitaxy-chat-column epitaxy-chat-size pt-[24px] pb-[56px] flex flex-col gap-[40px]">
         {stats ? <CodeStatsCard stats={stats} /> : <CodeStatsSkeleton />}
-        <div className="relative">
-          <Search size={14} strokeWidth={1.7} aria-hidden="true" className="pointer-events-none absolute left-p4 top-1/2 -translate-y-1/2 text-t5" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索会话或路径..."
-            aria-label="Search sessions"
-            className="h-[32px] w-full rounded-r5 border border-t3 bg-z0 pl-[28px] pr-p4 text-body text-t8 placeholder:text-t5 focus:border-t5 focus:outline-none"
-          />
-        </div>
-
-        {trimmed && filteredSessions.length === 0 ? (
-          <p className="text-footnote text-t5">未找到匹配的会话。</p>
-        ) : null}
-
-        {attentionSessions.length > 0 ? (
-          <section className="flex flex-col gap-g6">
-            <header className="flex items-center gap-g3">
-              <h2 className="text-body text-t8">Attention</h2>
-              <span className="flex-1" />
-              <button
-                type="button"
-                onClick={onMarkAllRead}
-                className="inline-flex h-small items-center rounded-small px-p5 text-footnote text-t6 hover:bg-t2"
-              >
-                Mark all read
-              </button>
-              {attentionSessions.length > COLLAPSED_LIMIT ? (
-                <button
-                  type="button"
-                  onClick={() => setExpanded((value) => !value)}
-                  aria-expanded={expanded}
-                  className="inline-flex h-small items-center rounded-small px-p5 text-footnote text-t6 hover:bg-t2"
-                >
-                  {expanded ? 'Show less' : `Show ${hiddenAttention} more`}
-                </button>
-              ) : null}
-            </header>
-            <ul role="list" className="flex flex-col gap-g3">
-              {visibleAttention.map(({ session, kind }) => (
-                <CodeSessionRow key={session.id} session={session} kind={kind} onOpen={onOpenSession} onToggleStar={onToggleStar} onToggleArchive={onToggleArchive} />
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {starredSessions.length > 0 ? (
-          <section className="flex flex-col gap-g6">
-            <header className="flex items-center gap-g3">
-              <h2 className="text-body text-t8">Starred</h2>
-            </header>
-            <ul role="list" className="flex flex-col gap-g3">
-              {starredSessions.map((session) => (
-                <CodeSessionRow key={session.id} session={session} kind={null} onOpen={onOpenSession} onToggleStar={onToggleStar} onToggleArchive={onToggleArchive} />
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {otherSessions.length > 0 ? (
-          <section className="flex flex-col gap-g6">
-            <header className="flex items-center gap-g3">
-              <h2 className="text-body text-t8">All sessions</h2>
-            </header>
-            <ul role="list" className="flex flex-col gap-g3">
-              {otherSessions.map((session) => (
-                <CodeSessionRow key={session.id} session={session} kind={null} onOpen={onOpenSession} onToggleStar={onToggleStar} onToggleArchive={onToggleArchive} />
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {archivedSessions.length > 0 ? (
-          <section className="flex flex-col gap-g6">
-            <header className="flex items-center gap-g3">
-              <h2 className="text-body text-t8">Archived</h2>
-              <span className="flex-1" />
-              <button
-                type="button"
-                onClick={() => setShowArchived((value) => !value)}
-                aria-expanded={showArchived}
-                className="inline-flex h-small items-center rounded-small px-p5 text-footnote text-t6 hover:bg-t2"
-              >
-                {showArchived ? 'Hide' : `Show ${archivedSessions.length}`}
-              </button>
-            </header>
-            {showArchived ? (
-              <ul role="list" className="flex flex-col gap-g3">
-                {archivedSessions.map((session) => (
-                  <CodeSessionRow key={session.id} session={session} kind={null} onOpen={onOpenSession} onToggleStar={onToggleStar} onToggleArchive={onToggleArchive} />
-                ))}
-              </ul>
-            ) : null}
-          </section>
-        ) : null}
       </div>
     </div>
   );

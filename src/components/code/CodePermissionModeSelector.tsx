@@ -1,45 +1,36 @@
 import { Check } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-export type CodePermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions' | 'plan';
+export type CodePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
 
 type ModeOption = {
   value: CodePermissionMode;
   label: string;
-  description?: string;
-  needsConfirm?: { title: string; body: string };
+  hotkey?: string;
+  needsConfirm?: { title: string; body: string; confirm: string };
 };
 
 const OPTIONS: ModeOption[] = [
-  { value: 'default', label: 'Accept' },
-  { value: 'acceptEdits', label: 'Accept and allow edits' },
-  {
-    value: 'auto',
-    label: 'Accept and auto mode',
-    description: 'Claude will decide which actions are safe to run without asking. Longer tasks run uninterrupted, with extra safeguards against prompt injection.',
-    needsConfirm: {
-      title: 'Enable auto mode?',
-      body: 'Claude will decide which actions are safe to run without asking. Longer tasks run uninterrupted, with extra safeguards against prompt injection.',
-    },
-  },
+  { value: 'default', label: '请求权限', hotkey: '1' },
+  { value: 'acceptEdits', label: '接受编辑', hotkey: '2' },
+  { value: 'plan', label: '计划模式', hotkey: '3' },
   {
     value: 'bypassPermissions',
-    label: 'Accept and bypass permissions',
-    description: 'Claude will read, edit, and execute files without asking — including potentially destructive commands. Only use this in isolated or disposable environments.',
+    label: '绕过权限',
+    hotkey: '4',
     needsConfirm: {
-      title: 'Bypass all permissions?',
-      body: 'Claude will read, edit, and execute files without asking — including potentially destructive commands. Only use this in isolated or disposable environments.',
+      title: '绕过所有权限？',
+      body: 'Claude 会读取、修改、执行文件而不再询问，包括可能具有破坏性的命令。请只在隔离或可丢弃的环境里使用。',
+      confirm: '绕过权限',
     },
   },
-  { value: 'plan', label: 'Plan mode' },
 ];
 
 const COMPACT_LABEL: Record<CodePermissionMode, string> = {
-  default: 'Accept',
-  acceptEdits: 'Allow edits',
-  auto: 'Auto mode',
-  bypassPermissions: 'Bypass',
-  plan: 'Plan',
+  default: '请求权限',
+  acceptEdits: '接受编辑',
+  bypassPermissions: '绕过权限',
+  plan: '计划模式',
 };
 
 export function permissionModeShortLabel(mode: CodePermissionMode) {
@@ -74,6 +65,34 @@ export default function CodePermissionModeSelector({ disabled, value, onChange }
     return () => document.removeEventListener('keydown', onKey);
   }, [confirm]);
 
+  // ⇧Ctrl M cycles through modes; while menu open, 1–4 picks directly
+  useEffect(() => {
+    if (disabled) return;
+    const onKey = (event: KeyboardEvent) => {
+      const isCycle = event.shiftKey && (event.ctrlKey || event.metaKey) && (event.key === 'M' || event.key === 'm');
+      if (isCycle) {
+        event.preventDefault();
+        const idx = OPTIONS.findIndex((option) => option.value === value);
+        const next = OPTIONS[(idx + 1) % OPTIONS.length];
+        if (next.needsConfirm && next.value !== value) {
+          setConfirm(next);
+        } else {
+          onChange(next.value);
+        }
+        return;
+      }
+      if (open && /^[1-4]$/.test(event.key)) {
+        const target = OPTIONS.find((option) => option.hotkey === event.key);
+        if (target) {
+          event.preventDefault();
+          select(target);
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [disabled, open, value, onChange]);
+
   const select = (option: ModeOption) => {
     if (option.needsConfirm && option.value !== value) {
       setConfirm(option);
@@ -106,8 +125,14 @@ export default function CodePermissionModeSelector({ disabled, value, onChange }
         {open ? (
           <div
             role="menu"
-            className="absolute bottom-full left-0 z-50 mb-g5 box-border w-[260px] overflow-hidden rounded-[14px] border border-t2 bg-[var(--surface-popover)] px-[6px] py-[6px] text-left shadow-[0_8px_28px_rgba(0,0,0,0.12)]"
+            className="absolute bottom-full left-0 z-50 mb-g5 box-border w-[220px] overflow-hidden rounded-[14px] border border-t2 bg-[var(--surface-popover)] px-[6px] py-[6px] text-left shadow-[0_8px_28px_rgba(0,0,0,0.12)]"
           >
+            <div className="flex items-center gap-g3 px-p4 py-[6px] text-footnote text-t6">
+              <span className="flex-1">模式</span>
+              <Kbd>⇧</Kbd>
+              <Kbd>Ctrl</Kbd>
+              <Kbd>M</Kbd>
+            </div>
             {OPTIONS.map((option) => {
               const active = option.value === value;
               return (
@@ -116,10 +141,11 @@ export default function CodePermissionModeSelector({ disabled, value, onChange }
                   type="button"
                   role="menuitem"
                   onClick={() => select(option)}
-                  className="flex w-full items-center justify-between gap-g4 rounded-r5 px-p4 py-[6px] text-left text-body text-t9 transition-colors hover:bg-t2"
+                  className="flex w-full items-center gap-g4 rounded-r5 px-p4 py-[6px] text-left text-body text-t9 transition-colors hover:bg-t2"
                 >
-                  <span className="truncate">{option.label}</span>
+                  <span className="flex-1 truncate">{option.label}</span>
                   {active ? <Check size={14} strokeWidth={2.2} className="text-t7" /> : null}
+                  {option.hotkey ? <span className="text-footnote text-t5 tabular-nums">{option.hotkey}</span> : null}
                 </button>
               );
             })}
@@ -145,19 +171,27 @@ export default function CodePermissionModeSelector({ disabled, value, onChange }
                 onClick={() => setConfirm(null)}
                 className="inline-flex h-[28px] items-center rounded-r5 px-p5 text-body text-t7 hover:bg-t2"
               >
-                Cancel
+                取消
               </button>
               <button
                 type="button"
                 onClick={accept}
                 className="inline-flex h-[28px] items-center rounded-r5 bg-t9 px-p5 text-body text-z0 hover:bg-t8"
               >
-                {confirm.value === 'bypassPermissions' ? 'Bypass permissions' : 'Enable auto mode'}
+                {confirm.needsConfirm?.confirm || '确认'}
               </button>
             </div>
           </div>
         </div>
       ) : null}
     </>
+  );
+}
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-r3 border border-t3 bg-z0 px-[4px] text-[10px] font-medium text-t6 leading-none">
+      {children}
+    </span>
   );
 }

@@ -1,13 +1,15 @@
 export type CodeSlashCommand = {
   name: string;
   description: string;
+  source?: 'builtin' | 'project' | 'user' | 'bundled';
+  body?: string;
 };
 
-export const CODE_SLASH_COMMANDS: CodeSlashCommand[] = [
-  { name: 'clear', description: 'Clear the visible transcript (does not affect history).' },
-  { name: 'compact', description: 'Ask the engine to summarise older context.' },
-  { name: 'cwd', description: 'Show the working directory of this session.' },
-  { name: 'help', description: 'List available slash commands.' },
+export const BUILTIN_SLASH_COMMANDS: CodeSlashCommand[] = [
+  { name: 'clear', description: 'Clear the visible transcript (does not affect history).', source: 'builtin' },
+  { name: 'compact', description: 'Ask the engine to summarise older context.', source: 'builtin' },
+  { name: 'cwd', description: 'Show the working directory of this session.', source: 'builtin' },
+  { name: 'help', description: 'List available slash commands.', source: 'builtin' },
 ];
 
 export function detectSlashQuery(text: string, caretIndex: number): string | null {
@@ -25,7 +27,7 @@ export function detectSlashQuery(text: string, caretIndex: number): string | nul
   return fragment;
 }
 
-export function matchSlashCommands(query: string): CodeSlashCommand[] {
+export function matchSlashCommands(query: string, commands: CodeSlashCommand[] = BUILTIN_SLASH_COMMANDS): CodeSlashCommand[] {
   const normalized = query.toLowerCase();
-  return CODE_SLASH_COMMANDS.filter((command) => command.name.startsWith(normalized));
+  return commands.filter((command) => command.name.toLowerCase().startsWith(normalized));
 }

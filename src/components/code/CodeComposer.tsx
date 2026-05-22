@@ -1,8 +1,10 @@
-import { CornerDownLeft, Folder, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CornerDownLeft, ExternalLink, Folder, GitBranch, Square as SquareIcon } from 'lucide-react';
 import CodeDraftClawd from '../CodeDraftClawd';
-import CodeEnvironmentSelector, { type CodeEnvironmentKind } from './CodeEnvironmentSelector';
+import type { CodeEnvironmentKind } from './CodeEnvironmentSelector';
 import CodeModelEffortSelector, { type CodeEffort, type CodeModelOption } from './CodeModelEffortSelector';
 import CodePermissionModeSelector, { type CodePermissionMode } from './CodePermissionModeSelector';
+import { getGitInfo, type GitInfo } from '../../api';
 
 type CodeComposerProps = {
   error: string | null;
@@ -23,8 +25,87 @@ type CodeComposerProps = {
 };
 
 function folderLabel(folder: string | null) {
-  if (!folder) return '选择文件夹...';
+  if (!folder) return '选择文件夹';
   return folder.split(/[\\/]/).filter(Boolean).pop() || folder;
+}
+
+function ContextChips({
+  environment,
+  selectedFolder,
+  onChooseFolder,
+}: {
+  environment: CodeEnvironmentKind;
+  selectedFolder: string | null;
+  onChooseFolder: () => void;
+}) {
+  const [git, setGit] = useState<GitInfo>({ isRepo: false });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedFolder) { setGit({ isRepo: false }); return; }
+    getGitInfo(selectedFolder)
+      .then((info) => { if (!cancelled) setGit(info); })
+      .catch(() => { if (!cancelled) setGit({ isRepo: false }); });
+    return () => { cancelled = true; };
+  }, [selectedFolder]);
+
+  const openInExplorer = () => {
+    if (!selectedFolder) return;
+    const api = (window as any).electronAPI;
+    if (api?.openFolder) api.openFolder(selectedFolder);
+  };
+
+  const envLabel = environment === 'local' ? '本地' : environment === 'ssh' ? 'SSH' : environment === 'bridge' ? 'Bridge' : '本地';
+
+  return (
+    <div className="flex items-center gap-g3 text-footnote text-t6">
+      <Chip>
+        <SquareIcon size={12} strokeWidth={1.7} />
+        <span>{envLabel}</span>
+      </Chip>
+      <button
+        type="button"
+        onClick={onChooseFolder}
+        className="inline-flex h-[22px] items-center gap-g2 rounded-r5 border border-t3 bg-z0 px-p3 text-footnote text-t7 hover:bg-t2"
+        title={selectedFolder || '选择文件夹'}
+      >
+        <Folder size={12} strokeWidth={1.7} />
+        <span className="max-w-[160px] truncate">{folderLabel(selectedFolder)}</span>
+      </button>
+      {git.isRepo && git.branch ? (
+        <Chip>
+          <GitBranch size={12} strokeWidth={1.7} />
+          <span className="max-w-[120px] truncate">{git.branch}</span>
+          {git.dirty ? <span className="ml-[2px] inline-block h-[5px] w-[5px] rounded-full bg-extended-yellow" title="工作树有未提交改动" /> : null}
+        </Chip>
+      ) : null}
+      {git.isRepo ? (
+        <Chip>
+          <SquareIcon size={11} strokeWidth={1.7} />
+          <span>工作树</span>
+        </Chip>
+      ) : null}
+      {selectedFolder ? (
+        <button
+          type="button"
+          onClick={openInExplorer}
+          className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-r5 border border-t3 bg-z0 text-t6 hover:bg-t2 hover:text-t8"
+          aria-label="在资源管理器中打开"
+          title="在资源管理器中打开"
+        >
+          <ExternalLink size={12} strokeWidth={1.7} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex h-[22px] items-center gap-g2 rounded-r5 border border-t3 bg-z0 px-p3 text-footnote text-t7">
+      {children}
+    </span>
+  );
 }
 
 export default function CodeComposer({
@@ -47,22 +128,11 @@ export default function CodeComposer({
   return (
     <div className="relative shrink-0 flex flex-col gap-g5 [contain:layout]">
       <CodeDraftClawd />
-      <div className="mb-[2px] flex items-center gap-g3">
-        <CodeEnvironmentSelector
-          disabled={isSubmitting}
-          value={environment}
-          onChange={onEnvironmentChange}
-        />
-        <button
-          type="button"
-          onClick={onChooseFolder}
-          className="inline-flex h-[24px] max-w-[240px] items-center gap-g3 rounded-r5 px-p3 text-body text-t7 hover:bg-t2"
-          title={selectedFolder || undefined}
-        >
-          <Folder size={14} strokeWidth={1.7} />
-          <span className="truncate">{folderLabel(selectedFolder)}</span>
-        </button>
-      </div>
+      <ContextChips
+        environment={environment}
+        selectedFolder={selectedFolder}
+        onChooseFolder={onChooseFolder}
+      />
 
       <div className="epitaxy-prompt effect-prompt-blur relative isolate rounded-r7 bg-[var(--surface-prompt-blur)] transition-shadow duration-300 focus-within:bg-[var(--surface-prompt-focus-hover)] focus-within:effect-prompt-focus">
         <div className="relative flex w-full">
@@ -96,19 +166,12 @@ export default function CodeComposer({
       </div>
 
       <div className="w-full flex items-center gap-g5 py-[4px]">
-        <div className="flex min-w-0 items-center gap-g5">
+        <div className="flex min-w-0 items-center gap-g4">
           <CodePermissionModeSelector
             disabled={isSubmitting}
             value={permissionMode}
             onChange={onPermissionModeChange}
           />
-          <button
-            type="button"
-            className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t7 hover:bg-t2"
-            aria-label="添加"
-          >
-            <Plus size={14} strokeWidth={2} />
-          </button>
         </div>
         <div className="ml-auto flex items-center gap-g4 text-body text-t6">
           <CodeModelEffortSelector
@@ -118,7 +181,6 @@ export default function CodeComposer({
             models={modelOptions}
             onChange={onModelEffortChange}
           />
-          <span className="h-[10px] w-[10px] rounded-full border border-t3 bg-z0" />
         </div>
       </div>
       {error ? <div className="text-footnote text-extended-pink select-text">{error}</div> : null}
