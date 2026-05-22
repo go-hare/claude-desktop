@@ -190,9 +190,16 @@ function startBridgeServer() {
     }
 
     const appServer = initServer(mainWindow);
-    const httpServer = appServer.listen(30080, '127.0.0.1', () => {
+    const desiredPort = Number(process.env.HARE_BRIDGE_PORT || 30080);
+    const httpServer = appServer.listen(desiredPort, '127.0.0.1', () => {
+        const addr = httpServer.address();
+        const actualPort = typeof addr === 'object' && addr ? addr.port : desiredPort;
         bridgeHttpServer = httpServer;
-        console.log('Bridge Server running on http://127.0.0.1:30080');
+        process.env.HARE_BRIDGE_PORT = String(actualPort);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            try { mainWindow.webContents.send('bridge:port', actualPort); } catch (_) {}
+        }
+        console.log(`Bridge Server running on http://127.0.0.1:${actualPort}`);
     });
     attachPtyWebSocket(httpServer);
 
@@ -301,6 +308,7 @@ function createWindow() {
         mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
     }
     // mainWindow.webContents.openDevTools();
+    if (process.env.HARE_DEVTOOLS === '1') mainWindow.webContents.openDevTools({ mode: 'detach' });
 
     // Open all external links in the system browser, not in the app
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -452,6 +460,7 @@ app.on('before-quit', () => {
 // IPC Handlers for future bridge communication
 ipcMain.handle('get-app-path', () => app.getPath('userData'));
 ipcMain.handle('get-platform', () => process.platform);
+ipcMain.handle('get-bridge-port', () => Number(process.env.HARE_BRIDGE_PORT || 30080));
 ipcMain.handle('install-update', () => {
     // On Mac, autoUpdater.quitAndInstall() doesn't reliably relaunch the app.
     // Use app.relaunch() + app.exit() to ensure the app restarts on all platforms.

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, File, X, Code2, Download, FolderOpen, Github } from 'lucide-react';
 import { getAttachmentUrl } from '../api';
+import { bridgeApiBase } from '../bridgeConfig';
 
 interface Attachment {
   id: string;
@@ -47,7 +48,7 @@ async function openFileInFolder(fileId: string) {
   if (!isElectron) return false;
   try {
     // Ask bridge server for the local path
-    const res = await fetch(`http://127.0.0.1:30080/api/uploads/${encodeURIComponent(fileId)}/path`);
+    const res = await fetch(`${bridgeApiBase()}/uploads/${encodeURIComponent(fileId)}/path`);
     if (!res.ok) return false;
     const data = await res.json();
     if (data.localPath) {
@@ -98,7 +99,7 @@ const AttachmentCard: React.FC<{ attachment: Attachment; onClick: () => void }> 
     if (isImage) {
       if (isElectron) {
         // In Electron, use bridge server to serve raw file
-        setThumbnailUrl(`http://127.0.0.1:30080/api/uploads/${encodeURIComponent(attachment.id)}/raw`);
+        setThumbnailUrl(`${bridgeApiBase()}/uploads/${encodeURIComponent(attachment.id)}/raw`);
       } else {
         const url = getAttachmentUrl(attachment.id);
         const token = localStorage.getItem('auth_token');
@@ -190,7 +191,7 @@ const MessageAttachments: React.FC<MessageAttachmentsProps> = ({ attachments, on
     // 图片：打开灯箱
     if (att.file_type === 'image' || (att.mime_type?.startsWith('image/') ?? false)) {
       if (isElectron) {
-        setLightboxUrl(`http://127.0.0.1:30080/api/uploads/${encodeURIComponent(att.id)}/raw`);
+        setLightboxUrl(`${bridgeApiBase()}/uploads/${encodeURIComponent(att.id)}/raw`);
       } else {
         setLightboxUrl(`${url}${url.includes('?') ? '&' : '?'}token=${token}`);
       }
@@ -205,7 +206,7 @@ const MessageAttachments: React.FC<MessageAttachmentsProps> = ({ attachments, on
       try {
         // Fetch content
         const fetchUrl = isElectron
-          ? `http://127.0.0.1:30080/api/uploads/${encodeURIComponent(att.id)}/raw`
+          ? `${bridgeApiBase()}/uploads/${encodeURIComponent(att.id)}/raw`
           : `${url}${url.includes('?') ? '&' : '?'}token=${token}`;
         const res = await fetch(fetchUrl);
         if (res.ok) {

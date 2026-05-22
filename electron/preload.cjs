@@ -37,6 +37,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getPlatform: () => ipcRenderer.invoke('get-platform'),
     getAppPath: () => ipcRenderer.invoke('get-app-path'),
 
+    // Bridge port — main may bind to a different port if 30080 is taken.
+    // `getBridgePort()` returns the port main is currently listening on;
+    // `onBridgePort` fires when bridge restarts on a different port.
+    getBridgePort: () => ipcRenderer.invoke('get-bridge-port'),
+    onBridgePort: (callback) => ipcRenderer.on('bridge:port', (_, port) => callback(port)),
+
     // File system
     selectDirectory: () => ipcRenderer.invoke('select-directory'),
 

@@ -84,7 +84,9 @@ const ProviderIcon: React.FC<{ name: string; color: string; letter: string; size
   );
 };
 
-const API_BASE = 'http://127.0.0.1:30080/api';
+import { bridgeApiBase } from '../bridgeConfig';
+
+const API_BASE = bridgeApiBase();
 
 // Chat models: the subset of models shown in the conversation model selector
 interface ChatModel { id: string; name: string; providerId: string; providerName: string; thinkingId?: string; tier?: 'opus' | 'sonnet' | 'haiku' | 'extra'; }

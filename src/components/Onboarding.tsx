@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FolderOpen } from 'lucide-react';
 import ClaudeLogo from './ClaudeLogo';
+import { bridgeApiBase } from '../bridgeConfig';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -24,7 +25,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   useEffect(() => {
     // Fetch default workspace path from bridge-server
-    fetch('http://127.0.0.1:30080/api/workspace-config')
+    fetch(`${bridgeApiBase()}/workspace-config`)
       .then(r => r.json())
       .then(data => { if (data.defaultDir) setWorkspace(data.defaultDir); })
       .catch(() => {});
@@ -83,7 +84,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     if (workspace) {
       localStorage.setItem('workspace_path', workspace);
       // Save to bridge-server config (takes effect on next launch)
-      fetch('http://127.0.0.1:30080/api/workspace-config', {
+      fetch(`${bridgeApiBase()}/workspace-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dir: workspace }),
