@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, CornerDownLeft, Copy, FileDiff, FileText, Folder, Image as ImageIcon, ListChecks, ListTodo, NotebookText, Paperclip, Pencil, Plus, RotateCcw, Settings, Square, Terminal, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, CornerDownLeft, Copy, FileDiff, FileText, Folder, GitFork, Image as ImageIcon, ListChecks, ListTodo, NotebookText, Paperclip, Pencil, Plus, RotateCcw, Settings, Square, Terminal, Trash2, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeBlock } from './MarkdownRenderer';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { compactConversation, decideToolPermission, deleteConversation, deleteMessagesFrom, getAttachmentUrl, getContextSize, getConversation, getEffectiveConfig, getGenerationStatus, getStreamStatus, getToolAllowlist, listSlashCommands, reconnectStream, revokeToolAllowlist, sendMessage, stopGeneration, updateConversation, uploadFile, type CustomSlashCommand, type EffectiveConfig, type UploadResult } from '../api';
+import { compactConversation, createPullRequest, decideToolPermission, deleteConversation, deleteMessagesFrom, getAttachmentUrl, getContextSize, getConversation, getEffectiveConfig, getGenerationStatus, getGitInfo, getStreamStatus, getToolAllowlist, listSlashCommands, reconnectStream, revokeToolAllowlist, sendMessage, stopGeneration, updateConversation, uploadFile, type CustomSlashCommand, type EffectiveConfig, type GitInfo, type UploadResult } from '../api';
 import { copyToClipboard } from '../utils/clipboard';
 import { pushError, pushSuccess } from './code/codeToastStore';
 import CodeToastViewport from './code/CodeToastViewport';
@@ -1086,6 +1086,44 @@ function CodeSessionComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [gitInfo, setGitInfo] = useState<GitInfo>({ isRepo: false });
+  const [creatingPr, setCreatingPr] = useState(false);
+
+  // Refresh git info when cwd changes, and re-poll periodically so the diff
+  // counter / dirty bit stays current as the engine writes files. 6s cadence
+  // keeps the dot fresh without spamming `git status` while the user types.
+  useEffect(() => {
+    let cancelled = false;
+    if (!cwd) { setGitInfo({ isRepo: false }); return; }
+    const poll = () => {
+      getGitInfo(cwd)
+        .then((info) => { if (!cancelled) setGitInfo(info); })
+        .catch(() => { if (!cancelled) setGitInfo({ isRepo: false }); });
+    };
+    poll();
+    const interval = window.setInterval(poll, 6000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [cwd]);
+
+  const handleCreatePr = useCallback(async () => {
+    if (!cwd || creatingPr) return;
+    setCreatingPr(true);
+    try {
+      const result = await createPullRequest(cwd);
+      if (result.url) {
+        const opener = (window as any).electronAPI?.openExternal
+          || ((url: string) => window.open(url, '_blank'));
+        opener(result.url);
+        pushSuccess('已在浏览器打开创建 PR 页面');
+      } else {
+        pushError(result.error || '创建 PR 失败：未识别 GitHub 远端');
+      }
+    } catch (err) {
+      pushError(err instanceof Error ? err.message : '创建 PR 失败');
+    } finally {
+      setCreatingPr(false);
+    }
+  }, [cwd, creatingPr]);
 
   const slashQuery = useMemo(() => {
     if (!slashOpen) return null;
@@ -1179,6 +1217,53 @@ function CodeSessionComposer({
       }}
     >
       <CodeDraftClawd />
+      {gitInfo.isRepo && gitInfo.branch ? (() => {
+        // PR is creatable when we know the github repo AND the head/base aren't
+        // the same branch. Anything else => render the button as disabled so
+        // the bar's layout stays stable instead of jumping around.
+        const sameBranch = gitInfo.baseBranch && gitInfo.baseBranch === gitInfo.branch;
+        const prDisabled = !gitInfo.githubRepo || !!sameBranch;
+        const prTitle = !gitInfo.githubRepo
+          ? '当前仓库没有 GitHub 远端 (origin)'
+          : sameBranch
+            ? '当前分支就是 base，没有可创建的 PR'
+            : `在 ${gitInfo.githubRepo} 上从 ${gitInfo.branch} 发起 Pull Request`;
+        return (
+          <div className="flex items-center justify-between gap-g4 rounded-r6 border border-t3 bg-z0 px-p4 py-[6px] text-footnote text-t7">
+            <div className="flex min-w-0 items-center gap-g3">
+              <GitFork size={13} strokeWidth={1.7} className="shrink-0 text-t6" />
+              <span className="max-w-[180px] truncate" title={gitInfo.branch || ''}>{gitInfo.branch}</span>
+              {gitInfo.baseBranch ? (
+                <>
+                  <span className="text-t5">←</span>
+                  <span className="max-w-[140px] truncate text-t6" title={gitInfo.baseBranch}>{gitInfo.baseBranch}</span>
+                </>
+              ) : null}
+              {gitInfo.dirty ? <span className="ml-[2px] inline-block h-[6px] w-[6px] rounded-full bg-extended-yellow" title="工作树有未提交改动" /> : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-g3">
+              {(gitInfo.additions || gitInfo.deletions) ? (
+                <span
+                  className="inline-flex items-center gap-g2 text-footnote tabular-nums"
+                  title={`相对 ${gitInfo.baseBranch || 'base'} 的改动行数（含工作树未提交部分）`}
+                >
+                  <span className="text-extended-green">+{gitInfo.additions || 0}</span>
+                  <span className="text-extended-pink">-{gitInfo.deletions || 0}</span>
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleCreatePr}
+                disabled={prDisabled || creatingPr}
+                className="inline-flex h-[22px] items-center gap-g2 rounded-r5 border border-t3 bg-z0 px-p3 text-footnote text-t8 hover:bg-t2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-z0"
+                title={prTitle}
+              >
+                {creatingPr ? '打开中…' : '创建 PR'}
+              </button>
+            </div>
+          </div>
+        );
+      })() : null}
       {allowlist.length ? (
         (() => {
           const VISIBLE = 3;

@@ -2815,7 +2815,110 @@ function initServer(mainWindow) {
         const branch = run(['rev-parse', '--abbrev-ref', 'HEAD']);
         const status = run(['status', '--porcelain']);
         const dirty = !!(status && status.length > 0);
-        res.json({ isRepo: true, branch: branch || null, dirty, topLevel: top });
+
+        // Base branch: prefer the branch's upstream (with the remote prefix
+        // stripped); otherwise fall back to origin/main → origin/master →
+        // 'main' → 'master' if the ref exists. Used by the composer git bar
+        // to show "<branch> ← <base>".
+        let baseBranch = null;
+        const upstream = run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+        if (upstream) {
+            // origin/main → main; my-fork/feature → feature
+            const slash = upstream.indexOf('/');
+            baseBranch = slash >= 0 ? upstream.slice(slash + 1) : upstream;
+        }
+        if (!baseBranch) {
+            for (const candidate of ['origin/main', 'origin/master', 'main', 'master']) {
+                if (run(['rev-parse', '--verify', '--quiet', candidate]) != null) {
+                    baseBranch = candidate.startsWith('origin/') ? candidate.slice(7) : candidate;
+                    break;
+                }
+            }
+        }
+
+        // Diff stats vs base (committed) + working tree (uncommitted), summed.
+        // numstat lines look like: "<adds>\t<dels>\t<file>" (binary files are "-\t-\t<file>").
+        const sumNumstat = (output) => {
+            if (!output) return { adds: 0, dels: 0 };
+            let adds = 0, dels = 0;
+            for (const line of output.split('\n')) {
+                const parts = line.split('\t');
+                if (parts.length < 2) continue;
+                const a = parseInt(parts[0], 10);
+                const d = parseInt(parts[1], 10);
+                if (!Number.isNaN(a)) adds += a;
+                if (!Number.isNaN(d)) dels += d;
+            }
+            return { adds, dels };
+        };
+
+        let additions = 0;
+        let deletions = 0;
+        if (baseBranch) {
+            // origin/<base> if available — that's what a PR would be diffed
+            // against; otherwise the local base. Three-dot to use the merge
+            // base so unrelated work on base doesn't pollute the diff.
+            const refForDiff = run(['rev-parse', '--verify', '--quiet', `origin/${baseBranch}`]) != null
+                ? `origin/${baseBranch}`
+                : (run(['rev-parse', '--verify', '--quiet', baseBranch]) != null ? baseBranch : null);
+            if (refForDiff) {
+                const out = run(['diff', '--numstat', `${refForDiff}...HEAD`]);
+                const sum = sumNumstat(out);
+                additions += sum.adds;
+                deletions += sum.dels;
+            }
+        }
+        if (dirty) {
+            // Working tree (staged + unstaged) vs HEAD.
+            const out = run(['diff', '--numstat', 'HEAD']);
+            const sum = sumNumstat(out);
+            additions += sum.adds;
+            deletions += sum.dels;
+        }
+
+        // Detect the GitHub remote so the renderer can build a 'compare' URL
+        // for branches that can't be PR'd via gh (e.g. base === branch).
+        const remoteUrl = run(['config', '--get', 'remote.origin.url']);
+        let githubRepo = null;
+        if (remoteUrl) {
+            // Match git@github.com:owner/repo(.git)? and https://github.com/owner/repo(.git)?
+            const m = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/.\s]+)(?:\.git)?$/);
+            if (m) githubRepo = `${m[1]}/${m[2]}`;
+        }
+
+        res.json({
+            isRepo: true,
+            branch: branch || null,
+            baseBranch,
+            dirty,
+            additions,
+            deletions,
+            topLevel: top,
+            githubRepo,
+        });
+    });
+
+    // Open a GitHub "compare/PR create" URL for the current branch. We don't
+    // shell out to `gh pr create` ourselves because that needs auth setup; we
+    // just hand the user a pre-filled compare URL and let GitHub do the rest.
+    server.post('/api/git/create-pr', express.json(), (req, res) => {
+        const cwd = typeof req.body?.cwd === 'string' ? req.body.cwd : '';
+        if (!cwd || !fs.existsSync(cwd)) return res.status(400).json({ error: 'cwd required' });
+        const { spawnSync } = require('child_process');
+        const run = (args) => {
+            const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 3000, windowsHide: true });
+            return r.status === 0 ? (r.stdout || '').trim() : null;
+        };
+        const branch = run(['rev-parse', '--abbrev-ref', 'HEAD']);
+        const remoteUrl = run(['config', '--get', 'remote.origin.url']);
+        if (!branch || !remoteUrl) return res.status(400).json({ error: 'not a github repo' });
+        const m = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/.\s]+)(?:\.git)?$/);
+        if (!m) return res.status(400).json({ error: 'origin is not on github.com' });
+        const repo = `${m[1]}/${m[2]}`;
+        // Use the compare URL — GitHub will detect whether a PR already exists
+        // and switch to "view PR" if so.
+        const url = `https://github.com/${repo}/pull/new/${encodeURIComponent(branch)}`;
+        res.json({ url });
     });
 
     // ─── Subagent CRUD (writes to ~/.claude/settings.json `agents`) ────

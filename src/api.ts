@@ -726,12 +726,33 @@ export async function getEffectiveConfig(cwd?: string | null): Promise<Effective
   return res.json();
 }
 
-export type GitInfo = { isRepo: boolean; branch?: string | null; dirty?: boolean; topLevel?: string };
+export type GitInfo = {
+  isRepo: boolean;
+  branch?: string | null;
+  baseBranch?: string | null;
+  dirty?: boolean;
+  additions?: number;
+  deletions?: number;
+  topLevel?: string;
+  githubRepo?: string | null;
+};
 
 export async function getGitInfo(cwd?: string | null): Promise<GitInfo> {
   if (!cwd) return { isRepo: false };
   const res = await request(`/git-info?cwd=${encodeURIComponent(cwd)}`);
   if (!res.ok) return { isRepo: false };
+  return res.json();
+}
+
+export async function createPullRequest(cwd: string): Promise<{ url?: string; error?: string }> {
+  const res = await request('/git/create-pr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cwd }),
+  });
+  if (!res.ok) {
+    try { return await res.json(); } catch { return { error: `HTTP ${res.status}` }; }
+  }
   return res.json();
 }
 
