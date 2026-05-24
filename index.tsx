@@ -11,14 +11,18 @@ const rootElement = document.getElementById('root');
 
 // Initialize theme and font from localStorage to ensure CSS variables are hydrated before render
 const theme = localStorage.getItem('theme') || 'auto';
-const font = localStorage.getItem('chat_font') || 'default';
-if (theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+const normalizedTheme = theme === 'system' ? 'auto' : theme;
+const font = localStorage.getItem('customStyles:chatFont') || localStorage.getItem('chat_font') || 'default';
+const normalizedFont = font === 'dyslexic' ? 'dyslexia' : font;
+if (normalizedTheme === 'dark' || (normalizedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
   document.documentElement.setAttribute('data-theme', 'dark');
+  document.documentElement.setAttribute('data-mode', 'dark');
   document.documentElement.classList.add('dark');
 } else {
   document.documentElement.setAttribute('data-theme', 'light');
+  document.documentElement.setAttribute('data-mode', 'light');
 }
-document.documentElement.setAttribute('data-chat-font', font);
+document.documentElement.setAttribute('data-chat-font', normalizedFont);
 
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");

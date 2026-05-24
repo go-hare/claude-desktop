@@ -12,6 +12,7 @@ import type { RawCodeStats } from './code/CodeStatsCard';
 const READ_SESSIONS_KEY = 'code_action_center_read_sessions';
 const PERMISSION_MODE_KEY = 'code_default_permission_mode';
 const ENVIRONMENT_KEY = 'code_default_environment';
+const SETTINGS_FLAGS_KEY = 'settings_flags';
 
 const PERMISSION_MODES: ReadonlySet<CodePermissionMode> = new Set([
   'default',
@@ -51,8 +52,29 @@ function getDefaultCodeModel() {
 }
 
 function sessionTimestampMs(session: CodeConversationSummary) {
-  const timestamp = Date.parse(session.updated_at || session.created_at || '');
+  const timestamp = Date.parse(session.timestamp || session.updated_at || session.created_at || '');
   return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function getSettingsFlag(key: string) {
+  if (typeof window === 'undefined') return false;
+  try {
+    const flags = JSON.parse(localStorage.getItem(SETTINGS_FLAGS_KEY) || '{}');
+    return flags?.[key] === true;
+  } catch {
+    return false;
+  }
+}
+
+function setSettingsFlag(key: string, value: boolean) {
+  if (typeof window === 'undefined') return;
+  let flags: Record<string, boolean> = {};
+  try {
+    flags = JSON.parse(localStorage.getItem(SETTINGS_FLAGS_KEY) || '{}');
+  } catch {}
+  const next = { ...flags, [key]: value };
+  localStorage.setItem(SETTINGS_FLAGS_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent('settingsFlagsUpdated', { detail: next }));
 }
 
 function CodeGreeting() {
@@ -72,7 +94,7 @@ function CodeGreeting() {
 export default function CodePage() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<RawCodeStats | null>(null);
-  const [, setStatsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [codeSessions, setCodeSessions] = useState<CodeConversationSummary[]>([]);
   const [readSessionTimes, setReadSessionTimes] = useState<Map<string, number>>(() => {
     if (typeof window === 'undefined') return new Map();
@@ -100,6 +122,19 @@ export default function CodePage() {
   const [modelOptions] = useState(getLocalCodeModels);
   const [permissionMode, setPermissionMode] = useState<CodePermissionMode>(getDefaultPermissionMode);
   const [environment, setEnvironment] = useState<CodeEnvironmentKind>(getDefaultEnvironment);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => getSettingsFlag('codeNotifications'));
+
+  useEffect(() => {
+    const refreshNotifications = () => {
+      setNotificationsEnabled(getSettingsFlag('codeNotifications'));
+    };
+    window.addEventListener('settingsFlagsUpdated', refreshNotifications);
+    window.addEventListener('storage', refreshNotifications);
+    return () => {
+      window.removeEventListener('settingsFlagsUpdated', refreshNotifications);
+      window.removeEventListener('storage', refreshNotifications);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +155,7 @@ export default function CodePage() {
                 code_cwd: conversation.code_cwd,
                 created_at: conversation.created_at,
                 updated_at: conversation.updated_at,
+                timestamp: conversation.timestamp,
                 isArchived: conversation.isArchived,
                 is_archived: conversation.is_archived,
                 isStarred: conversation.isStarred,
@@ -128,6 +164,9 @@ export default function CodePage() {
                 is_unread: conversation.is_unread,
                 sessionStatus: conversation.sessionStatus,
                 session_status: conversation.session_status,
+                taskSummary: conversation.taskSummary,
+                type: conversation.type,
+                repoInfo: conversation.repoInfo,
                 postTurnSummary: conversation.postTurnSummary,
                 external_metadata: conversation.external_metadata,
                 _originalSession: conversation._originalSession,
@@ -221,6 +260,43 @@ export default function CodePage() {
     setComposerError(null);
   };
 
+  const useChecklistPrompt = (prompt: string, options?: { permissionMode?: 'plan' }) => {
+    setInputText(prompt);
+    setComposerError(null);
+    if (options?.permissionMode === 'plan') {
+      setPermissionMode('plan');
+      localStorage.setItem(PERMISSION_MODE_KEY, 'plan');
+    }
+  };
+
+  const openCodeSettings = () => {
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'claude-code' } }));
+  };
+
+  const requestNotifications = async () => {
+    const notifications = (window as any)['claude.web']?.DesktopNotifications;
+    if (!notifications?.requestAuthorization) {
+      openCodeSettings();
+      return;
+    }
+    try {
+      const currentStatus = notifications.getAuthorizationStatus
+        ? await notifications.getAuthorizationStatus()
+        : 'notDetermined';
+      const status = String(currentStatus) === 'notDetermined'
+        ? await notifications.requestAuthorization()
+        : currentStatus;
+      const enabled = ['authorized', 'provisional', 'ephemeral'].includes(String(status));
+      setNotificationsEnabled(enabled);
+      setSettingsFlag('codeNotifications', enabled);
+      if (!enabled && notifications.openNotificationSettings) {
+        await notifications.openNotificationSettings();
+      }
+    } catch {
+      openCodeSettings();
+    }
+  };
+
   const submitPrompt = async () => {
     const prompt = inputText.trim();
     if (!prompt || isSubmitting) return;
@@ -268,18 +344,26 @@ export default function CodePage() {
     <main className="epitaxy-root epitaxy-code-page select-none h-full w-full flex flex-col">
       <div className="h-full min-w-0 flex flex-col">
         <div className="epitaxy-code-scroll flex-1 min-h-0 relative isolate overflow-y-auto">
-          <div className="flex flex-col">
+          <div className="flex flex-col pb-[32px]">
             <CodeGreeting />
             <CodeActionCenter
               readSessionTimes={readSessionTimes}
               sessions={codeSessions}
               stats={stats}
+              statsLoading={statsLoading}
+              selectedFolder={selectedFolder}
+              notificationsEnabled={notificationsEnabled}
               onMarkAllRead={markAllRead}
               onOpenSession={openCodeSession}
               onToggleStar={toggleStar}
               onToggleArchive={toggleArchive}
               onRename={renameSession}
               onDelete={removeSession}
+              onChooseFolder={chooseFolder}
+              onChecklistPrompt={useChecklistPrompt}
+              onOpenCodeSettings={openCodeSettings}
+              onRequestNotifications={requestNotifications}
+              onOpenScheduled={() => navigate('/code/scheduled/new?template=pr-review-digest')}
             />
           </div>
         </div>

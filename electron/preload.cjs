@@ -6,6 +6,53 @@ const eipcChannel = (namespace, interfaceName, method) => (
 );
 
 const claudeWeb = {
+    CCDScheduledTasks: {
+        getAllScheduledTasks: () => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'CCDScheduledTasks', 'getAllScheduledTasks'),
+        ),
+        getScheduledTaskFileContent: (scheduledTaskId) => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'CCDScheduledTasks', 'getScheduledTaskFileContent'),
+            scheduledTaskId,
+        ),
+        createScheduledTask: (payload) => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'CCDScheduledTasks', 'createScheduledTask'),
+            payload,
+        ),
+        updateScheduledTask: (payload) => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'CCDScheduledTasks', 'updateScheduledTask'),
+            payload,
+        ),
+        updateScheduledTaskFileContent: (scheduledTaskId, content) => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'CCDScheduledTasks', 'updateScheduledTaskFileContent'),
+            scheduledTaskId,
+            content,
+        ),
+        updateScheduledTaskStatus: (scheduledTaskId, status) => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'CCDScheduledTasks', 'updateScheduledTaskStatus'),
+            scheduledTaskId,
+            status,
+        ),
+        removeApprovedPermission: (scheduledTaskId, permissionId) => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'CCDScheduledTasks', 'removeApprovedPermission'),
+            scheduledTaskId,
+            permissionId,
+        ),
+    },
+    DesktopNotifications: {
+        getAuthorizationStatus: () => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'DesktopNotifications', 'getAuthorizationStatus'),
+        ),
+        requestAuthorization: () => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'DesktopNotifications', 'requestAuthorization'),
+        ),
+        openNotificationSettings: () => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'DesktopNotifications', 'openNotificationSettings'),
+        ),
+        showNotification: (payload) => ipcRenderer.invoke(
+            eipcChannel('claude.web', 'DesktopNotifications', 'showNotification'),
+            payload,
+        ),
+    },
     FileSystem: {
         showInFolder: (filePath) => ipcRenderer.invoke(
             eipcChannel('claude.web', 'FileSystem', 'showInFolder'),

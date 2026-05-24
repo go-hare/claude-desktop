@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CornerDownLeft, ExternalLink, Folder, GitBranch, Square as SquareIcon } from 'lucide-react';
+import { CornerDownLeft, Folder, GitBranch, Laptop } from 'lucide-react';
 import CodeDraftClawd from '../CodeDraftClawd';
 import type { CodeEnvironmentKind } from './CodeEnvironmentSelector';
 import CodeModelEffortSelector, { type CodeEffort, type CodeModelOption } from './CodeModelEffortSelector';
@@ -25,7 +25,7 @@ type CodeComposerProps = {
 };
 
 function folderLabel(folder: string | null) {
-  if (!folder) return '选择文件夹';
+  if (!folder) return 'Select folder';
   return folder.split(/[\\/]/).filter(Boolean).pop() || folder;
 }
 
@@ -49,25 +49,19 @@ function ContextChips({
     return () => { cancelled = true; };
   }, [selectedFolder]);
 
-  const openInExplorer = () => {
-    if (!selectedFolder) return;
-    const api = (window as any).electronAPI;
-    if (api?.openFolder) api.openFolder(selectedFolder);
-  };
-
-  const envLabel = environment === 'local' ? '本地' : environment === 'ssh' ? 'SSH' : environment === 'bridge' ? 'Bridge' : '本地';
+  const envLabel = environment === 'local' ? 'Local' : environment === 'ssh' ? 'SSH' : environment === 'bridge' ? 'Bridge' : 'Local';
 
   return (
     <div className="flex items-center gap-g3 text-footnote text-t6">
       <Chip>
-        <SquareIcon size={12} strokeWidth={1.7} />
+        <Laptop size={12} strokeWidth={1.7} />
         <span>{envLabel}</span>
       </Chip>
       <button
         type="button"
         onClick={onChooseFolder}
         className="inline-flex h-[22px] items-center gap-g2 rounded-r5 border border-t3 bg-z0 px-p3 text-footnote text-t7 hover:bg-t2"
-        title={selectedFolder || '选择文件夹'}
+        title={selectedFolder || 'Select folder'}
       >
         <Folder size={12} strokeWidth={1.7} />
         <span className="max-w-[160px] truncate">{folderLabel(selectedFolder)}</span>
@@ -76,25 +70,13 @@ function ContextChips({
         <Chip>
           <GitBranch size={12} strokeWidth={1.7} />
           <span className="max-w-[120px] truncate">{git.branch}</span>
-          {git.dirty ? <span className="ml-[2px] inline-block h-[5px] w-[5px] rounded-full bg-extended-yellow" title="工作树有未提交改动" /> : null}
+          {git.dirty ? <span className="ml-[2px] inline-block h-[5px] w-[5px] rounded-full bg-extended-yellow" title="Uncommitted changes" /> : null}
         </Chip>
       ) : null}
       {git.isRepo ? (
         <Chip>
-          <SquareIcon size={11} strokeWidth={1.7} />
-          <span>工作树</span>
+          <span>Worktree</span>
         </Chip>
-      ) : null}
-      {selectedFolder ? (
-        <button
-          type="button"
-          onClick={openInExplorer}
-          className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-r5 border border-t3 bg-z0 text-t6 hover:bg-t2 hover:text-t8"
-          aria-label="在资源管理器中打开"
-          title="在资源管理器中打开"
-        >
-          <ExternalLink size={12} strokeWidth={1.7} />
-        </button>
       ) : null}
     </div>
   );
@@ -145,7 +127,7 @@ export default function CodeComposer({
                 event.preventDefault();
                 onSubmit();
               }}
-              placeholder="描述任务或提出问题"
+              placeholder="What would you like to work on in this project?"
               className="epitaxy-code-textarea"
               rows={1}
               disabled={isSubmitting}
@@ -154,7 +136,7 @@ export default function CodeComposer({
           <div className="flex self-end p-p7 pl-p3">
             <button
               type="button"
-              aria-label="发送"
+              aria-label="Send"
               onClick={onSubmit}
               disabled={isSubmitting || !inputText.trim()}
               className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-r5 text-t6 transition-colors hover:bg-t2 hover:text-t8 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"

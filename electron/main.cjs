@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, session, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
@@ -47,6 +47,7 @@ const EIPC_PREFIX = '$eipc_message$_ea5fa1fd-aa4e-4f73-a689-0f14f3e8be79_$_';
 const eipcChannel = (namespace, interfaceName, method) => (
     `${EIPC_PREFIX}${namespace}_$_${interfaceName}_$_${method}`
 );
+const ccdScheduledTasksPath = path.join(runtimePaths.codeSupportDir, 'ccd-scheduled-tasks.json');
 
 const CodeEditorType = {
     VSCode: 'vscode',
@@ -55,6 +56,50 @@ const CodeEditorType = {
     Windsurf: 'windsurf',
     Xcode: 'xcode',
 };
+
+function readCcdScheduledTasks() {
+    try {
+        if (!fs.existsSync(ccdScheduledTasksPath)) return [];
+        const parsed = JSON.parse(fs.readFileSync(ccdScheduledTasksPath, 'utf8'));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function writeCcdScheduledTasks(tasks) {
+    fs.mkdirSync(path.dirname(ccdScheduledTasksPath), { recursive: true });
+    fs.writeFileSync(ccdScheduledTasksPath, JSON.stringify(tasks, null, 2) + '\n', 'utf8');
+}
+
+function makeCcdScheduledTask(payload) {
+    const now = new Date().toISOString();
+    const id = `ccd-task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const name = String(payload?.name || payload?.title || 'Untitled routine').trim() || 'Untitled routine';
+    const prompt = String(payload?.prompt || '');
+    return {
+        id,
+        taskId: id,
+        scheduledTaskId: id,
+        name,
+        title: name,
+        prompt,
+        description: String(payload?.description || prompt || ''),
+        schedule: payload?.schedule,
+        cronExpression: payload?.cronExpression,
+        fireAt: payload?.fireAt,
+        model: payload?.model,
+        cwd: payload?.cwd,
+        useWorktree: payload?.useWorktree,
+        sourceBranch: payload?.sourceBranch,
+        permissionMode: payload?.permissionMode,
+        chromePermissionMode: payload?.chromePermissionMode,
+        disableJitter: payload?.disableJitter,
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+    };
+}
 
 const editorDefinitions = {
     [CodeEditorType.VSCode]: { protocol: 'vscode://', name: 'VS Code' },
@@ -504,6 +549,118 @@ ipcMain.handle(
 ipcMain.handle(
     eipcChannel('claude.web', 'LocalSessions', 'openInEditor'),
     (_, targetPath, editorType, sshConfig, line) => openInEditor(targetPath, editorType, sshConfig, line),
+);
+
+ipcMain.handle(
+    eipcChannel('claude.web', 'CCDScheduledTasks', 'getAllScheduledTasks'),
+    () => readCcdScheduledTasks(),
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'CCDScheduledTasks', 'getScheduledTaskFileContent'),
+    (_, scheduledTaskId) => {
+        const task = readCcdScheduledTasks().find((item) => (
+            item.id === scheduledTaskId || item.taskId === scheduledTaskId || item.scheduledTaskId === scheduledTaskId
+        ));
+        return task?.prompt || '';
+    },
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'CCDScheduledTasks', 'createScheduledTask'),
+    (_, payload) => {
+        const task = makeCcdScheduledTask(payload);
+        const tasks = [task, ...readCcdScheduledTasks()];
+        writeCcdScheduledTasks(tasks);
+        return task;
+    },
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'CCDScheduledTasks', 'updateScheduledTask'),
+    (_, payload) => {
+        const scheduledTaskId = payload?.scheduledTaskId || payload?.taskId || payload?.id;
+        if (!scheduledTaskId) return null;
+        let updated = null;
+        const tasks = readCcdScheduledTasks().map((item) => {
+            if (item.id !== scheduledTaskId && item.taskId !== scheduledTaskId && item.scheduledTaskId !== scheduledTaskId) return item;
+            updated = {
+                ...item,
+                ...payload,
+                id: item.id,
+                taskId: item.taskId || item.id,
+                scheduledTaskId: item.scheduledTaskId || item.id,
+                updatedAt: new Date().toISOString(),
+            };
+            return updated;
+        });
+        writeCcdScheduledTasks(tasks);
+        return updated;
+    },
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'CCDScheduledTasks', 'updateScheduledTaskFileContent'),
+    (_, scheduledTaskId, content) => {
+        const tasks = readCcdScheduledTasks().map((item) => (
+            item.id === scheduledTaskId || item.taskId === scheduledTaskId || item.scheduledTaskId === scheduledTaskId
+                ? { ...item, prompt: String(content || ''), updatedAt: new Date().toISOString() }
+                : item
+        ));
+        writeCcdScheduledTasks(tasks);
+    },
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'CCDScheduledTasks', 'updateScheduledTaskStatus'),
+    (_, scheduledTaskId, status) => {
+        const current = readCcdScheduledTasks();
+        const matches = (item) => (
+            item.id === scheduledTaskId || item.taskId === scheduledTaskId || item.scheduledTaskId === scheduledTaskId
+        );
+        const tasks = status === 'deleted'
+            ? current.filter((item) => !matches(item))
+            : current.map((item) => matches(item)
+                ? { ...item, enabled: status !== 'disabled', status, updatedAt: new Date().toISOString() }
+                : item);
+        writeCcdScheduledTasks(tasks);
+        return true;
+    },
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'CCDScheduledTasks', 'removeApprovedPermission'),
+    () => undefined,
+);
+
+function desktopNotificationAuthorizationStatus() {
+    return Notification.isSupported() ? 'authorized' : 'denied';
+}
+
+ipcMain.handle(
+    eipcChannel('claude.web', 'DesktopNotifications', 'getAuthorizationStatus'),
+    () => desktopNotificationAuthorizationStatus(),
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'DesktopNotifications', 'requestAuthorization'),
+    () => desktopNotificationAuthorizationStatus(),
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'DesktopNotifications', 'openNotificationSettings'),
+    () => {
+        if (process.platform === 'darwin') {
+            shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings.extension');
+            return true;
+        }
+        if (process.platform === 'win32') {
+            shell.openExternal('ms-settings:notifications');
+            return true;
+        }
+        return false;
+    },
+);
+ipcMain.handle(
+    eipcChannel('claude.web', 'DesktopNotifications', 'showNotification'),
+    (_, payload) => {
+        if (!Notification.isSupported() || !payload || typeof payload !== 'object') return false;
+        const { title, body } = payload;
+        new Notification({ title: title || 'Claude', body: body || '' }).show();
+        return true;
+    },
 );
 
 ipcMain.handle('get-installed-editors', (_, cwd) => getInstalledEditors(cwd));

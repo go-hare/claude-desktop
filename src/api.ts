@@ -861,6 +861,7 @@ export interface ThirdPartyInferenceConfig {
   inferenceGatewayAuthScheme: GatewayAuthScheme;
   inferenceGatewayHeaders?: Record<string, string>;
   inferenceGatewayHeadersText?: string;
+  inferenceModels?: Array<string | { name: string; supports1m?: boolean }>;
 }
 
 export interface ThirdPartyInferenceConfigResponse {

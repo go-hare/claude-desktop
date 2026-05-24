@@ -29,7 +29,7 @@ import { bridgeApiBase } from './bridgeConfig';
 import GitBashRequiredModal from './components/GitBashRequiredModal';
 import Auth from './components/Auth';
 import Onboarding from './components/Onboarding';
-import SettingsPage from './components/SettingsPage';
+import SettingsPage, { SETTINGS_TABS, type SettingsTab } from './components/SettingsPage';
 import UpgradePlan from './components/UpgradePlan';
 import DocumentPanel from './components/DocumentPanel';
 import ArtifactsPanel from './components/ArtifactsPanel';
@@ -73,6 +73,10 @@ const Tooltip = ({ children, text, shortcut }: { children: React.ReactNode; text
     </div>
   );
 };
+
+const isSettingsTab = (value: unknown): value is SettingsTab => (
+  typeof value === 'string' && (SETTINGS_TABS as readonly string[]).includes(value)
+);
 
 const ChatHeader = ({
   title,
@@ -1069,6 +1073,7 @@ const Layout = () => {
   const [codeTextSize, setCodeTextSize] = useState<CodeTextSize>(getInitialCodeTextSize);
   const [codeSidePane, setCodeSidePane] = useState<CodeSidePane | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('connection');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
   const [needsGitBash, setNeedsGitBash] = useState(false);
@@ -1125,8 +1130,10 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isCodeSection = location.pathname.startsWith('/code');
+  const isCodeScheduledRoute = location.pathname === '/code/scheduled'
+    || location.pathname === '/code/scheduled/new';
   const isCodeSessionRoute = /^\/code\/[^/]+/.test(location.pathname)
-    && location.pathname !== '/code/scheduled'
+    && !isCodeScheduledRoute
     && location.pathname !== '/code/customize';
   const activeCodeConversationId = isCodeSessionRoute ? location.pathname.split('/')[2] : null;
 
@@ -1239,6 +1246,17 @@ const Layout = () => {
     const handler = () => { setShowUpgrade(true); setShowSettings(false); };
     window.addEventListener('open-upgrade', handler);
     return () => window.removeEventListener('open-upgrade', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const requestedTab = (event as CustomEvent<{ tab?: unknown }>).detail?.tab;
+      setSettingsTab(isSettingsTab(requestedTab) ? requestedTab : 'connection');
+      setShowSettings(true);
+      setShowUpgrade(false);
+    };
+    window.addEventListener('open-settings', handler);
+    return () => window.removeEventListener('open-settings', handler);
   }, []);
 
   // Collapse sidebar on Customize page (Removed per user request)
@@ -1582,7 +1600,7 @@ const Layout = () => {
           isCollapsed={isSidebarCollapsed}
           toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           refreshTrigger={refreshTrigger}
-          onOpenSettings={() => { setShowSettings(true); setShowUpgrade(false); }}
+          onOpenSettings={() => { setSettingsTab('connection'); setShowSettings(true); setShowUpgrade(false); }}
           onOpenUpgrade={() => { setShowUpgrade(true); setShowSettings(false); }}
           onCloseOverlays={() => { setShowSettings(false); setShowUpgrade(false); }}
           tunerConfig={tunerConfig}
@@ -1620,7 +1638,7 @@ const Layout = () => {
               )}
 
               {showSettings ? (
-                <SettingsPage onClose={() => setShowSettings(false)} />
+                <SettingsPage initialTab={settingsTab} onClose={() => setShowSettings(false)} />
               ) : showUpgrade ? (
                 <UpgradePlan onClose={() => setShowUpgrade(false)} />
               ) : location.pathname === '/task/new' || location.pathname === '/cowork' ? (
@@ -1636,7 +1654,7 @@ const Layout = () => {
                 <ScheduledPage onNewTask={() => navigate('/task/new')} />
               ) : location.pathname === '/scheduled' ? (
                 <ScheduledPage onNewTask={() => navigate('/task/new')} />
-              ) : location.pathname === '/code/scheduled' ? (
+              ) : isCodeScheduledRoute ? (
                 <ScheduledPage onNewTask={() => navigate('/code')} />
               ) : location.pathname === '/code/customize' ? (
                 <CustomizePage onCreateWithClaude={() => {
@@ -1765,6 +1783,7 @@ const App = () => {
         <Route path="/code" element={<Layout />} />
         <Route path="/code/:id" element={<Layout />} />
         <Route path="/code/scheduled" element={<Layout />} />
+        <Route path="/code/scheduled/new" element={<Layout />} />
         <Route path="/code/customize" element={<Layout />} />
         <Route path="/chat/:id" element={<Navigate to="/task/new" replace />} />
         <Route path="*" element={<Navigate to="/task/new" replace />} />

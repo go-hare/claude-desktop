@@ -6,8 +6,10 @@ import {
   ExternalLink,
   Monitor,
   MousePointer2,
+  Shuffle,
   Search,
   Shield,
+  X,
 } from 'lucide-react';
 import {
   getThirdPartyInferenceConfig,
@@ -20,32 +22,53 @@ import type {
   ThirdPartyInferenceConfig,
 } from '../api';
 
+export const SETTINGS_TABS = [
+  'connection',
+  'sandbox',
+  'telemetry',
+  'limits',
+  'plugins',
+  'egress',
+  'general',
+  'privacy',
+  'capabilities',
+  'connectors',
+  'claude-code',
+  'cowork',
+  'desktop',
+  'desktop-extensions',
+  'desktop-developer',
+] as const;
+
+export type SettingsTab = typeof SETTINGS_TABS[number];
+
 interface SettingsPageProps {
   onClose: () => void;
+  initialTab?: SettingsTab;
 }
 
-type Tab =
-  | 'connection'
-  | 'sandbox'
-  | 'telemetry'
-  | 'limits'
-  | 'plugins'
-  | 'egress'
-  | 'general'
-  | 'privacy'
-  | 'capabilities'
-  | 'connectors'
-  | 'claude-code'
-  | 'cowork'
-  | 'desktop'
-  | 'desktop-extensions'
-  | 'desktop-developer';
-
 const WORK_OPTIONS = [
-  '', '软件工程', '产品管理', '数据科学', '市场营销', '设计', '研究', '教育', '金融', '法律', '医疗健康', '其他',
+  'Product Management',
+  'Engineering',
+  'Human Resources',
+  'Finance',
+  'Marketing',
+  'Sales',
+  'Operations',
+  'Data Science',
+  'Design',
+  'Legal',
+  'Other',
 ];
 
-const navGroups: Array<{ title?: string; items: Array<{ id: Tab; label: string; badge?: string }> }> = [
+const CHAT_FONT_OPTIONS = [
+  { value: 'default', label: 'Anthropic Serif', userFont: '--font-sans-serif', claudeFont: '--font-serif' },
+  { value: 'sans', label: 'Anthropic Sans', userFont: '--font-ui', claudeFont: '--font-ui' },
+  { value: 'system', label: 'System', userFont: '--font-system', claudeFont: '--font-system' },
+  { value: 'dyslexia', label: 'Dyslexic friendly', userFont: '--font-dyslexia', claudeFont: '--font-dyslexia' },
+];
+
+const navGroups: Array<{ title?: string; items: Array<{ id: SettingsTab; label: string; badge?: string }> }> = [
   {
     items: [
       { id: 'connection', label: 'Connection' },
@@ -84,6 +107,7 @@ const defaultInferenceConfig: ThirdPartyInferenceConfig = {
   inferenceGatewayAuthScheme: 'bearer',
   inferenceGatewayHeaders: {},
   inferenceGatewayHeadersText: '',
+  inferenceModels: [],
 };
 
 function parseHeadersText(text?: string): Record<string, string> {
@@ -111,7 +135,43 @@ function inferenceConfigForJson(config: ThirdPartyInferenceConfig) {
     inferenceGatewayAuthScheme: config.inferenceGatewayAuthScheme,
   };
   if (Object.keys(headers).length > 0) next.inferenceGatewayHeaders = headers;
+  if (config.inferenceModels?.length) next.inferenceModels = config.inferenceModels;
   return next;
+}
+
+function modelName(model: NonNullable<ThirdPartyInferenceConfig['inferenceModels']>[number]) {
+  return typeof model === 'string' ? model : String(model?.name || '');
+}
+
+function modelSupports1m(model: NonNullable<ThirdPartyInferenceConfig['inferenceModels']>[number]) {
+  return typeof model === 'string' ? /\[1m\]$/i.test(model) : !!model?.supports1m;
+}
+
+function normalizeInferenceModels(models: ThirdPartyInferenceConfig['inferenceModels']) {
+  return (models || [])
+    .map((model) => {
+      const rawName = modelName(model).trim();
+      if (!rawName) return null;
+      const suffixMatch = rawName.match(/^(.+?)\[1m\]$/i);
+      const name = suffixMatch ? suffixMatch[1].trim() : rawName;
+      return { name, supports1m: suffixMatch ? true : modelSupports1m(model) };
+    })
+    .filter(Boolean) as Array<{ name: string; supports1m: boolean }>;
+}
+
+function formatInferenceModelsText(models: ThirdPartyInferenceConfig['inferenceModels']) {
+  return normalizeInferenceModels(models)
+    .map(model => `${model.name}${model.supports1m ? ' [1m]' : ''}`)
+    .join('\n');
+}
+
+function parseInferenceModelsText(text: string) {
+  return normalizeInferenceModels(
+    text
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean),
+  );
 }
 
 const flagDefaults: Record<string, boolean> = {
@@ -135,6 +195,9 @@ const flagDefaults: Record<string, boolean> = {
   previewPersistSession: false,
   createPullRequests: false,
   createDraftPullRequests: true,
+  codeNotifications: false,
+  codePermissionRequests: false,
+  securityScanEmails: false,
   coworkMemory: true,
   launchAtLogin: false,
   extensionAutoUpdates: true,
@@ -149,21 +212,40 @@ function readSettingsFlags() {
   }
 }
 
-const SettingsPage = ({ onClose }: SettingsPageProps) => {
-  const [tab, setTab] = useState<Tab>('connection');
+function normalizeChatFont(value: string | null | undefined) {
+  return value === 'dyslexic' ? 'dyslexia' : value || 'default';
+}
+
+function normalizeTheme(value: string | null | undefined) {
+  return value === 'system' ? 'auto' : value || 'auto';
+}
+
+function getStoredChatFont() {
+  if (typeof window === 'undefined') return 'default';
+  return normalizeChatFont(
+    localStorage.getItem('customStyles:chatFont') ||
+    localStorage.getItem('chat_font') ||
+    'default'
+  );
+}
+
+const SettingsPage = ({ onClose, initialTab = 'connection' }: SettingsPageProps) => {
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [profile, setProfile] = useState<any>(null);
+  const [avatar, setAvatar] = useState(0);
   const [fullName, setFullName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [workFunction, setWorkFunction] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'auto');
-  const [chatFont, setChatFont] = useState(localStorage.getItem('chat_font') || 'default');
+  const [theme, setTheme] = useState(normalizeTheme(localStorage.getItem('theme')));
+  const [chatFont, setChatFont] = useState(getStoredChatFont);
   const [branchPrefix, setBranchPrefix] = useState(localStorage.getItem('cc_branch_prefix') || 'claude');
   const [worktreeLocation, setWorktreeLocation] = useState(localStorage.getItem('cc_worktree_location') || 'default');
   const [coworkGlobalInstructions, setCoworkGlobalInstructions] = useState(localStorage.getItem('cowork_global_instructions') || '');
   const [editingCoworkInstructions, setEditingCoworkInstructions] = useState(false);
   const [showExtensionAdvanced, setShowExtensionAdvanced] = useState(false);
   const [inferenceConfig, setInferenceConfig] = useState<ThirdPartyInferenceConfig>(defaultInferenceConfig);
+  const [inferenceModelsText, setInferenceModelsText] = useState('');
   const [inferenceConfigPath, setInferenceConfigPath] = useState('');
   const [inferenceLoading, setInferenceLoading] = useState(false);
   const [inferenceSaving, setInferenceSaving] = useState(false);
@@ -176,7 +258,13 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
   }));
 
   const isSelfHosted = localStorage.getItem('user_mode') === 'selfhosted';
-  const initials = (fullName || profile?.nickname || 'U').trim().charAt(0).toUpperCase();
+  const initials = (fullName || displayName || profile?.nickname || 'U').trim().charAt(0).toUpperCase();
+  const settingsMode = theme === 'dark'
+    || (theme === 'auto'
+      && typeof window !== 'undefined'
+      && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    ? 'dark'
+    : 'light';
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -185,12 +273,13 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           ? { ...JSON.parse(localStorage.getItem('user') || '{}'), ...JSON.parse(localStorage.getItem('user_profile') || '{}') }
           : await getUserProfile().then((data: any) => data?.user || data);
         setProfile(p);
+        setAvatar(Number(p?.avatar || 0));
         setFullName(p?.full_name || p?.nickname || '');
         setDisplayName(p?.display_name || p?.nickname || '');
         setWorkFunction(p?.work_function || '');
         setInstructions(p?.personal_preferences || p?.conversation_preferences || '');
-        setTheme(p?.theme || localStorage.getItem('theme') || 'auto');
-        setChatFont(p?.chat_font || localStorage.getItem('chat_font') || 'default');
+        setTheme(normalizeTheme(p?.theme || localStorage.getItem('theme')));
+        setChatFont(normalizeChatFont(p?.chat_font || getStoredChatFont()));
       } catch {
         // Settings must remain usable when the local bridge is offline.
       }
@@ -200,16 +289,23 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
   }, [isSelfHosted]);
 
   useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
     let mounted = true;
     setInferenceLoading(true);
     getThirdPartyInferenceConfig()
       .then((data) => {
         if (!mounted) return;
+        const inferenceModels = normalizeInferenceModels(data.config.inferenceModels);
         setInferenceConfig({
           ...defaultInferenceConfig,
           ...data.config,
+          inferenceModels,
           inferenceGatewayHeadersText: data.config.inferenceGatewayHeadersText || formatHeadersText(data.config.inferenceGatewayHeaders),
         });
+        setInferenceModelsText(formatInferenceModelsText(inferenceModels));
         setInferenceConfigPath(data.configPath);
       })
       .catch((error) => {
@@ -223,15 +319,25 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
     };
   }, []);
 
-  const saveProfile = async () => {
+  const saveProfile = async (overrides: Partial<{
+    avatar: number;
+    full_name: string;
+    display_name: string;
+    work_function: string;
+    personal_preferences: string;
+    conversation_preferences: string;
+    theme: string;
+    chat_font: string;
+  }> = {}) => {
     const payload = {
-      full_name: fullName,
-      display_name: displayName,
-      work_function: workFunction,
-      personal_preferences: instructions,
-      conversation_preferences: instructions,
-      theme,
-      chat_font: chatFont,
+      full_name: overrides.full_name ?? fullName,
+      display_name: overrides.display_name ?? displayName,
+      work_function: overrides.work_function ?? workFunction,
+      personal_preferences: overrides.personal_preferences ?? instructions,
+      conversation_preferences: overrides.conversation_preferences ?? instructions,
+      theme: overrides.theme ?? theme,
+      chat_font: overrides.chat_font ?? chatFont,
+      avatar: overrides.avatar ?? avatar,
     };
 
     if (isSelfHosted) {
@@ -247,23 +353,31 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
     const next = { ...flags, [key]: value };
     setFlags(next);
     localStorage.setItem('settings_flags', JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent('settingsFlagsUpdated', { detail: next }));
   };
 
   const applyTheme = (value: string) => {
-    setTheme(value);
-    localStorage.setItem('theme', value);
+    const next = normalizeTheme(value);
+    setTheme(next);
+    localStorage.setItem('theme', next);
     const root = document.documentElement;
-    const dark = value === 'dark' || (value === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const dark = next === 'dark' || (next === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    root.setAttribute('data-mode', dark ? 'dark' : 'light');
     root.classList.toggle('dark', dark);
-    updateUserProfile({ theme: value }).catch(() => {});
+    saveProfile({ theme: next }).catch(() => {});
   };
 
   const applyChatFont = (value: string) => {
-    setChatFont(value);
-    localStorage.setItem('chat_font', value);
-    document.documentElement.setAttribute('data-chat-font', value);
-    updateUserProfile({ chat_font: value }).catch(() => {});
+    const next = normalizeChatFont(value);
+    const option = CHAT_FONT_OPTIONS.find(item => item.value === next) || CHAT_FONT_OPTIONS[0];
+    setChatFont(next);
+    localStorage.setItem('customStyles:chatFont', next);
+    localStorage.setItem('chat_font', next);
+    document.documentElement.style.setProperty('--font-user-message', `var(${option.userFont})`);
+    document.documentElement.style.setProperty('--font-claude-response', `var(${option.claudeFont})`);
+    document.documentElement.setAttribute('data-chat-font', next);
+    saveProfile({ chat_font: next }).catch(() => {});
   };
 
   const updateInferenceConfig = (patch: Partial<ThirdPartyInferenceConfig>) => {
@@ -276,15 +390,20 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
     setInferenceStatus('');
     try {
       const headers = parseHeadersText(inferenceConfig.inferenceGatewayHeadersText);
+      const inferenceModels = parseInferenceModelsText(inferenceModelsText);
       const data = await saveThirdPartyInferenceConfig({
         ...inferenceConfig,
         inferenceGatewayHeaders: headers,
+        inferenceModels,
       });
+      const normalizedModels = normalizeInferenceModels(data.config.inferenceModels);
       setInferenceConfig({
         ...defaultInferenceConfig,
         ...data.config,
+        inferenceModels: normalizedModels,
         inferenceGatewayHeadersText: data.config.inferenceGatewayHeadersText || formatHeadersText(data.config.inferenceGatewayHeaders),
       });
+      setInferenceModelsText(formatInferenceModelsText(normalizedModels));
       setInferenceConfigPath(data.configPath);
       setInferenceStatus('已应用到本机 Claude-3p 配置。');
     } catch (error: any) {
@@ -313,39 +432,49 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
       case 'desktop-developer': return renderDeveloper();
     }
   };
+  const headerTitle = tab === 'connection' ? 'Configure third-party inference' : 'Settings';
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-screen w-screen flex-col overflow-hidden bg-[#f9f7f3] text-claude-text dark:bg-[#1a1917]">
+    <div
+      data-color-version="v2"
+      data-theme="claude"
+      data-mode={settingsMode}
+      className="epitaxy-root fixed inset-0 z-[100] flex h-screen w-screen flex-col overflow-hidden"
+      style={{
+        backgroundColor: 'var(--z0)',
+        color: 'var(--t9)',
+      } as React.CSSProperties}
+    >
       <div
-        className="absolute inset-x-0 top-0 z-10 flex h-12 items-center gap-3 border-b border-[#ddd8cf] bg-[#f9f7f3] pl-24 pr-4 dark:border-white/10 dark:bg-[#1a1917]"
+        className="absolute inset-x-0 top-0 z-10 flex h-[50px] items-center gap-3 border-b border-t3 bg-z0 px-4"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
+        <div className="text-sm font-semibold text-t9">{headerTitle}</div>
+        <div className="flex-1" />
         <button
           type="button"
-          aria-label="返回设置"
+          aria-label="Close settings"
           onClick={onClose}
-          className="flex h-8 items-center gap-2 rounded-md px-2 text-[14px] text-claude-textSecondary hover:bg-[#f2efea] hover:text-claude-text dark:hover:bg-white/10"
+          className="flex size-8 items-center justify-center rounded-md text-t6 hover:bg-t2 hover:text-t9"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          <ArrowLeft size={16} />
-          <span>设置</span>
+          <X size={16} />
         </button>
-        <div className="text-[15px] font-semibold text-claude-text">Configure third-party inference</div>
       </div>
 
-      <div className="mx-auto flex h-full w-full max-w-[1080px] min-w-0 pt-12">
-        <aside className="w-[224px] shrink-0 border-r border-[#e5e1d8] pr-1 pt-8 dark:border-white/10">
-          <div className="px-3 pb-4">
-            <div className="flex h-11 items-center gap-2 rounded-lg border border-[#d8d2c8] bg-white px-3 text-claude-textSecondary shadow-sm dark:border-white/10 dark:bg-white/5">
-              <Search size={17} />
-              <span className="text-[14px]">Search settings</span>
+      <div className="flex h-full min-h-0 w-full pt-[50px]">
+        <aside className="flex w-[200px] shrink-0 flex-col gap-0.5 overflow-auto border-r border-t3 px-2 py-3.5">
+          <div className="px-2 pb-1.5">
+            <div className="flex h-8 items-center gap-2 rounded-md border border-t3 bg-z0 px-2.5 text-t6">
+              <Search size={12} />
+              <span className="text-xs">Search settings</span>
             </div>
           </div>
-          <div className="space-y-7">
+          <div className="space-y-3">
             {navGroups.map((group, groupIndex) => (
               <div key={group.title || groupIndex}>
-                {group.title && <div className="px-3 pb-3 text-[14px] text-claude-textSecondary">{group.title}</div>}
-                <div className="space-y-1">
+                {group.title && <div className="px-2 pb-1.5 pt-2 text-[11px] font-medium uppercase tracking-wide text-t6">{group.title}</div>}
+                <div className="space-y-0.5">
                   {group.items.map(item => (
                     <button
                       key={item.id}
@@ -354,12 +483,12 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
                         setTab(item.id);
                         setShowExtensionAdvanced(false);
                       }}
-                      className={`flex h-9 w-[220px] items-center rounded-lg px-3 text-left text-[15px] outline-none transition-colors focus-visible:bg-[#f2efea] ${
-                        tab === item.id ? 'bg-[#f2efea] text-claude-text' : 'text-claude-text hover:bg-[#f7f4ee]'
+                      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs outline-none transition-colors ${
+                        tab === item.id ? 'bg-t2 font-medium text-t9' : 'font-normal text-t9 hover:bg-t2'
                       }`}
                     >
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.badge && <span className="rounded-md bg-claude-hover px-1.5 py-0.5 text-[11px]">{item.badge}</span>}
+                      {item.badge && <span className="rounded-md bg-t2 px-1.5 py-0.5 text-[10px] text-t6">{item.badge}</span>}
                     </button>
                   ))}
                 </div>
@@ -369,7 +498,7 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
         </aside>
 
         <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="max-w-[980px] px-10 pb-32 pt-8">
+          <div className="px-7 py-6">
             {renderCurrentPage()}
           </div>
         </main>
@@ -486,6 +615,22 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
               placeholder="X-Header-Name: value"
               spellCheck={false}
             />
+
+            <FieldLabel
+              title="Inference models"
+              description="One model per line. Add [1m] after a model name to mark 1M-context support."
+            />
+            <textarea
+              value={inferenceModelsText}
+              onChange={event => {
+                const value = event.target.value;
+                setInferenceModelsText(value);
+                updateInferenceConfig({ inferenceModels: parseInferenceModelsText(value) });
+              }}
+              className="min-h-[92px] w-full rounded-xl border border-[#d9d4ca] bg-white px-4 py-3 font-mono text-[13px] outline-none focus:border-[#c7c1b6]"
+              placeholder={'claude-sonnet-4-6\nclaude-opus-4-5 [1m]'}
+              spellCheck={false}
+            />
           </div>
           {inferenceConfigPath && (
             <div className="pt-2 text-[12px] text-claude-textSecondary">
@@ -538,68 +683,128 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
   }
 
   function renderGeneral() {
+    const randomizeAvatar = () => {
+      const next = Math.floor(Math.random() * 72) + 1;
+      setAvatar(next);
+      saveProfile({ avatar: next });
+    };
+
+    const clearAvatar = () => {
+      setAvatar(0);
+      saveProfile({ avatar: 0 });
+    };
+
     return (
-      <div className="space-y-12">
-        <Section title="个人资料" prominent>
-          <div className="space-y-7">
-            <div className="grid grid-cols-[1fr_360px] gap-5">
-              <div>
-                <div className="mb-2 text-[15px] font-medium">全名</div>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#d8d2c8] bg-[#2f2f2f] text-[16px] font-medium text-white">
-                    {initials}
-                  </div>
-                  <TextInput wide value={fullName} onChange={setFullName} onBlur={saveProfile} placeholder="例如阿尔伯特·爱因斯坦" />
-                </div>
-              </div>
-              <div>
-                <div className="mb-2 text-[15px] font-medium">Claude 应该怎么称呼你？ <span className="text-[#b9382c]">*</span></div>
-                <TextInput wide value={displayName} onChange={setDisplayName} onBlur={saveProfile} placeholder="例如阿尔伯特·艾尔" />
-              </div>
+      <main className="max-w-[720px]">
+        <SettingsGroup title="Profile">
+          <SettingsRow
+            label="Avatar"
+            control={
+              <AvatarControl
+                avatar={avatar}
+                initials={initials}
+                onRandomize={randomizeAvatar}
+                onClear={clearAvatar}
+              />
+            }
+          />
+          <SettingsRow
+            label="Full name"
+            control={
+              <CompactTextInput
+                ariaLabel="Full name"
+                value={fullName}
+                onChange={setFullName}
+                onSave={(value) => saveProfile({ full_name: value })}
+              />
+            }
+          />
+          <SettingsRow
+            label="What should Claude call you?"
+            control={
+              <CompactTextInput
+                ariaLabel="Display name"
+                value={displayName}
+                onChange={setDisplayName}
+                onSave={(value) => saveProfile({ display_name: value })}
+              />
+            }
+          />
+          <SettingsRow
+            label="What best describes your work?"
+            control={
+              <CompactSelect
+                value={workFunction}
+                placeholder="Select work function"
+                onChange={(value) => {
+                  setWorkFunction(value);
+                  saveProfile({ work_function: value });
+                }}
+                options={WORK_OPTIONS.map(value => ({ value, label: value }))}
+              />
+            }
+          />
+          <div className="flex flex-col gap-2 py-3">
+            <label htmlFor="conversation-preferences" className="text-sm text-t9">Instructions for Claude</label>
+            <div className="text-xs leading-normal text-t6">
+              Claude will reference this in chats and Cowork, provided it complies with Anthropic's usage guidelines.
             </div>
-
-            <div>
-              <div className="mb-2 text-[15px] font-medium">以下哪项最能描述你的工作？</div>
-              <Select fullWidth value={workFunction} onChange={v => { setWorkFunction(v); setTimeout(saveProfile, 0); }} options={WORK_OPTIONS.map(v => ({ value: v, label: v || '选择你的工作职能' }))} />
-            </div>
-
-            <div>
-              <div className="mb-2 text-[15px] font-medium">Claude 回复时应考虑哪些个人偏好？</div>
-              <div className="mb-3 text-[13px] text-claude-textSecondary">你的偏好将适用于 Anthropic 指南内的所有对话。</div>
-              <textarea value={instructions} onChange={e => setInstructions(e.target.value)} onBlur={saveProfile} rows={4} className="w-full rounded-xl border border-[#d9d4ca] bg-white px-4 py-3 text-[14px] outline-none focus:border-[#c7c1b6]" placeholder="例如解释简明扼要" />
-            </div>
+            <textarea
+              id="conversation-preferences"
+              value={instructions}
+              onChange={event => setInstructions(event.target.value)}
+              onBlur={() => saveProfile({
+                personal_preferences: instructions,
+                conversation_preferences: instructions,
+              })}
+              onKeyDown={event => {
+                if (event.key === 'Escape') {
+                  setInstructions(profile?.conversation_preferences || profile?.personal_preferences || '');
+                  event.currentTarget.blur();
+                }
+              }}
+              rows={3}
+              className="min-h-[5.5rem] max-h-40 resize-y rounded-md border border-t3 bg-z0 px-3 py-2 text-sm leading-5 text-t9 outline-none transition-colors placeholder:text-t6 focus:border-[var(--accent)]"
+              placeholder="e.g. explain concepts as directly as possible"
+            />
           </div>
-        </Section>
+        </SettingsGroup>
 
-        <Section title="通知" prominent>
-          <ToggleRow compact label="响应完成" description="当 Claude 完成回复时收到通知。对于工具调用和研究等长时间运行的任务最有用。" flagKey="responseCompletions" />
-          <ToggleRow compact label="Dispatch 消息" description="当 Claude 在 Dispatch 中向你发送消息时，在手机上收到推送通知。" flagKey="dispatchMessages" />
-        </Section>
+        <SettingsGroup title="Preferences">
+          <SettingsRow
+            label="Appearance"
+            control={
+              <SegmentedIconControl
+                value={theme}
+                options={[
+                  { value: 'auto', label: 'System' },
+                  { value: 'light', label: 'Light' },
+                  { value: 'dark', label: 'Dark' },
+                ]}
+                onChange={applyTheme}
+              />
+            }
+          />
+          <SettingsRow
+            label="Chat font"
+            control={
+              <CompactSelect
+                value={chatFont}
+                onChange={applyChatFont}
+                options={CHAT_FONT_OPTIONS.map(({ value, label }) => ({ value, label }))}
+              />
+            }
+          />
+        </SettingsGroup>
 
-        <Section title="外观" prominent>
-          <div className="space-y-8">
-            <div>
-              <div className="mb-4 text-[15px] font-medium">外观模式</div>
-              <ThemeCards value={theme} onChange={applyTheme} />
-            </div>
-
-            <div>
-              <div className="mb-2 text-[15px] font-medium">背景动画</div>
-              <div className="flex gap-4">
-                <AnimationCard label="已启用" />
-                <AnimationCard active label="自动" />
-                <AnimationCard label="已禁用" />
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 text-[15px] font-medium">聊天字体</div>
-              <ChatFontCards value={chatFont} onChange={applyChatFont} />
-            </div>
-          </div>
-        </Section>
-
-      </div>
+        <SettingsGroup title="Notifications">
+          <ToggleRow compact label="Response completions" description="Get notified when Claude has finished a response. Useful for long-running tasks." flagKey="responseCompletions" />
+          <ToggleRow compact label="Code notifications" description="Claude can choose to notify you about important updates from a Code session." flagKey="codeNotifications" />
+          <ToggleRow compact label="Code permission requests" description="Get a push notification when Claude needs your approval to run a command in a Code session." flagKey="codePermissionRequests" />
+          <ToggleRow compact label="Security scan emails" description="Get an email when a Claude Code security scan finishes." flagKey="securityScanEmails" />
+          <ToggleRow compact label="Dispatch messages" description="Get a push notification on your phone when Claude messages you in Dispatch." flagKey="dispatchMessages" />
+        </SettingsGroup>
+      </main>
     );
   }
 
@@ -746,6 +951,9 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           <ToggleRow label="允许绕过权限模式" description="绕过所有权限检查，让 Claude 不间断地工作。这对于修复 lint 错误或生成样板代码等工作流程非常有效。让 Claude 运行任意命令是有风险的，可能会导致数据丢失、系统损坏或数据泄露（例如，通过提示注入攻击）。" flagKey="bypassPermissions" />
           <ToggleRow label="允许自动权限模式" description="自动模式让 Claude 在编码会话期间处理权限决策，因此开发人员可以运行更长的任务，而不会被 Claude 请求手动批准的中断。自动模式还包括针对提示注入的额外保护措施。" flagKey="autoPermissions" />
           <ToggleRow label="需要注意时提醒我" description="当 Claude 需要你的注意且应用未聚焦时，让 Dock 图标跳动或闪烁任务栏。" flagKey="dockAttention" />
+          <ToggleRow label="Code notifications" description="Claude can choose to notify you about important updates from a Code session." flagKey="codeNotifications" />
+          <ToggleRow label="Code permission requests" description="Get a push notification when Claude needs your approval to run a command in a Code session." flagKey="codePermissionRequests" />
+          <ToggleRow label="Security scan emails" description="Get an email when a Claude Code security scan finishes." flagKey="securityScanEmails" />
           <Row label="工作树位置" description="在哪里存储隔离编码会话的 git 工作树" control={<Select value={worktreeLocation} onChange={v => { setWorktreeLocation(v); localStorage.setItem('cc_worktree_location', v); }} options={[{ value: 'default', label: '项目内（.claude/worktrees）' }, { value: 'custom', label: '自定义...' }]} />} />
           <Row label="分支前缀" description="添加到每个工作树分支名称开头的前缀" control={<TextInput value={branchPrefix} onChange={v => { setBranchPrefix(v); localStorage.setItem('cc_branch_prefix', v); }} />} />
           <ToggleRow label="预览" description="Claude 可以启动开发服务器，打开实时预览，并通过屏幕截图、快照和 DOM 检查来验证代码更改。" flagKey="previewEnabled" />
@@ -1013,10 +1221,19 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
     return <Row compact={compact} label={label} description={description} control={<Toggle checked={!!flags[flagKey]} onChange={value => setFlag(flagKey, value)} />} />;
   }
 
+  function SettingsGroup({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+      <section className="mb-8 rounded-xl border border-t3 bg-z0 p-4">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-t9">{title}</h2>
+        <div className="divide-y divide-t3">{children}</div>
+      </section>
+    );
+  }
+
   function Section({ title, children, prominent: _prominent }: { title: string; children: React.ReactNode; prominent?: boolean }) {
     return (
-      <section className="border-b border-[#ddd8cf] pb-8 last:border-0 dark:border-white/10">
-        <h3 className="mb-6 text-[18px] font-semibold">{title}</h3>
+      <section className="rounded-xl border border-t3 bg-z0 p-4">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-t9">{title}</h3>
         <div className="space-y-4">{children}</div>
       </section>
     );
@@ -1024,12 +1241,23 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
 
   function Row({ label, description, control, compact }: { label: string; description?: string; control: React.ReactNode; compact?: boolean }) {
     return (
-      <div className={`flex items-start justify-between gap-10 ${compact ? 'py-0' : 'py-1'}`}>
+      <SettingsRow
+        label={label}
+        description={description}
+        compact={compact}
+        control={control}
+      />
+    );
+  }
+
+  function SettingsRow({ label, description, control, compact }: { label: string; description?: string; control: React.ReactNode; compact?: boolean }) {
+    return (
+      <div className={`flex items-start justify-between gap-10 ${compact ? 'py-3' : 'py-3'}`}>
         <div className="min-w-0">
-          <div className="text-[15px] font-medium">{label}</div>
-          {description && <div className="mt-2 max-w-[640px] text-[13px] leading-6 text-claude-textSecondary">{description}</div>}
+          <div className="text-sm text-t9">{label}</div>
+          {description && <div className="mt-1 max-w-[430px] text-xs leading-normal text-t6">{description}</div>}
         </div>
-        <div className={`shrink-0 ${compact ? 'pt-2' : 'pt-0.5'}`}>{control}</div>
+        <div className="shrink-0">{control}</div>
       </div>
     );
   }
@@ -1090,57 +1318,138 @@ const Select = ({
   </select>
 );
 
-const ThemeCards = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
-  <div className="flex gap-4">
-    {[
-      { value: 'light', label: '浅色模式', classes: 'bg-[#f5f3ee]' },
-      { value: 'auto', label: '汽车', classes: 'bg-[#3d3c39]' },
-      { value: 'dark', label: '深色模式', classes: 'bg-[#4a4844]' },
-    ].map(card => (
-      <button key={card.value} type="button" onClick={() => onChange(card.value)} className="flex flex-col items-center gap-3">
-        <div className={`h-[96px] w-[126px] rounded-xl border ${value === card.value ? 'border-[#4f8df6] shadow-[0_0_0_1px_#4f8df6]' : 'border-[#d9d4ca]'} ${card.classes} p-3`}>
-          <div className="flex h-full flex-col justify-between">
-            <div className="flex justify-end">
-              <div className={`h-3 w-10 rounded-full ${card.value === 'light' ? 'bg-white/80' : 'bg-black/45'}`} />
-            </div>
-            <div className="space-y-2">
-              <div className={`h-2 w-12 rounded-full ${card.value === 'light' ? 'bg-[#d7d2c8]' : 'bg-white/25'}`} />
-              <div className={`h-2 w-16 rounded-full ${card.value === 'light' ? 'bg-[#d7d2c8]' : 'bg-white/25'}`} />
-            </div>
-            <div className={`h-7 rounded-xl ${card.value === 'light' ? 'bg-white' : 'bg-white/15'} flex items-center justify-end px-2`}>
-              <div className="h-2.5 w-2.5 rounded-full bg-[#d97757]" />
-            </div>
-          </div>
-        </div>
-        <span className="text-[14px] text-claude-textSecondary">{card.label}</span>
+const AvatarControl = ({
+  avatar,
+  initials,
+  onRandomize,
+  onClear,
+}: {
+  avatar: number;
+  initials: string;
+  onRandomize: () => void;
+  onClear: () => void;
+}) => (
+  <div className="group/avatar relative w-fit">
+    <button
+      type="button"
+      aria-label="Randomize avatar"
+      onClick={onRandomize}
+      className="relative block size-10 overflow-hidden rounded-full bg-t9 text-z0 outline-none focus-visible:shadow-[0_0_0_2px_var(--accent)]"
+    >
+      <span className="flex size-10 items-center justify-center text-sm font-medium transition duration-150 group-hover/avatar:scale-110 group-hover/avatar:opacity-40 group-hover/avatar:blur-[3px]">
+        {avatar ? avatar : initials}
+      </span>
+      <span className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover/avatar:opacity-100">
+        <Shuffle size={16} />
+      </span>
+    </button>
+    {avatar !== 0 && (
+      <button
+        type="button"
+        aria-label="Clear avatar"
+        onClick={onClear}
+        className="absolute -left-1.5 -top-1.5 flex size-[18px] items-center justify-center rounded-full border border-t3 bg-z0 text-t6 opacity-0 shadow-sm transition-opacity hover:bg-t2 hover:text-t9 group-hover/avatar:opacity-100"
+      >
+        <X size={12} />
       </button>
-    ))}
+    )}
   </div>
 );
 
-const ChatFontCards = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
-  <div className="flex gap-4">
-    {[
-      { value: 'default', label: '默认聊天字体', sample: 'Aa', className: 'font-serif' },
-      { value: 'sans', label: 'Sans聊天字体', sample: 'Aa', className: 'font-sans' },
-      { value: 'system', label: '系统聊天字体', sample: 'Aa', className: 'font-sans' },
-      { value: 'dyslexic', label: '适合诵读困难的聊天字体', sample: 'Aa', className: 'tracking-wide' },
-    ].map(card => (
-      <button key={card.value} type="button" onClick={() => onChange(card.value)} className="flex w-32 flex-col items-center gap-2">
-        <div className={`flex aspect-[4/3] w-full items-center justify-center rounded-xl border bg-white text-[28px] shadow-sm transition ${value === card.value ? 'border-[#4f8df6] shadow-[0_0_0_1px_#4f8df6]' : 'border-[#d9d4ca] hover:border-[#c7c1b6]'} ${card.className}`}>
-          {card.sample}
-        </div>
-        <span className="text-center text-[13px] leading-5 text-claude-textSecondary">{card.label}</span>
+const CompactTextInput = ({
+  value,
+  onChange,
+  onSave,
+  ariaLabel,
+  required = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSave: (value: string) => void;
+  ariaLabel: string;
+  required?: boolean;
+}) => {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const commit = () => {
+    const next = draft.trim();
+    if (required && !next) {
+      setDraft(value);
+      return;
+    }
+    if (next === value.trim()) return;
+    onChange(next);
+    onSave(next);
+  };
+
+  return (
+    <input
+      value={draft}
+      aria-label={ariaLabel}
+      onChange={event => setDraft(event.currentTarget.value)}
+      onBlur={commit}
+      onKeyDown={event => {
+        if (event.key === 'Enter') event.currentTarget.blur();
+        if (event.key === 'Escape') {
+          setDraft(value);
+          event.currentTarget.blur();
+        }
+      }}
+      className="h-8 w-56 rounded-md border border-transparent bg-transparent px-2 text-sm text-t9 outline-none transition-colors hover:bg-t2 focus:border-t3 focus:bg-z0"
+    />
+  );
+};
+
+const CompactSelect = ({
+  value,
+  onChange,
+  options,
+  placeholder = 'Select',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder?: string;
+}) => (
+  <select
+    value={value}
+    aria-label={placeholder}
+    onChange={event => onChange(event.currentTarget.value)}
+    className="h-8 w-56 rounded-md border border-transparent bg-transparent px-2 text-sm text-t9 outline-none transition-colors hover:bg-t2 focus:border-t3 focus:bg-z0"
+  >
+    <option value="">{placeholder}</option>
+    {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+  </select>
+);
+
+const SegmentedIconControl = ({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) => (
+  <div className="inline-flex h-8 rounded-md bg-t2 p-0.5">
+    {options.map(option => (
+      <button
+        key={option.value}
+        type="button"
+        aria-pressed={value === option.value}
+        onClick={() => onChange(option.value)}
+        className={`min-w-16 rounded px-2 text-xs transition-colors ${
+          value === option.value ? 'bg-z0 text-t9 shadow-sm' : 'text-t6 hover:text-t9'
+        }`}
+      >
+        {option.label}
       </button>
     ))}
   </div>
-);
-
-const AnimationCard = ({ label, active }: { label: string; active?: boolean }) => (
-  <button type="button" className={`flex flex-col items-center gap-2`}>
-    <div className={`h-[64px] w-[126px] rounded-xl border ${active ? 'border-[#4f8df6] shadow-[0_0_0_1px_#4f8df6]' : 'border-[#d9d4ca]'} bg-white`} />
-    <span className="text-[14px] text-claude-textSecondary">{label}</span>
-  </button>
 );
 
 const SettingsButton = ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) => (

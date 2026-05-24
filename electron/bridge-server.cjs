@@ -265,6 +265,21 @@ function initServer(mainWindow) {
         return Object.entries(headers).map(([key, val]) => `${key}: ${val}`).join('\n');
     }
 
+    function normalizeInferenceModels(value) {
+        if (!Array.isArray(value)) return [];
+        return value.map((model) => {
+            const rawName = typeof model === 'string' ? model : model && model.name;
+            const normalizedName = String(rawName || '').trim();
+            if (!normalizedName) return null;
+            const suffixMatch = normalizedName.match(/^(.+?)\[1m\]$/i);
+            const name = suffixMatch ? suffixMatch[1].trim() : normalizedName;
+            return {
+                name,
+                supports1m: suffixMatch ? true : Boolean(model && typeof model === 'object' && model.supports1m),
+            };
+        }).filter(Boolean);
+    }
+
     function makeDefaultThirdPartyConfig() {
         return {
             inferenceProvider: 'gateway',
@@ -272,6 +287,7 @@ function initServer(mainWindow) {
             inferenceGatewayApiKey: '',
             inferenceGatewayAuthScheme: 'bearer',
             inferenceGatewayHeaders: {},
+            inferenceModels: [],
         };
     }
 
@@ -319,6 +335,7 @@ function initServer(mainWindow) {
         next.inferenceGatewayApiKey = String(next.inferenceGatewayApiKey || '');
         next.inferenceGatewayAuthScheme = normalizeGatewayAuthScheme(next.inferenceGatewayAuthScheme, next.inferenceGatewayBaseUrl);
         next.inferenceGatewayHeaders = normalizeHeaderMap(next.inferenceGatewayHeaders);
+        next.inferenceModels = normalizeInferenceModels(next.inferenceModels);
         return next;
     }
 
@@ -714,6 +731,107 @@ function initServer(mainWindow) {
             .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0];
         if (!firstUserMessage) return false;
         return updateDefaultConversationTitleFromMessage(conv, extractStoredMessageText(firstUserMessage.content));
+    }
+
+    function timestampMs(value) {
+        const ts = Date.parse(value || '');
+        return Number.isNaN(ts) ? 0 : ts;
+    }
+
+    function latestConversationMessage(convId) {
+        return db.messages
+            .filter(m => m.conversation_id === convId)
+            .sort((a, b) => timestampMs(b.created_at) - timestampMs(a.created_at))[0] || null;
+    }
+
+    function parseStoredAssistantSummary(message) {
+        if (!message) return '';
+        let text = extractStoredMessageText(message.content);
+        if (!text && typeof message.thinking === 'string') text = message.thinking;
+        return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+    }
+
+    const repoInfoCache = new Map();
+
+    function repoInfoForCwd(cwd) {
+        if (!cwd || !fs.existsSync(cwd)) return null;
+        if (repoInfoCache.has(cwd)) return repoInfoCache.get(cwd);
+        try {
+            const { spawnSync } = require('child_process');
+            const run = (args) => {
+                const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 1000, windowsHide: true });
+                return r.status === 0 ? (r.stdout || '').trim() : null;
+            };
+            if (!run(['rev-parse', '--show-toplevel'])) {
+                repoInfoCache.set(cwd, null);
+                return null;
+            }
+            const remoteUrl = run(['config', '--get', 'remote.origin.url']);
+            const match = remoteUrl && remoteUrl.match(/github\.com[:/]([^/]+)\/([^/.\s]+)(?:\.git)?$/);
+            const info = match ? { owner: match[1], name: match[2] } : null;
+            repoInfoCache.set(cwd, info);
+            return info;
+        } catch (_) {
+            repoInfoCache.set(cwd, null);
+            return null;
+        }
+    }
+
+    function codeSessionStatus(conv) {
+        const engine = typeof enginePool !== 'undefined' ? enginePool.get(conv.id) : null;
+        if (pendingPermissionRequests.has(conv.id)) return 'requires_action';
+        if (engine && engine.state === 'processing') return 'running';
+        const stream = activeStreams.get(conv.id);
+        if (stream && !stream.done) return 'running';
+        return 'idle';
+    }
+
+    function enrichConversationForList(conv) {
+        const project = conv.project_id ? db.projects.find(p => p.id === conv.project_id) : null;
+        const latest = latestConversationMessage(conv.id);
+        const base = {
+            ...conv,
+            project_name: project ? project.name : null,
+            timestamp: latest?.created_at || conv.updated_at || conv.created_at,
+        };
+        if (!conv.code_cwd) return base;
+
+        const status = codeSessionStatus(conv);
+        const pending = pendingPermissionRequests.get(conv.id);
+        const latestAssistant = latest?.role === 'assistant' ? latest : db.messages
+            .filter(m => m.conversation_id === conv.id && m.role === 'assistant')
+            .sort((a, b) => timestampMs(b.created_at) - timestampMs(a.created_at))[0];
+        const existingSummary = conv.postTurnSummary && typeof conv.postTurnSummary === 'object'
+            ? conv.postTurnSummary
+            : {};
+        const statusDetail = pending
+            ? `Permission requested: ${pending.tool_name || 'tool'}`
+            : (existingSummary.status_detail || existingSummary.recent_action || parseStoredAssistantSummary(latestAssistant));
+        return {
+            ...base,
+            type: 'local',
+            repoInfo: conv.repoInfo || repoInfoForCwd(conv.code_cwd),
+            taskSummary: status === 'running' ? (conv.title || 'Working on this session') : null,
+            sessionStatus: status,
+            session_status: status,
+            isUnread: status !== 'idle' || Boolean(conv.isUnread || conv.is_unread),
+            is_unread: status !== 'idle' ? 1 : (conv.is_unread || 0),
+            postTurnSummary: {
+                ...existingSummary,
+                status_category: status === 'requires_action' ? 'blocked' : (existingSummary.status_category || null),
+                status_detail: statusDetail,
+                recent_action: statusDetail,
+            },
+            external_metadata: pending ? { ...(conv.external_metadata || {}), pending_action: pending } : conv.external_metadata,
+            _originalSession: {
+                ...(conv._originalSession || {}),
+                worker_status: status === 'running' ? 'running' : 'idle',
+                external_metadata: pending ? {
+                    ...((conv._originalSession && conv._originalSession.external_metadata) || {}),
+                    pending_action: pending,
+                } : conv._originalSession?.external_metadata,
+            },
+        };
     }
 
     // ===== Provider Management =====
@@ -1940,15 +2058,9 @@ function initServer(mainWindow) {
             if (repairDefaultConversationTitleFromMessages(conv)) repairedTitles = true;
         }
         if (repairedTitles) saveDb();
-        // Enrich with project name for sidebar display
+        // Enrich with project/session state for sidebar and Code Action Center display.
         list = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .map(c => {
-                if (c.project_id) {
-                    const project = db.projects.find(p => p.id === c.project_id);
-                    return { ...c, project_name: project ? project.name : null };
-                }
-                return c;
-            });
+            .map(enrichConversationForList);
         res.json(list);
     });
 
